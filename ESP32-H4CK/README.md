@@ -1,4 +1,4 @@
-# ESP32-H4CK Vulnerable Lab
+# ESP32-H4CK - "SecureNet Solutions" Vulnerable Lab
 
 ## Project Overview
 
