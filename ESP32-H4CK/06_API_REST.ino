@@ -33,8 +33,8 @@ void setupRESTRoutes() {
     }
     
     DynamicJsonDocument doc(512);
-    doc["wifi_ssid"] = WIFI_SSID;
-    doc["wifi_password"] = WIFI_PASSWORD;  // Intentional exposure
+    doc["wifi_ssid"] = WIFI_SSID_STR;
+    doc["wifi_password"] = WIFI_PASSWORD_STR;  // Intentional exposure
     doc["jwt_secret"] = JWT_SECRET;  // Intentional exposure
     doc["enable_vulnerabilities"] = ENABLE_VULNERABILITIES;
     doc["debug_mode"] = DEBUG_MODE;

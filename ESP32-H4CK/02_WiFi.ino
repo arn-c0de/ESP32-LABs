@@ -19,9 +19,9 @@ void initWiFi() {
 }
 
 void connectWiFi() {
-  Serial.printf("[WIFI] Connecting to: %s\n", WIFI_SSID.c_str());
+  Serial.printf("[WIFI] Connecting to: %s\n", WIFI_SSID_STR.c_str());
   
-  WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
+  WiFi.begin(WIFI_SSID_STR.c_str(), WIFI_PASSWORD_STR.c_str());
   
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
@@ -52,10 +52,10 @@ void connectWiFi() {
 }
 
 void startAccessPoint() {
-  Serial.printf("[WIFI] Starting Access Point: %s\n", AP_SSID.c_str());
+  Serial.printf("[WIFI] Starting Access Point: %s\n", AP_SSID_STR.c_str());
   
   WiFi.mode(WIFI_AP);
-  bool apStarted = WiFi.softAP(AP_SSID.c_str(), AP_PASSWORD.c_str());
+  bool apStarted = WiFi.softAP(AP_SSID_STR.c_str(), AP_PASSWORD_STR.c_str());
   
   if (apStarted) {
     Serial.println("[WIFI] Access Point started successfully!");

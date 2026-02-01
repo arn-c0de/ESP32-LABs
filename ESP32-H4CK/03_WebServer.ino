@@ -104,8 +104,8 @@ void setupRoutes() {
     
     String debug = "=== DEBUG INFO ===\n";
     debug += "Free Heap: " + String(ESP.getFreeHeap()) + "\n";
-    debug += "WiFi SSID: " + WIFI_SSID + "\n";
-    debug += "WiFi Password: " + WIFI_PASSWORD + "\n";  // Intentional info disclosure
+    debug += "WiFi SSID: " + WIFI_SSID_STR + "\n";
+    debug += "WiFi Password: " + WIFI_PASSWORD_STR + "\n";  // Intentional info disclosure
     debug += "JWT Secret: " + JWT_SECRET + "\n";  // Intentional info disclosure
     debug += "Active Sessions: " + String(activeSessions.size()) + "\n";
     debug += "Total Requests: " + String(totalRequests) + "\n";

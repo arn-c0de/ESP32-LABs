@@ -36,11 +36,24 @@
 // ===== GLOBAL CONFIGURATION & CONSTANTS =====
 // (Must be declared before forward declarations for proper compilation order)
 
-// WiFi Configuration
-String WIFI_SSID = "ESP32-Lab";
-String WIFI_PASSWORD = "hacklab123";
-String AP_SSID = "ESP32-H4CK-AP";
-String AP_PASSWORD = "vulnerable";
+// WiFi Configuration (can be overridden via compiler defines from .env)
+#ifndef WIFI_SSID
+#define WIFI_SSID "ESP32-Lab"
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD "hacklab123"
+#endif
+#ifndef AP_SSID
+#define AP_SSID "ESP32-H4CK-AP"
+#endif
+#ifndef AP_PASSWORD
+#define AP_PASSWORD "vulnerable"
+#endif
+
+String WIFI_SSID_STR = WIFI_SSID;
+String WIFI_PASSWORD_STR = WIFI_PASSWORD;
+String AP_SSID_STR = AP_SSID;
+String AP_PASSWORD_STR = AP_PASSWORD;
 
 // Pin Definitions
 #define LED_PIN 13
