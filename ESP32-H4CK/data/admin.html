@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - ESP32-H4CK</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .stat-item h3 {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        
+        .stat-item p {
+            color: #333;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #764ba2;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 Admin Panel</h1>
+        <p id="userInfo">Loading...</p>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <h2>System Statistics</h2>
+            <div class="stats" id="systemStats">
+                <div class="loading">Loading system information...</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>User Management</h2>
+            <button class="btn" onclick="loadUsers()">Refresh Users</button>
+            <button class="btn" onclick="createUser()">Create User</button>
+            <div id="usersTable"></div>
+        </div>
+        
+        <div class="card">
+            <h2>Actions</h2>
+            <button class="btn" onclick="window.location.href='/shell.html'">Open Shell</button>
+            <button class="btn" onclick="window.location.href='/api/info'">System Info</button>
+            <button class="btn" onclick="window.location.href='/debug'">Debug Info</button>
+            <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+    </div>
+    
+    <script>
+        // Check authentication
+        const token = localStorage.getItem('token');
+        const username = localStorage.getItem('username');
+        const role = localStorage.getItem('role');
+        
+        if (!token) {
+            window.location.href = '/login';
+        }
+        
+        document.getElementById('userInfo').textContent = `Logged in as: ${username} (${role})`;
+        
+        // Load system stats
+        async function loadSystemStats() {
+            try {
+                const response = await fetch('/api/info');
+                const data = await response.json();
+                
+                const statsDiv = document.getElementById('systemStats');
+                statsDiv.innerHTML = `
+                    <div class="stat-item">
+                        <h3>Uptime</h3>
+                        <p>${data.uptime}s</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Free Heap</h3>
+                        <p>${(data.free_heap / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Total Requests</h3>
+                        <p>${data.server.total_requests}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Active Sessions</h3>
+                        <p>${data.server.active_sessions}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>IP Address</h3>
+                        <p>${data.wifi.ip}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>WiFi Signal</h3>
+                        <p>${data.wifi.rssi} dBm</p>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load system stats:', error);
+            }
+        }
+        
+        // Load users
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                const data = await response.json();
+                const usersDiv = document.getElementById('usersTable');
+                
+                if (data.users && data.users.length > 0) {
+                    let html = '<table><thead><tr><th>Username</th><th>Role</th><th>Created</th></tr></thead><tbody>';
+                    data.users.forEach(user => {
+                        html += `<tr>
+                            <td>${user.username}</td>
+                            <td>${user.role}</td>
+                            <td>${user.created || 'N/A'}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    usersDiv.innerHTML = html;
+                } else {
+                    usersDiv.innerHTML = '<p>No users found in database.</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load users:', error);
+                document.getElementById('usersTable').innerHTML = '<p class="loading">Error loading users</p>';
+            }
+        }
+        
+        function createUser() {
+            const username = prompt('Enter username:');
+            if (!username) return;
+            
+            const password = prompt('Enter password:');
+            if (!password) return;
+            
+            const role = confirm('Admin role?') ? 'admin' : 'guest';
+            
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('role', role);
+            
+            fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('User created successfully!');
+                    loadUsers();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                alert('Network error: ' + error.message);
+            });
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
+            window.location.href = '/login';
+        }
+        
+        // Load data on page load
+        window.addEventListener('load', function() {
+            loadSystemStats();
+            loadUsers();
+            
+            // Auto-refresh stats every 10 seconds
+            setInterval(loadSystemStats, 10000);
+        });
+    </script>
+</body>
+</html>

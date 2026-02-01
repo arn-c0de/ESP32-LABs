@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Shell - ESP32-H4CK</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #00ff00;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        
+        .header {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px 5px 0 0;
+            border-bottom: 2px solid #00ff00;
+        }
+        
+        h1 {
+            color: #00ff00;
+            font-size: 1.5em;
+        }
+        
+        .status {
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+        
+        .connected { color: #00ff00; }
+        .disconnected { color: #ff0000; }
+        
+        .terminal {
+            flex: 1;
+            background: #000;
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 2px solid #00ff00;
+            border-top: none;
+        }
+        
+        .input-line {
+            display: flex;
+            align-items: center;
+            margin-top: 5px;
+        }
+        
+        .prompt {
+            color: #00ff00;
+            margin-right: 5px;
+        }
+        
+        #commandInput {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .output-line {
+            margin: 2px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .error {
+            color: #ff5555;
+        }
+        
+        .info {
+            color: #55ffff;
+        }
+        
+        .warning {
+            color: #ffff55;
+        }
+        
+        .controls {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 0 0 5px 5px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 15px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        .btn:hover {
+            background: #00cc00;
+        }
+        
+        .btn:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>💻 ESP32-H4CK WebSocket Shell</h1>
+        <div class="status">
+            Status: <span id="status" class="disconnected">Disconnected</span>
+        </div>
+    </div>
+    
+    <div class="terminal" id="terminal">
+        <div class="output-line info">Initializing WebSocket connection...</div>
+    </div>
+    
+    <div class="input-line">
+        <span class="prompt">$</span>
+        <input type="text" id="commandInput" autocomplete="off" placeholder="Type 'help' for commands">
+    </div>
+    
+    <div class="controls">
+        <button class="btn" id="connectBtn" onclick="connect()">Connect</button>
+        <button class="btn" id="clearBtn" onclick="clearTerminal()">Clear</button>
+        <button class="btn" onclick="window.location.href='/'">Home</button>
+    </div>
+    
+    <script>
+        let ws = null;
+        const terminal = document.getElementById('terminal');
+        const commandInput = document.getElementById('commandInput');
+        const statusEl = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        
+        function addOutput(text, className = '') {
+            const line = document.createElement('div');
+            line.className = 'output-line ' + className;
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                return;
+            }
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/shell';
+            
+            addOutput('Connecting to ' + wsUrl + '...', 'info');
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'connected';
+                connectBtn.textContent = 'Disconnect';
+                commandInput.disabled = false;
+                commandInput.focus();
+                addOutput('Connected successfully!', 'info');
+            };
+            
+            ws.onmessage = function(event) {
+                addOutput(event.data);
+            };
+            
+            ws.onerror = function(error) {
+                addOutput('WebSocket error!', 'error');
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = function() {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'disconnected';
+                connectBtn.textContent = 'Connect';
+                commandInput.disabled = true;
+                addOutput('Connection closed.', 'warning');
+                ws = null;
+            };
+        }
+        
+        function sendCommand(command) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addOutput('Not connected!', 'error');
+                return;
+            }
+            
+            addOutput('$ ' + command, 'info');
+            ws.send(command);
+        }
+        
+        function clearTerminal() {
+            terminal.innerHTML = '';
+            addOutput('Terminal cleared.', 'info');
+        }
+        
+        commandInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const command = commandInput.value.trim();
+                if (command) {
+                    sendCommand(command);
+                    commandInput.value = '';
+                }
+            }
+        });
+        
+        // Auto-connect on load
+        window.addEventListener('load', function() {
+            setTimeout(connect, 500);
+        });
+    </script>
+</body>
+</html>

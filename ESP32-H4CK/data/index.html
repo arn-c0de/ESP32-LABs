@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-H4CK Vulnerable Lab</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .version {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
+        
+        .warning strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .endpoints {
+            margin: 30px 0;
+        }
+        
+        .endpoints h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .endpoint-list {
+            list-style: none;
+        }
+        
+        .endpoint-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s;
+        }
+        
+        .endpoint-item:hover {
+            transform: translateX(5px);
+            background: #e9ecef;
+        }
+        
+        .endpoint-item a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .endpoint-item p {
+            color: #666;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        
+        .method.get { background: #28a745; color: white; }
+        .method.post { background: #007bff; color: white; }
+        .method.put { background: #ffc107; color: black; }
+        .method.delete { background: #dc3545; color: white; }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔓 ESP32-H4CK</h1>
+            <p class="version">Vulnerable Web Application Lab v1.0.0</p>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Warning - Educational Lab Environment</strong>
+            This system contains intentional security vulnerabilities for cybersecurity training and penetration testing education. Deploy ONLY in isolated lab environments. DO NOT expose to production networks or the internet.
+        </div>
+        
+        <div class="endpoints">
+            <h2>Available Endpoints</h2>
+            <ul class="endpoint-list">
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/login">/login</a>
+                    <p>User authentication page (default: admin/admin, guest/guest)</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/admin">/admin</a>
+                    <p>Admin panel (requires authentication)</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/api/info">/api/info</a>
+                    <p>System information and status</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/api/users">/api/users</a>
+                    <p>User management API (vulnerable to injection)</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/shell.html">/shell.html</a>
+                    <p>WebSocket-based interactive shell</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/debug">/debug</a>
+                    <p>Debug information endpoint (info disclosure)</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/vuln/comments">/vuln/comments</a>
+                    <p>Comment system (vulnerable to XSS)</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/vuln/search?q=admin">/vuln/search</a>
+                    <p>Search endpoint (vulnerable to SQL injection)</p>
+                </li>
+            </ul>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="/login" class="btn">Login</a>
+            <a href="/shell.html" class="btn">Web Shell</a>
+            <a href="/api/info" class="btn">System Info</a>
+        </div>
+        
+        <div class="endpoints">
+            <h2>Other Services</h2>
+            <ul class="endpoint-list">
+                <li class="endpoint-item">
+                    <strong>Telnet Service:</strong> Port 23
+                    <p>Connect with: <code>telnet &lt;device-ip&gt; 23</code></p>
+                </li>
+                <li class="endpoint-item">
+                    <strong>WebSocket Shell:</strong> ws://&lt;device-ip&gt;/shell
+                    <p>Interactive command shell via WebSocket</p>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>ESP32-H4CK Vulnerable Lab Project</p>
+            <p>For Educational Use Only</p>
+        </div>
+    </div>
+</body>
+</html>
