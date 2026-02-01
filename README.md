@@ -1,6 +1,5 @@
 # ESP32-LABs
 
-![ESP32-LAB - SecureNet Solutions](ESP32-H4CK/images/ESP32-LAB-SecureNet%20Solutions.png)
 
 **ESP32-LABs** is a collection of ESP32-based educational and experimental labs for security research, training, and prototyping. The repository hosts current projects and will continue to host future labs covering offensive and defensive techniques, safe experiments, and red-team/blue-team exercises.
 
@@ -24,6 +23,9 @@ Always obtain permission before performing security testing on systems you do no
 
 ## LABs
 - **SecureNet Lab — ESP32-H4CK**: A vulnerable "SecureNet Solutions" lab designed for hands-on penetration testing exercises and learning. See the lab documentation and exercises in [ESP32-H4CK/README.md](ESP32-H4CK/README.md) and the quick start guide: [ESP32-H4CK/QUICKSTART.md](ESP32-H4CK/QUICKSTART.md).
+<img src="ESP32-H4CK/images/ESP32-LAB-SecureNet%20Solutions.png" alt="ESP32-LAB - SecureNet Solutions" width="50%">
+
+
 - More labs will be added over time — check each subfolder for its README or QUICKSTART.
 
 ## Contributing 
