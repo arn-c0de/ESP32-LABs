@@ -2,7 +2,7 @@
 
 ![ESP32-LAB - SecureNet Solutions](images/ESP32-LAB-SecureNet%20Solutions.png)
 
-Version: **1.0.1** (English)
+Version: **1.0.1** (English) — **Quick Start:** see [QUICKSTART.md](QUICKSTART.md) for a step-by-step guide.
 
 ## Project Overview
 
@@ -102,6 +102,9 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 ---
 
 ## Quick Start (Hardware & Software)
+
+> Detailed quick start: see [QUICKSTART.md](QUICKSTART.md)
+
 - Hardware: ESP32 board (4MB+ flash recommended)
 - Tools: Arduino IDE (1.8+/2.x), `arduino-cli`, `picocom` or similar for serial
 - Libraries: `ESPAsyncWebServer`, `AsyncTCP`, `ArduinoJson`, `LittleFS`

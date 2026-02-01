@@ -40,6 +40,42 @@ String WIFI_SSID = "YourNetworkName";      // Change this
 String WIFI_PASSWORD = "YourPassword";     // Change this
 ```
 
+### Configuration Parameters & Runtime Flags 🔧
+
+You can configure the device at build time (using `.env` + `./build.sh`), by editing source defaults in `ESP32-H4CK.ino`/`01_Config.ino`, or at runtime via the device's configuration API and persistent Preferences storage.
+
+**Common parameters**
+
+- `WIFI_SSID` / `WIFI_PASSWORD` — Station (client) WiFi credentials. Set in `.env` or `ESP32-H4CK.ino` defaults.
+- `AP_SSID` / `AP_PASSWORD` — Access Point SSID/password when running in AP mode.
+- `STATION_MODE` — `true` to connect to an existing WiFi network (station), `false` to run AP-only. Default: `false`.
+- `JWT_SECRET` — JWT signing secret (weak by default for lab). Set in `.env` or via compile-time define.
+- `ENABLE_VULNERABILITIES` — `true` or `false` to enable/disable vulnerable endpoints. Default: `true` (lab mode).
+- `DEBUG_MODE` — Enables verbose logging (default: `true`).
+- `SSL_ENABLED` — Enable HTTPS (default: `false`).
+- `ENABLE_TELNET` / `ENABLE_WEBSOCKET` — Toggle Telnet and WebSocket services.
+- Ports: `HTTP_PORT`, `HTTPS_PORT`, `TELNET_PORT`, `WEBSOCKET_PORT`, `API_PORT` — Change in `ESP32-H4CK.ino` if needed.
+- Telnet credentials: `TELNET_ADMIN_PASSWORD`, `TELNET_GUEST_PASSWORD`, `TELNET_ROOT_PASSWORD` — Defaults come from `.env`/`ESP32-H4CK.ino`.
+
+**How to change values**
+
+1. Edit `.env` (copy from `.env.example`) and run `./build.sh` — recommended for WiFi credentials and secrets.
+2. Edit `ESP32-H4CK.ino` or `01_Config.ino` and rebuild to change compile-time defaults.
+3. Change at runtime using the admin API (`/api/admin/config-update`) or by calling the device's configuration endpoints; settings are saved to flash by `saveConfigToFS()` and loaded on boot by `loadConfigFromFS()`.
+
+**Recommended `.env` snippet**
+
+```dotenv
+WIFI_SSID=YourNetworkName
+WIFI_PASSWORD=YourNetworkPassword
+AP_SSID=ESP32-H4CK-AP
+AP_PASSWORD=vulnerable
+STATION_MODE=false
+JWT_SECRET=weak_secret_key_123
+```
+
+> ⚠️ Security note: This lab intentionally uses weak defaults. Never use production credentials or expose this device to the internet. Use isolated lab networks only.
+
 ### 2. Install Required Libraries
 
 Open Arduino IDE > Sketch > Include Library > Manage Libraries
