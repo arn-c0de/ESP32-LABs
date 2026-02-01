@@ -239,3 +239,197 @@ void performSelfTest() {
   
   Serial.println("=== SELF-TEST COMPLETE ===\n");
 }
+
+// Serial Command Handler
+void handleSerialCommands() {
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    
+    if (command.length() == 0) return;
+    
+    Serial.println("\n>>> " + command);
+    
+    if (command == "/status" || command == "status") {
+      printAllServicesStatus();
+    } 
+    else if (command == "/help" || command == "help") {
+      Serial.println("\n=== AVAILABLE SERIAL COMMANDS ===");
+      Serial.println("/status   - Show all services status");
+      Serial.println("/memory   - Show memory usage");
+      Serial.println("/wifi     - Show WiFi information");
+      Serial.println("/system   - Show system information");
+      Serial.println("/restart  - Restart ESP32");
+      Serial.println("/help     - Show this help");
+      Serial.println("================================\n");
+    }
+    else if (command == "/memory" || command == "memory") {
+      printMemoryUsage();
+    }
+    else if (command == "/wifi" || command == "wifi") {
+      printWiFiInfo();
+    }
+    else if (command == "/system" || command == "system") {
+      printSystemInfo();
+    }
+    else if (command == "/restart" || command == "restart") {
+      Serial.println("\n[SYSTEM] Restarting ESP32...\n");
+      delay(1000);
+      ESP.restart();
+    }
+    else {
+      Serial.println("[ERROR] Unknown command. Type /help for available commands.");
+    }
+  }
+}
+
+// Comprehensive Services Status Report
+void printAllServicesStatus() {
+  Serial.println("\n╔════════════════════════════════════════════════════════════╗");
+  Serial.println("║           ESP32-H4CK SERVICES STATUS REPORT               ║");
+  Serial.println("╚════════════════════════════════════════════════════════════╝");
+  
+  // System Information
+  Serial.println("\n┌─── SYSTEM ───────────────────────────────────────────────┐");
+  Serial.printf("│ Firmware:       v%s (%s)\n", FIRMWARE_VERSION, CODENAME);
+  Serial.printf("│ Uptime:         %lu seconds\n", millis() / 1000);
+  Serial.printf("│ Free Heap:      %d bytes (%d%%)\n", ESP.getFreeHeap(), getFreeHeapPercentage());
+  Serial.printf("│ Total Requests: %d\n", totalRequests);
+  Serial.printf("│ Active Conn:    %d\n", activeConnections);
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // WiFi Status
+  Serial.println("\n┌─── WIFI CONNECTION ──────────────────────────────────────┐");
+  if (STATION_MODE && WiFi.status() == WL_CONNECTED) {
+    Serial.println("│ Mode:           ✅ Station (Connected)");
+    Serial.printf("│ SSID:           %s\n", WiFi.SSID().c_str());
+    Serial.printf("│ IP Address:     %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("│ Gateway:        %s\n", WiFi.gatewayIP().toString().c_str());
+    Serial.printf("│ Signal:         %d dBm\n", WiFi.RSSI());
+    Serial.printf("│ MAC Address:    %s\n", WiFi.macAddress().c_str());
+  } else if (STATION_MODE) {
+    Serial.println("│ Mode:           ❌ Station (Disconnected)");
+    Serial.printf("│ SSID:           %s\n", WIFI_SSID_STR.c_str());
+    Serial.println("│ Status:         Not Connected");
+  }
+  
+  if (!STATION_MODE || WiFi.getMode() == WIFI_AP_STA) {
+    Serial.println("│ AP Mode:        ✅ Active");
+    Serial.printf("│ AP SSID:        %s\n", AP_SSID_STR.c_str());
+    Serial.printf("│ AP IP:          %s\n", WiFi.softAPIP().toString().c_str());
+    Serial.printf("│ Clients:        %d connected\n", WiFi.softAPgetStationNum());
+    Serial.printf("│ AP MAC:         %s\n", WiFi.softAPmacAddress().c_str());
+  }
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // HTTP Server Status
+  Serial.println("\n┌─── HTTP SERVER ──────────────────────────────────────────┐");
+  Serial.printf("│ Service:        ✅ RUNNING (Port %d)\n", HTTP_PORT);
+  Serial.printf("│ SSL/TLS:        %s\n", SSL_ENABLED ? "✅ Enabled" : "❌ Disabled");
+  Serial.printf("│ Total Requests: %d\n", totalRequests);
+  Serial.printf("│ Endpoints:      / /login /admin /api/*\n");
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("│ Access URL:     http://%s/\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.printf("│ Access URL:     http://%s/\n", WiFi.softAPIP().toString().c_str());
+  }
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // WebSocket Status
+  Serial.println("\n┌─── WEBSOCKET SERVER ─────────────────────────────────────┐");
+  if (ENABLE_WEBSOCKET) {
+    Serial.println("│ Service:        ✅ RUNNING");
+    Serial.printf("│ Endpoint:       /shell\n");
+    Serial.printf("│ Clients:        %d connected\n", ws.count());
+    Serial.println("│ Features:       Interactive Shell");
+  } else {
+    Serial.println("│ Service:        ❌ DISABLED");
+  }
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // Telnet Status
+  Serial.println("\n┌─── TELNET SERVER ────────────────────────────────────────┐");
+  if (ENABLE_TELNET) {
+    Serial.printf("│ Service:        ✅ RUNNING (Port %d)\n", TELNET_PORT);
+    Serial.println("│ Authentication: Password from .env");
+    Serial.println("│ Credentials:    admin/*****, guest/*****, root/*****");
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("│ Connect:        telnet %s %d\n", WiFi.localIP().toString().c_str(), TELNET_PORT);
+    } else {
+      Serial.printf("│ Connect:        telnet %s %d\n", WiFi.softAPIP().toString().c_str(), TELNET_PORT);
+    }
+    Serial.println("│ 💡 Tip:         Try 'sudo -l' after login");
+  } else {
+    Serial.println("│ Service:        ❌ DISABLED");
+  }
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // REST API Status
+  Serial.println("\n┌─── REST API ─────────────────────────────────────────────┐");
+  Serial.println("│ Service:        ✅ RUNNING");
+  Serial.println("│ Endpoints:      /api/login, /api/logout");
+  Serial.println("│                 /api/users, /api/system");
+  Serial.println("│                 /api/debug, /api/config");
+  Serial.printf("│ Auth:           JWT (Secret: %s...)\n", JWT_SECRET_STR.substring(0, 8).c_str());
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // Database Status
+  Serial.println("\n┌─── DATABASE ─────────────────────────────────────────────┐");
+  Serial.println("│ Type:           JSON (LittleFS)");
+  Serial.printf("│ File:           %s\n", DB_FILE_PATH);
+  File dbFile = LittleFS.open(DB_FILE_PATH, "r");
+  if (dbFile) {
+    Serial.printf("│ Size:           %d bytes\n", dbFile.size());
+    Serial.println("│ Status:         ✅ OK");
+    dbFile.close();
+  } else {
+    Serial.println("│ Status:         ❌ File not found");
+  }
+  Serial.printf("│ Default Users:  %d configured\n", DEFAULT_USERS_COUNT);
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // Filesystem Status
+  Serial.println("\n┌─── FILESYSTEM ───────────────────────────────────────────┐");
+  Serial.println("│ Type:           LittleFS");
+  Serial.printf("│ Total:          %d bytes\n", LittleFS.totalBytes());
+  Serial.printf("│ Used:           %d bytes\n", LittleFS.usedBytes());
+  Serial.printf("│ Free:           %d bytes\n", LittleFS.totalBytes() - LittleFS.usedBytes());
+  Serial.printf("│ Usage:          %d%%\n", (LittleFS.usedBytes() * 100) / LittleFS.totalBytes());
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // Security Status
+  Serial.println("\n┌─── SECURITY FEATURES ────────────────────────────────────┐");
+  Serial.printf("│ Vulnerabilities: %s\n", ENABLE_VULNERABILITIES ? "⚠️  ENABLED (LAB MODE)" : "✅ Disabled");
+  Serial.printf("│ Debug Mode:      %s\n", DEBUG_MODE ? "⚠️  ENABLED" : "✅ Disabled");
+  Serial.printf("│ SQL Injection:   %s\n", VULN_SQL_INJECTION ? "⚠️  Vulnerable" : "✅ Protected");
+  Serial.printf("│ XSS:             %s\n", VULN_XSS ? "⚠️  Vulnerable" : "✅ Protected");
+  Serial.printf("│ Path Traversal:  %s\n", VULN_PATH_TRAVERSAL ? "⚠️  Vulnerable" : "✅ Protected");
+  Serial.printf("│ Cmd Injection:   %s\n", VULN_COMMAND_INJECTION ? "⚠️  Vulnerable" : "✅ Protected");
+  Serial.printf("│ CSRF:            %s\n", VULN_CSRF ? "⚠️  Vulnerable" : "✅ Protected");
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  // Active Sessions
+  Serial.println("\n┌─── ACTIVE SESSIONS ──────────────────────────────────────┐");
+  Serial.printf("│ Total Sessions:  %d\n", activeSessions.size());
+  if (activeSessions.size() > 0) {
+    int count = 0;
+    for (auto& session : activeSessions) {
+      if (count < 5) { // Show max 5 sessions
+        Serial.printf("│ - User: %-10s Role: %-8s IP: %s\n", 
+                      session.second.username.c_str(), 
+                      session.second.role.c_str(),
+                      session.second.ipAddress.c_str());
+        count++;
+      }
+    }
+    if (activeSessions.size() > 5) {
+      Serial.printf("│ ... and %d more sessions\n", activeSessions.size() - 5);
+    }
+  }
+  Serial.println("└──────────────────────────────────────────────────────────┘");
+  
+  Serial.println("\n╔════════════════════════════════════════════════════════════╗");
+  Serial.println("║ Type /help for more commands                              ║");
+  Serial.println("╚════════════════════════════════════════════════════════════╝\n");
+}
+

@@ -19,6 +19,7 @@ void initTelnet() {
   telnetServer.setNoDelay(true);
   
   Serial.printf("[TELNET] Telnet server started on port %d\n", TELNET_PORT);
+  Serial.printf("[TELNET] Credentials from .env: admin/*****, guest/*****, root/*****\n");
   Serial.printf("[TELNET] Connect with: telnet %s %d\n", getLocalIP().c_str(), TELNET_PORT);
 }
 
@@ -84,12 +85,30 @@ void handleTelnetClients() {
           } else {
             // Reading password
             String password = line;
-            if (authenticateUser(telnetUsernames[i], password)) {
+            String username = telnetUsernames[i];
+            bool authenticated = false;
+            
+            // Check default users first
+            if (authenticateUser(username, password)) {
+              authenticated = true;
+            }
+            // Also check environment-based passwords
+            else if (username == "admin" && password == TELNET_ADMIN_PASSWORD_STR) {
+              authenticated = true;
+            } else if (username == "guest" && password == TELNET_GUEST_PASSWORD_STR) {
+              authenticated = true;
+            } else if (username == "root" && password == TELNET_ROOT_PASSWORD_STR) {
+              authenticated = true;
+            }
+            
+            if (authenticated) {
               telnetAuthenticated[i] = true;
               telnetClients[i].println("\nLogin successful!");
+              Serial.printf("[TELNET] ✅ User '%s' authenticated (slot %d)\n", username.c_str(), i);
               sendTelnetPrompt(telnetClients[i]);
             } else {
               telnetClients[i].println("\nLogin failed!");
+              Serial.printf("[TELNET] ❌ Failed login for '%s' (slot %d)\n", username.c_str(), i);
               telnetClients[i].stop();
             }
           }
