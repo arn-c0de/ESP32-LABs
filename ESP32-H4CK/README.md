@@ -4,6 +4,8 @@
 
 Version: **1.0.1** (English) — **Quick Start:** see [QUICKSTART.md](QUICKSTART.md) for a step-by-step guide.
 
+Repository governance: see [CONTRIBUTING.md](../CONTRIBUTING.md), [SECURITY.md](../SECURITY.md), and `LICENSE` for contribution, disclosure, and licensing information. For security reports or questions, contact: arn-c0de@protonmail.com
+
 ## Project Overview
 
 ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersecurity training and hands-on penetration testing exercises. It runs on an ESP32 microcontroller and provides a realistic-looking company website ("SecureNet Solutions") while exposing hidden endpoints, admin panels, and a wide range of intentionally insecure services for safe lab practice.
