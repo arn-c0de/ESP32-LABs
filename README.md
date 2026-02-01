@@ -1,5 +1,7 @@
 # ESP32-LABs
 
+![ESP32-LAB - SecureNet Solutions](ESP32-H4CK/images/ESP32-LAB-SecureNet%20Solutions.png)
+
 **ESP32-LABs** is a collection of ESP32-based educational and experimental labs for security research, training, and prototyping. The repository hosts current projects and will continue to host future labs covering offensive and defensive techniques, safe experiments, and red-team/blue-team exercises.
 
 ---

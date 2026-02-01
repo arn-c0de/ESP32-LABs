@@ -8,6 +8,10 @@
 WiFiClient telnetClients[5];  // Support up to 5 concurrent telnet clients
 bool telnetAuthenticated[5] = {false, false, false, false, false};
 String telnetUsernames[5];
+String telnetLineBuffer[5];       // Per-client line buffer for character-by-character input
+bool telnetInEscSeq[5] = {false}; // Per-client escape sequence tracking
+int telnetEscLen[5] = {0};        // Length of current escape sequence
+bool telnetReadingPassword[5] = {false}; // Password input mode (no echo)
 
 void initTelnet() {
   if (!ENABLE_TELNET) {
@@ -23,9 +27,80 @@ void initTelnet() {
   Serial.printf("[TELNET] Connect with: telnet %s %d\n", getLocalIP().c_str(), TELNET_PORT);
 }
 
+// Send telnet negotiation to enable character mode
+void sendTelnetNegotiation(WiFiClient &client) {
+  // IAC WILL ECHO - server will handle echoing
+  uint8_t willEcho[] = {0xFF, 0xFB, 0x01};
+  client.write(willEcho, 3);
+  // IAC WILL SUPPRESS-GO-AHEAD
+  uint8_t willSGA[] = {0xFF, 0xFB, 0x03};
+  client.write(willSGA, 3);
+  // IAC DO SUPPRESS-GO-AHEAD
+  uint8_t doSGA[] = {0xFF, 0xFD, 0x03};
+  client.write(doSGA, 3);
+  // IAC DONT LINEMODE
+  uint8_t dontLinemode[] = {0xFF, 0xFE, 0x22};
+  client.write(dontLinemode, 3);
+}
+
+// Process a completed line for a client slot
+void processCompletedLine(int i) {
+  String line = telnetLineBuffer[i];
+  telnetLineBuffer[i] = "";
+
+  if (!telnetAuthenticated[i]) {
+    // Handle authentication
+    if (!telnetReadingPassword[i]) {
+      // Reading username
+      telnetUsernames[i] = line;
+      telnetReadingPassword[i] = true;
+      telnetClients[i].print("\r\nPassword: ");
+    } else {
+      // Reading password
+      telnetReadingPassword[i] = false;
+      String password = line;
+      String username = telnetUsernames[i];
+      bool authenticated = false;
+
+      // Check default users first
+      if (authenticateUser(username, password)) {
+        authenticated = true;
+      }
+      // Also check environment-based passwords
+      else if (username == "admin" && password == TELNET_ADMIN_PASSWORD_STR) {
+        authenticated = true;
+      } else if (username == "guest" && password == TELNET_GUEST_PASSWORD_STR) {
+        authenticated = true;
+      } else if (username == "root" && password == TELNET_ROOT_PASSWORD_STR) {
+        authenticated = true;
+      }
+
+      if (authenticated) {
+        telnetAuthenticated[i] = true;
+        telnetClients[i].println("\r\nLogin successful!");
+        Serial.printf("[TELNET] ✅ User '%s' authenticated (slot %d)\n", username.c_str(), i);
+        sendTelnetPrompt(telnetClients[i]);
+      } else {
+        telnetClients[i].println("\r\nLogin failed!");
+        Serial.printf("[TELNET] ❌ Failed login for '%s' (slot %d)\n", username.c_str(), i);
+        telnetClients[i].stop();
+      }
+    }
+  } else {
+    telnetClients[i].print("\r\n");
+    // Process command
+    if (line.length() > 0) {
+      processTelnetCommand(telnetClients[i], line);
+    }
+    if (telnetClients[i].connected()) {
+      sendTelnetPrompt(telnetClients[i]);
+    }
+  }
+}
+
 void handleTelnetClients() {
   if (!ENABLE_TELNET) return;
-  
+
   // Check for new clients
   if (telnetServer.hasClient()) {
     // Find empty slot
@@ -36,15 +111,22 @@ void handleTelnetClients() {
         telnetClients[i] = telnetServer.available();
         telnetAuthenticated[i] = false;
         telnetUsernames[i] = "";
+        telnetLineBuffer[i] = "";
+        telnetInEscSeq[i] = false;
+        telnetEscLen[i] = 0;
+        telnetReadingPassword[i] = false;
         freeSlot = i;
-        
-        Serial.printf("[TELNET] ✅ New client #%d from %s\n", 
+
+        Serial.printf("[TELNET] ✅ New client #%d from %s\n",
                       i, telnetClients[i].remoteIP().toString().c_str());
-        
+
+        sendTelnetNegotiation(telnetClients[i]);
+        delay(50);
+
         telnetClients[i].println("ESP32-H4CK Telnet Service");
         telnetClients[i].println("========================");
         telnetClients[i].println();
-        
+
         // Intentional vulnerability: Optional authentication
         if (VULN_WEAK_AUTH) {
           telnetClients[i].println("WARNING: Weak authentication mode enabled!");
@@ -55,11 +137,11 @@ void handleTelnetClients() {
         } else {
           telnetClients[i].print("Username: ");
         }
-        
+
         break;
       }
     }
-    
+
     if (freeSlot == -1) {
       // No free slots, reject connection
       WiFiClient rejectedClient = telnetServer.available();
@@ -68,56 +150,80 @@ void handleTelnetClients() {
       Serial.println("[TELNET] Connection rejected - server full");
     }
   }
-  
-  // Handle existing clients
+
+  // Handle existing clients - character-by-character processing
   for (int i = 0; i < 5; i++) {
     if (telnetClients[i] && telnetClients[i].connected()) {
-      if (telnetClients[i].available()) {
-        String line = telnetClients[i].readStringUntil('\n');
-        line.trim();
-        
-        if (!telnetAuthenticated[i]) {
-          // Handle authentication
-          if (telnetUsernames[i] == "") {
-            // Reading username
-            telnetUsernames[i] = line;
-            telnetClients[i].print("Password: ");
-          } else {
-            // Reading password
-            String password = line;
-            String username = telnetUsernames[i];
-            bool authenticated = false;
-            
-            // Check default users first
-            if (authenticateUser(username, password)) {
-              authenticated = true;
+      while (telnetClients[i].available()) {
+        uint8_t c = telnetClients[i].read();
+
+        // Handle telnet IAC commands (0xFF)
+        if (c == 0xFF) {
+          // Read and discard the 2-3 byte telnet command
+          if (telnetClients[i].available()) telnetClients[i].read();
+          if (telnetClients[i].available()) telnetClients[i].read();
+          continue;
+        }
+
+        // Handle escape sequences (arrow keys, etc.)
+        if (c == 0x1B) {  // ESC
+          telnetInEscSeq[i] = true;
+          telnetEscLen[i] = 0;
+          continue;
+        }
+        if (telnetInEscSeq[i]) {
+          telnetEscLen[i]++;
+          // Consume escape sequence (typically ESC [ X for arrow keys)
+          if (telnetEscLen[i] >= 2 || (c >= 'A' && c <= 'z')) {
+            telnetInEscSeq[i] = false;
+          }
+          continue;
+        }
+
+        // Handle backspace (0x7F DEL or 0x08 BS)
+        if (c == 0x7F || c == 0x08) {
+          if (telnetLineBuffer[i].length() > 0) {
+            telnetLineBuffer[i].remove(telnetLineBuffer[i].length() - 1);
+            // Send backspace-space-backspace to erase character on screen
+            if (!telnetReadingPassword[i]) {
+              telnetClients[i].write("\b \b", 3);
             }
-            // Also check environment-based passwords
-            else if (username == "admin" && password == TELNET_ADMIN_PASSWORD_STR) {
-              authenticated = true;
-            } else if (username == "guest" && password == TELNET_GUEST_PASSWORD_STR) {
-              authenticated = true;
-            } else if (username == "root" && password == TELNET_ROOT_PASSWORD_STR) {
-              authenticated = true;
+          }
+          continue;
+        }
+
+        // Handle Enter (CR or LF)
+        if (c == '\r' || c == '\n') {
+          // Ignore LF after CR
+          if (c == '\r') {
+            // Peek for LF and consume it
+            delay(2);
+            if (telnetClients[i].available()) {
+              uint8_t next = telnetClients[i].peek();
+              if (next == '\n') telnetClients[i].read();
             }
-            
-            if (authenticated) {
-              telnetAuthenticated[i] = true;
-              telnetClients[i].println("\nLogin successful!");
-              Serial.printf("[TELNET] ✅ User '%s' authenticated (slot %d)\n", username.c_str(), i);
+          }
+          if (c == '\n' && telnetLineBuffer[i].length() == 0) {
+            // Might be trailing LF, send prompt
+            if (telnetAuthenticated[i]) {
+              telnetClients[i].print("\r\n");
               sendTelnetPrompt(telnetClients[i]);
-            } else {
-              telnetClients[i].println("\nLogin failed!");
-              Serial.printf("[TELNET] ❌ Failed login for '%s' (slot %d)\n", username.c_str(), i);
-              telnetClients[i].stop();
             }
+            continue;
           }
+          processCompletedLine(i);
+          continue;
+        }
+
+        // Ignore other control characters
+        if (c < 0x20) continue;
+
+        // Normal printable character - add to buffer and echo
+        telnetLineBuffer[i] += (char)c;
+        if (!telnetReadingPassword[i]) {
+          telnetClients[i].write(c);  // Echo character back
         } else {
-          // Process command
-          if (line.length() > 0) {
-            processTelnetCommand(telnetClients[i], line);
-          }
-          sendTelnetPrompt(telnetClients[i]);
+          telnetClients[i].write('*');  // Mask password
         }
       }
     }
@@ -305,7 +411,14 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
 }
 
 void sendTelnetPrompt(WiFiClient &client) {
-  client.print("esp32@hack:~$ ");
+  String username = "esp32";
+  for (int i = 0; i < 5; i++) {
+    if (telnetClients[i] == client && telnetUsernames[i].length() > 0) {
+      username = telnetUsernames[i];
+      break;
+    }
+  }
+  client.print(username + "@hack:~$ ");
 }
 
 void disconnectTelnet(WiFiClient &client) {
@@ -314,6 +427,10 @@ void disconnectTelnet(WiFiClient &client) {
       telnetClients[i].stop();
       telnetAuthenticated[i] = false;
       telnetUsernames[i] = "";
+      telnetLineBuffer[i] = "";
+      telnetInEscSeq[i] = false;
+      telnetEscLen[i] = 0;
+      telnetReadingPassword[i] = false;
       Serial.printf("[TELNET] Client #%d disconnected\n", i);
       break;
     }
