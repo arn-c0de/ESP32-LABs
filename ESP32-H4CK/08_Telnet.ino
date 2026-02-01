@@ -37,7 +37,7 @@ void handleTelnetClients() {
         telnetUsernames[i] = "";
         freeSlot = i;
         
-        Serial.printf("[TELNET] New client connected (#%d) from %s\n", 
+        Serial.printf("[TELNET] ✅ New client #%d from %s\n", 
                       i, telnetClients[i].remoteIP().toString().c_str());
         
         telnetClients[i].println("ESP32-H4CK Telnet Service");
@@ -49,6 +49,7 @@ void handleTelnetClients() {
           telnetClients[i].println("WARNING: Weak authentication mode enabled!");
           telnetAuthenticated[i] = true;  // Auto-authenticate in vulnerable mode
           telnetUsernames[i] = "anonymous";
+          Serial.printf("[TELNET] Client #%d auto-authenticated as anonymous\n", i);
           sendTelnetPrompt(telnetClients[i]);
         } else {
           telnetClients[i].print("Username: ");
@@ -104,14 +105,36 @@ void handleTelnetClients() {
   }
 }
 
+int getClientIndex(WiFiClient *client) {
+  for (int i = 0; i < 5; i++) {
+    if (telnetClients[i] == *client) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 void processTelnetCommand(WiFiClient &client, String cmd) {
   cmd.trim();
   String cmdLower = cmd;
   cmdLower.toLowerCase();
   
-  logDebug("Telnet command: " + cmd);
+  // Find which client this is for logging
+  String username = "unknown";
+  for (int i = 0; i < 5; i++) {
+    if (telnetClients[i] == client) {
+      username = telnetUsernames[i];
+      break;
+    }
+  }
+  
+  Serial.printf("[TELNET] %s@%s: %s\n", username.c_str(), client.remoteIP().toString().c_str(), cmd.c_str());
+  
+  // Check for privilege escalation commands first
+  handlePrivilegeEscalation(client, cmd, getClientIndex(&client));
   
   if (cmdLower == "exit" || cmdLower == "quit" || cmdLower == "logout") {
+    Serial.printf("[TELNET] %s disconnecting\n", username.c_str());
     client.println("Goodbye!");
     client.stop();
     return;
@@ -155,7 +178,16 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
   }
   
   if (cmdLower == "id") {
-    client.println("uid=1000(esp32-user) gid=1000(esp32-user) groups=1000(esp32-user)");
+    if (username == "root") {
+      client.println("uid=0(root) gid=0(root) groups=0(root)");
+      client.println("✅ Running as ROOT - full system access!");
+    } else if (username == "admin") {
+      client.println("uid=1000(admin) gid=1000(admin) groups=1000(admin),27(sudo)");
+      client.println("HINT: You have sudo group - try 'sudo -l'");
+    } else {
+      client.println("uid=1002(" + username + ") gid=1002(" + username + ") groups=1002(" + username + ")");
+      client.println("HINT: Find SUID binaries: find / -perm -4000 2>/dev/null");
+    }
     return;
   }
   

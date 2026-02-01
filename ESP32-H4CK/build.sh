@@ -28,11 +28,18 @@ echo "📡 WiFi SSID: $WIFI_SSID"
 
 # Build compiler flags with proper quoting for string defines
 # Format: -DKEY="value" for string macros
+# Convert STATION_MODE to boolean (default false)
+STATION_MODE_BOOL="false"
+if [[ "${STATION_MODE}" == "true" ]] || [[ "${STATION_MODE}" == "1" ]]; then
+  STATION_MODE_BOOL="true"
+fi
+
 DEFINES="-DWIFI_SSID=\"${WIFI_SSID}\" \
 -DWIFI_PASSWORD=\"${WIFI_PASSWORD}\" \
 -DAP_SSID=\"${AP_SSID}\" \
 -DAP_PASSWORD=\"${AP_PASSWORD}\" \
--DJWT_SECRET=\"${JWT_SECRET}\""
+-DJWT_SECRET=\"${JWT_SECRET}\" \
+-DSTATION_MODE_DEFAULT=${STATION_MODE_BOOL}"
 
 # Compile with arduino-cli
 arduino-cli compile \

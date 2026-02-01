@@ -20,6 +20,7 @@ WIFI_SSID="$WIFI_SSID"
 WIFI_PASSWORD="$WIFI_PASSWORD"
 AP_SSID="${AP_SSID:-ESP32-H4CK-AP}"
 AP_PASSWORD="${AP_PASSWORD:-vulnerable}"
+STATION_MODE="${STATION_MODE:-false}"
 JWT_SECRET="${JWT_SECRET:-weak_secret_key_123}"
 EOF
       echo "✅ Created .env from environment variables"
@@ -48,11 +49,18 @@ EOF
     apssid=${apssid:-ESP32-H4CK-AP}
     read -p "AP_PASSWORD (default: vulnerable): " appass
     appass=${appass:-vulnerable}
+    read -p "STATION_MODE - Connect to WiFi? (y/N): " stmode
+    if [[ "$stmode" =~ ^[Yy] ]]; then
+      stmode="true"
+    else
+      stmode="false"
+    fi
     cat > .env <<EOF
 WIFI_SSID="$ssid"
 WIFI_PASSWORD="$spass"
 AP_SSID="$apssid"
 AP_PASSWORD="$appass"
+STATION_MODE="$stmode"
 JWT_SECRET="weak_secret_key_123"
 EOF
     echo "✅ Created .env interactively"
