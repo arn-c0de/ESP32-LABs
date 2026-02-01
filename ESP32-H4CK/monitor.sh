@@ -6,6 +6,13 @@
 
 BAUD=${2:-115200}
 PORT=${1:-}
+# Optional initial command to send to the device (third argument). Use "--test" or "-t" to send "/test" automatically.
+CMD_TO_SEND=${3:-}
+
+# Resolve shorthand flags
+if [ "$CMD_TO_SEND" = "--test" ] || [ "$CMD_TO_SEND" = "-t" ]; then
+  CMD_TO_SEND="/test"
+fi
 
 # Gather candidate ports (deduplicated)
 declare -a candidates
@@ -57,15 +64,30 @@ if [ ! -e "$PORT" ]; then
   echo "⚠️  Port \"$PORT\" does not exist."; exit 3
 fi
 
+# If an initial command was provided, send it once before opening the monitor
+send_initial_command() {
+  if [ -n "$CMD_TO_SEND" ]; then
+    echo "🔁 Sending initial command to $PORT: $CMD_TO_SEND"
+    # Ensure the device file is ready; do a tiny pause then send CR+LF
+    sleep 0.1
+    printf '%s\r\n' "$CMD_TO_SEND" > "$PORT" || echo "⚠️ Failed to write command to $PORT"
+    # Give the device a moment to process the command
+    sleep 0.2
+  fi
+}
+
 # Choose available monitor tool
 if command -v picocom >/dev/null 2>&1; then
   echo "✅ Using picocom for $PORT @ $BAUD"
+  send_initial_command
   exec picocom -b $BAUD "$PORT"
 elif python -c "import serial" >/dev/null 2>&1; then
   echo "✅ Using python -m serial.tools.miniterm for $PORT @ $BAUD"
+  send_initial_command
   exec python -m serial.tools.miniterm "$PORT" $BAUD
 elif command -v screen >/dev/null 2>&1; then
   echo "✅ Using screen for $PORT @ $BAUD (Exit with Ctrl-A k)"
+  send_initial_command
   exec screen "$PORT" $BAUD
 else
   echo "⚠️  No supported serial monitor found (picocom, python-serial, or screen)."

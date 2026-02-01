@@ -17,7 +17,7 @@
  * 
  * Author: ESP32-H4CK Lab Project
  * License: Educational Use Only
- * Version: 2.5.1 - VulnLab Extended Edition
+ * Version: 1.0.1 
  */
 
 #define FIRMWARE_VERSION "2.5.1"
@@ -67,9 +67,11 @@ String AP_PASSWORD_STR = AP_PASSWORD;
 #define HTTPS_PORT 443
 #define HTTP_PORT 80
 #define TELNET_PORT 23
+#define SSH_PORT 22
 #define WEBSOCKET_PORT 8080
 #define API_PORT 8443
 #define DEBUG_PORT 9000
+#define MAX_SSH_CLIENTS 4
 
 // Feature Flags
 bool ENABLE_VULNERABILITIES = true;
@@ -93,6 +95,20 @@ bool STATION_MODE = STATION_MODE_DEFAULT;
 #define JWT_SECRET "weak_secret_key_123"
 #endif
 String JWT_SECRET_STR = JWT_SECRET;
+
+// Telnet Credentials from .env
+#ifndef TELNET_ADMIN_PASSWORD
+#define TELNET_ADMIN_PASSWORD "admin"
+#endif
+#ifndef TELNET_GUEST_PASSWORD
+#define TELNET_GUEST_PASSWORD "guest"
+#endif
+#ifndef TELNET_ROOT_PASSWORD
+#define TELNET_ROOT_PASSWORD "toor"
+#endif
+String TELNET_ADMIN_PASSWORD_STR = TELNET_ADMIN_PASSWORD;
+String TELNET_GUEST_PASSWORD_STR = TELNET_GUEST_PASSWORD;
+String TELNET_ROOT_PASSWORD_STR = TELNET_ROOT_PASSWORD;
 #define JWT_EXPIRY 86400
 #define SESSION_ID_LENGTH 16
 #define PASSWORD_MIN_LENGTH 4
@@ -221,6 +237,7 @@ void handleTelnetClients();
 void processTelnetCommand(WiFiClient &client, String cmd);
 void sendTelnetPrompt(WiFiClient &client);
 
+
 // Vulnerabilities Module
 void setupVulnerableEndpoints();
 void setupAdvancedVulnerabilityEndpoints();
@@ -257,6 +274,8 @@ void logDebug(String message);
 void printSystemInfo();
 void printMemoryUsage();
 void printWiFiInfo();
+void handleSerialCommands();
+void printAllServicesStatus();
 
 // ===== ARDUINO ENTRY POINTS =====
 
@@ -305,14 +324,14 @@ void setup() {
   initTelnet();
   logInfo("Telnet service started");
   
+  initSSH();
+  logInfo("SSH service started");
+  
   setupRESTRoutes();
   logInfo("REST API configured");
   
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();
-    setupAdvancedVulnerabilityEndpoints();
-    logInfo("Vulnerable endpoints enabled (LAB MODE)");
-  }
   
   Serial.println();
   Serial.println("========================================");
@@ -325,6 +344,9 @@ void setup() {
 }
 
 void loop() {
+  // Handle serial commands
+  handleSerialCommands();
+  
   // Check WiFi connection periodically
   static unsigned long lastWiFiCheck = 0;
   if (millis() - lastWiFiCheck > WIFI_CHECK_INTERVAL) {
@@ -335,7 +357,20 @@ void loop() {
   // Handle telnet clients
   handleTelnetClients();
   
-  // Small delay to prevent watchdog issues
+  // Handle SSH clients
+  handleSSHClients();
+  
+  // Memory monitoring - restart if critically low
+  static unsigned long lastMemCheck = 0;
+  if (millis() - lastMemCheck > 5000) {
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 10000) {
+      Serial.printf("[CRITICAL] Low memory: %d bytes. Restarting...\n", freeHeap);
+      delay(1000);llis();
+  }
+  
+  // Feed watchdog and yield to prevent crashes
+  yield();
   delay(10);
 }
 

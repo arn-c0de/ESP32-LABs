@@ -30,9 +30,13 @@ void initWebServer() {
 void setupRoutes() {
   // Home page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Connection limiting
+    if (totalRequests > 1000 && ESP.getFreeHeap() < 20000) {
+      request->send(503, "text/plain", "Service Temporarily Unavailable - Low Memory");
+      return;
+    }
     Serial.printf("[HTTP] GET / from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
-    addCORSHeaders(request);
     if (fileExists("/index.html")) {
       request->send(LittleFS, "/index.html", "text/html");
     } else {
@@ -78,7 +82,6 @@ void setupRoutes() {
   server.on("/login", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] GET /login from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
-    addCORSHeaders(request);
     if (fileExists("/login.html")) {
       request->send(LittleFS, "/login.html", "text/html");
     } else {
@@ -118,7 +121,6 @@ void setupRoutes() {
   server.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] GET /admin from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
-    addCORSHeaders(request);
     if (!isAuthenticated(request)) {
       Serial.printf("[HTTP] /admin access denied - not authenticated\n");
       request->redirect("/login");
@@ -342,16 +344,26 @@ void setupSSL() {
 
 void handleNotFound(AsyncWebServerRequest *request) {
   totalRequests++;
-  addCORSHeaders(request);
   
-  String message = "404 - Not Found\n\n";
-  message += "URI: " + request->url() + "\n";
-  message += "Method: " + String(request->method()) + "\n";
-  message += "Arguments: " + String(request->args()) + "\n";
+  // Rate limit 404 responses to prevent DoS from gobuster/dirb
+  static unsigned long last404Time = 0;
+  static int count404 = 0;
+  unsigned long now = millis();
   
-  for (uint8_t i = 0; i < request->args(); i++) {
-    message += " " + request->argName(i) + ": " + request->arg(i) + "\n";
+  if (now - last404Time < 1000) {
+    count404++;
+    if (count404 > 50) { // Max 50 requests per second
+      request->send(429, "text/plain", "Too Many Requests");
+      return;
+    }
+  } else {
+    count404 = 0;
+    last404Time = now;
   }
+  
+  // Simplified response to reduce memory usage
+  String message = "404 - Not Found\n";
+  message += "URI: " + request->url() + "\n";
   
   // Add vulnerable HTTP headers with version information
   AsyncWebServerResponse *response = request->beginResponse(404, "text/plain", message);
@@ -360,19 +372,17 @@ void handleNotFound(AsyncWebServerRequest *request) {
   response->addHeader("X-Framework", "ESPAsyncWebServer/3.9.6");
   response->addHeader("X-Device-Model", ESP.getChipModel());
   response->addHeader("X-Firmware-Version", "1.0.0-beta");
+  response->addHeader("Access-Control-Allow-Origin", "*");
   request->send(response);
   
-  logDebug("404 Not Found: " + request->url());
+  // Only log every 10th 404 to reduce FS writes
+  if (count404 % 10 == 0) {
+    logDebug("404 Not Found: " + request->url());
+  }
 }
 
 void addCORSHeaders(AsyncWebServerRequest *request) {
-  // Add CORS headers (intentionally permissive for vulnerability)
-  AsyncWebServerResponse *response = request->beginResponse(200);
-  response->addHeader("Access-Control-Allow-Origin", "*");  // Intentionally permissive
-  response->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-  response->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Custom-Header, X-API-Key");
-  response->addHeader("Access-Control-Allow-Credentials", "true");
-  response->addHeader("X-CORS-Notice", "CORS is overly permissive - accepts all origins");
-  response->addHeader("Server", "ESP32-WebServer/1.0.2");
-  response->addHeader("X-Powered-By", "SecureNet-ESP32");
+  // This function is deprecated - CORS headers are now added directly in route handlers
+  // Keeping for backward compatibility but it does nothing to prevent memory leaks
+  // Original implementation created orphaned response objects
 }
