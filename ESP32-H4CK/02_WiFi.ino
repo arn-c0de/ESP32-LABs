@@ -61,7 +61,7 @@ void startAccessPoint() {
     Serial.println("[WIFI] Access Point started successfully!");
     Serial.printf("[WIFI] AP IP Address: %s\n", WiFi.softAPIP().toString().c_str());
     Serial.printf("[WIFI] AP MAC Address: %s\n", WiFi.softAPmacAddress().c_str());
-    Serial.printf("[WIFI] Connect with password: %s\n", AP_PASSWORD.c_str());
+    Serial.printf("[WIFI] Connect with password: %s\n", AP_PASSWORD_STR.c_str());
     
     // Solid LED for AP mode
     digitalWrite(LED_PIN, HIGH);

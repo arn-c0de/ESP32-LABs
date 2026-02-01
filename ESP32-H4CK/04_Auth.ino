@@ -80,7 +80,7 @@ String generateJWT(String username, String role) {
   
   // Slightly better (but still weak for demonstration)
   String token = base64Encode(payloadStr);
-  String signature = sha256Hash(token + JWT_SECRET);
+  String signature = sha256Hash(token + JWT_SECRET_STR);
   return token + "." + signature;
 }
 
@@ -100,7 +100,7 @@ bool validateJWT(String token) {
   String signature = token.substring(dotPos + 1);
   
   // Verify signature
-  String expectedSignature = sha256Hash(payload + JWT_SECRET);
+  String expectedSignature = sha256Hash(payload + JWT_SECRET_STR);
   if (signature != expectedSignature) {
     return false;
   }
@@ -197,6 +197,9 @@ void destroySession(String sessionId) {
 void handleLogin(AsyncWebServerRequest *request) {
   totalRequests++;
   
+  String clientIP = request->client()->remoteIP().toString();
+  Serial.printf("[AUTH] Login attempt from %s\n", clientIP.c_str());
+  
   if (request->method() != HTTP_POST) {
     request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
     return;
@@ -213,6 +216,8 @@ void handleLogin(AsyncWebServerRequest *request) {
     password = request->getParam("password", true)->value();
   }
   
+  Serial.printf("[AUTH] User: %s, Pass: %s from %s\n", username.c_str(), password.c_str(), clientIP.c_str());
+  
   // Authenticate
   if (authenticateUser(username, password)) {
     // Find user role
@@ -227,6 +232,7 @@ void handleLogin(AsyncWebServerRequest *request) {
     // Create session
     String ipAddress = request->client()->remoteIP().toString();
     createSession(username, role, ipAddress);
+    Serial.printf("[AUTH] ✅ Login SUCCESS: %s (role: %s) from %s\n", username.c_str(), role.c_str(), ipAddress.c_str());
     
     // Generate JWT token
     String token = generateJWT(username, role);

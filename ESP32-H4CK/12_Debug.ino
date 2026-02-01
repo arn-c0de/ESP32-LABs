@@ -114,7 +114,7 @@ void printWiFiInfo() {
     Serial.printf("Channel:          %d\n", WiFi.channel());
   } else {
     Serial.println("Mode:             Access Point");
-    Serial.printf("SSID:             %s\n", AP_SSID.c_str());
+    Serial.printf("SSID:             %s\n", AP_SSID_STR.c_str());
     Serial.printf("IP Address:       %s\n", WiFi.softAPIP().toString().c_str());
     Serial.printf("MAC Address:      %s\n", WiFi.softAPmacAddress().c_str());
     Serial.printf("Connected Clients:%d\n", WiFi.softAPgetStationNum());

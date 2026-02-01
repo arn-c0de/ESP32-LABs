@@ -55,6 +55,8 @@ void handleWebSocketMessage(AsyncWebSocketClient *client, String message) {
     return;
   }
   
+  Serial.printf("[WEBSOCKET] Client #%u cmd: %s\n", client->id(), message.c_str());
+  
   // Execute command
   executeShellCommand(client, message);
   
@@ -76,6 +78,7 @@ void executeShellCommand(AsyncWebSocketClient *client, String cmd) {
   }
   
   if (!isAllowed && !VULN_COMMAND_INJECTION) {
+    Serial.printf("[WEBSOCKET] Client #%u blocked cmd: %s\n", client->id(), cmd.c_str());
     client->text("Error: Command not allowed\n");
     return;
   }

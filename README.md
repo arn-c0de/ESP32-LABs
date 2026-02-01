@@ -18,6 +18,10 @@ Always obtain permission before performing security testing on systems you do no
 - Each lab has its own README or QUICKSTART with specific build and deployment instructions — start there for project-specific setup.
 - Common utilities and helper scripts may be available at the repository root for convenience (e.g., build/upload helpers, environment templates).
 
+## LABs
+- **SecureNet Lab — ESP32-H4CK**: A vulnerable "SecureNet Solutions" lab designed for hands-on penetration testing exercises and learning. See the lab documentation and exercises in [ESP32-H4CK/README.md](ESP32-H4CK/README.md).
+- More labs will be added over time — check each subfolder for its README or QUICKSTART.
+
 ## Contributing 
 Contributions are encouraged:
 - Open an **issue** for questions, bug reports, or feature ideas.

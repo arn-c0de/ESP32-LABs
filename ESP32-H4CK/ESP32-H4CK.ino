@@ -17,8 +17,12 @@
  * 
  * Author: ESP32-H4CK Lab Project
  * License: Educational Use Only
- * Version: 1.0.0
+ * Version: 2.5.1 - VulnLab Extended Edition
  */
+
+#define FIRMWARE_VERSION "2.5.1"
+#define BUILD_DATE "2026-02-01"
+#define CODENAME "VulnLab-Extended"
 
 // ===== LIBRARY INCLUDES =====
 #include <WiFi.h>
@@ -73,7 +77,10 @@ bool DEBUG_MODE = true;
 bool SSL_ENABLED = false;
 bool ENABLE_TELNET = true;
 bool ENABLE_WEBSOCKET = true;
-bool STATION_MODE = true;
+#ifndef STATION_MODE_DEFAULT
+#define STATION_MODE_DEFAULT false
+#endif
+bool STATION_MODE = STATION_MODE_DEFAULT;
 
 // Timing Constants
 #define WIFI_CHECK_INTERVAL 30000
@@ -82,7 +89,10 @@ bool STATION_MODE = true;
 #define RATE_LIMIT_WINDOW 60000
 
 // Security Constants
-String JWT_SECRET = "weak_secret_key_123";
+#ifndef JWT_SECRET
+#define JWT_SECRET "weak_secret_key_123"
+#endif
+String JWT_SECRET_STR = JWT_SECRET;
 #define JWT_EXPIRY 86400
 #define SESSION_ID_LENGTH 16
 #define PASSWORD_MIN_LENGTH 4
@@ -213,6 +223,7 @@ void sendTelnetPrompt(WiFiClient &client);
 
 // Vulnerabilities Module
 void setupVulnerableEndpoints();
+void setupAdvancedVulnerabilityEndpoints();
 void handleSQLInjection(AsyncWebServerRequest *request);
 void handleXSSVulnerability(AsyncWebServerRequest *request);
 void handlePathTraversal(AsyncWebServerRequest *request);
@@ -256,7 +267,10 @@ void setup() {
   
   Serial.println("\n\n");
   Serial.println("========================================");
-  Serial.println("  ESP32-H4CK Vulnerable Lab v1.0.0");
+  Serial.printf("  ESP32-H4CK v%s\n", FIRMWARE_VERSION);
+  Serial.printf("  %s Edition\n", CODENAME);
+  Serial.printf("  Build: %s\n", BUILD_DATE);
+  Serial.println("  ** Intentionally Vulnerable **");
   Serial.println("========================================");
   Serial.println();
   
@@ -296,6 +310,7 @@ void setup() {
   
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();
+    setupAdvancedVulnerabilityEndpoints();
     logInfo("Vulnerable endpoints enabled (LAB MODE)");
   }
   

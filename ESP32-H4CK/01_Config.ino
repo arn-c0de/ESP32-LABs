@@ -32,10 +32,10 @@ void initConfig() {
 void loadConfigFromFS() {
   // Load configuration from preferences
   if (preferences.isKey("wifi_ssid")) {
-    WIFI_SSID = preferences.getString("wifi_ssid", WIFI_SSID);
+    WIFI_SSID_STR = preferences.getString("wifi_ssid", WIFI_SSID_STR);
   }
   if (preferences.isKey("wifi_pass")) {
-    WIFI_PASSWORD = preferences.getString("wifi_pass", WIFI_PASSWORD);
+    WIFI_PASSWORD_STR = preferences.getString("wifi_pass", WIFI_PASSWORD_STR);
   }
   if (preferences.isKey("debug_mode")) {
     DEBUG_MODE = preferences.getBool("debug_mode", DEBUG_MODE);
@@ -46,24 +46,24 @@ void loadConfigFromFS() {
 }
 
 void saveConfigToFS() {
-  preferences.putString("wifi_ssid", WIFI_SSID);
-  preferences.putString("wifi_pass", WIFI_PASSWORD);
+  preferences.putString("wifi_ssid", WIFI_SSID_STR);
+  preferences.putString("wifi_pass", WIFI_PASSWORD_STR);
   preferences.putBool("debug_mode", DEBUG_MODE);
   preferences.putBool("enable_vulns", ENABLE_VULNERABILITIES);
   Serial.println("[CONFIG] Configuration saved to flash");
 }
 
 String getConfigValue(String key) {
-  if (key == "wifi_ssid") return WIFI_SSID;
-  if (key == "wifi_password") return WIFI_PASSWORD;
+  if (key == "wifi_ssid") return WIFI_SSID_STR;
+  if (key == "wifi_password" || key == "wifi_pass") return WIFI_PASSWORD_STR;
   if (key == "debug_mode") return DEBUG_MODE ? "true" : "false";
   if (key == "enable_vulnerabilities") return ENABLE_VULNERABILITIES ? "true" : "false";
   return "";
 }
 
 void setConfigValue(String key, String value) {
-  if (key == "wifi_ssid") WIFI_SSID = value;
-  else if (key == "wifi_password") WIFI_PASSWORD = value;
+  if (key == "wifi_ssid") WIFI_SSID_STR = value;
+  else if (key == "wifi_password" || key == "wifi_pass") WIFI_PASSWORD_STR = value;
   else if (key == "debug_mode") DEBUG_MODE = (value == "true");
   else if (key == "enable_vulnerabilities") ENABLE_VULNERABILITIES = (value == "true");
   

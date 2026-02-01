@@ -19,6 +19,31 @@ void setupVulnerableEndpoints() {
   // SQL Injection vulnerable endpoint
   server.on("/vuln/search", HTTP_GET, handleSQLInjection);
   
+  // IDOR - User profile access (new endpoint)
+  server.on("/vuln/user-profile", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (!request->hasParam("user_id")) {
+      request->send(400, "application/json", "{\"error\":\"Missing user_id parameter\"}");
+      return;
+    }
+    
+    String userId = request->getParam("user_id")->value();
+    Serial.printf("[VULN] ⚠️  IDOR: Accessing user_id=%s without authorization check\n", userId.c_str());
+    
+    // No authorization check - can access any user's profile
+    DynamicJsonDocument doc(512);
+    doc["user_id"] = userId;
+    doc["username"] = "user_" + userId;
+    doc["email"] = "user" + userId + "@securenet-solutions.local";
+    doc["role"] = userId == "1" ? "admin" : "guest";
+    doc["ssn"] = "123-45-" + userId;  // Sensitive data
+    doc["api_key"] = "sk_user_" + userId + "_" + JWT_SECRET_STR;
+    doc["hint"] = "Change user_id parameter to access other users' sensitive data";
+    
+    String output;
+    serializeJson(doc, output);
+    request->send(200, "application/json", output);
+  });
+  
   // XSS vulnerable endpoint
   server.on("/vuln/comment", HTTP_POST, handleXSSVulnerability);
   server.on("/vuln/comments", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -148,7 +173,7 @@ void handleSQLInjection(AsyncWebServerRequest *request) {
   }
   
   if (!request->hasParam("q")) {
-    request->send(400, "text/plain", "Missing query parameter 'q'");
+    request->send(400, "text/plain", "Missing query parameter 'q'. Try: ?q=admin");
     return;
   }
   
@@ -157,7 +182,28 @@ void handleSQLInjection(AsyncWebServerRequest *request) {
   // Intentional vulnerability: Direct string concatenation
   String sql = "SELECT * FROM users WHERE username='" + query + "'";
   
-  logDebug("SQL Query: " + sql);
+  Serial.printf("[VULN] SQL Query: %s\n", sql.c_str());
+  
+  // Detect and log specific SQL injection patterns
+  if (query.indexOf("' OR '1'='1") >= 0 || query.indexOf("' OR 1=1") >= 0) {
+    Serial.printf("[VULN] ⚠️  Classic Boolean-based SQLi: ' OR '1'='1\n");
+    Serial.printf("[HINT] Will bypass authentication and return ALL records\n");
+  }
+  else if (query.indexOf("UNION") >= 0 || query.indexOf("union") >= 0) {
+    Serial.printf("[VULN] ⚠️  UNION-based SQLi detected\n");
+    Serial.printf("[HINT] Can extract data from other tables/columns\n");
+  }
+  else if (query.indexOf("--") >= 0 || query.indexOf("#") >= 0) {
+    Serial.printf("[VULN] ⚠️  SQL comment bypass: --  or #\n");
+    Serial.printf("[HINT] Comment closes query, bypassing WHERE clause\n");
+  }
+  else if (query.indexOf("/*") >= 0) {
+    Serial.printf("[VULN] ⚠️  Multi-line comment bypass detected\n");
+  }
+  else if (query.indexOf(";") >= 0 && (query.indexOf("DROP") >= 0 || query.indexOf("DELETE") >= 0 || query.indexOf("UPDATE") >= 0)) {
+    Serial.printf("[VULN] ⚠️  Stacked query / destructive SQLi\n");
+    Serial.printf("[HINT] Multiple SQL statements executed\n");
+  }
   
   // Simulate SQL injection
   if (query.indexOf("'") >= 0 || query.indexOf("OR") >= 0 || query.indexOf("--") >= 0) {
@@ -216,11 +262,43 @@ void handlePathTraversal(AsyncWebServerRequest *request) {
   }
   
   if (!request->hasParam("file")) {
-    request->send(400, "text/plain", "Missing file parameter");
+    request->send(400, "text/plain", "Missing file parameter. Try: ?file=config.txt or ?file=../../.env");
     return;
   }
   
   String filename = request->getParam("file")->value();
+  
+  Serial.printf("[VULN] Path Traversal: %s\n", filename.c_str());
+  
+  // Detect traversal patterns
+  if (filename.indexOf("..") >= 0) {
+    Serial.printf("[VULN] ⚠️  Directory traversal: ../ pattern detected\n");
+    Serial.printf("[HINT] Accessing parent directories\n");
+  }
+  
+  // Simulate /etc/passwd access
+  if (filename.indexOf("/etc/passwd") >= 0 || filename.indexOf("passwd") >= 0) {
+    Serial.printf("[VULN] ⚠️  System file access: /etc/passwd\n");
+    String passwd = "root:x:0:0:root:/root:/bin/bash\n";
+    passwd += "admin:x:1000:1000:SecureNet Admin:/home/admin:/bin/bash\n";
+    passwd += "operator:x:1001:1001:Operator:/home/operator:/bin/bash\n";
+    passwd += "guest:x:1002:1002:Guest:/home/guest:/bin/rbash\n";
+    passwd += "www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\n";
+    request->send(200, "text/plain", passwd);
+    return;
+  }
+  
+  // Simulate .env file access
+  if (filename.indexOf(".env") >= 0) {
+    Serial.printf("[VULN] ⚠️  Accessing .env file\n");
+    String env = "WIFI_SSID=" + WIFI_SSID_STR + "\n";
+    env += "WIFI_PASSWORD=" + WIFI_PASSWORD_STR + "\n";
+    env += "JWT_SECRET=" + JWT_SECRET_STR + "\n";
+    env += "DATABASE_URL=sqlite:///data/app.db\n";
+    env += "API_KEY=sk-securenet-prod-key-xyz\n";
+    request->send(200, "text/plain", env);
+    return;
+  }
   
   // Intentional vulnerability: No path validation
   logDebug("Downloading file: " + filename);
@@ -233,7 +311,7 @@ void handlePathTraversal(AsyncWebServerRequest *request) {
   if (content != "") {
     request->send(200, "text/plain", content);
   } else {
-    request->send(404, "text/plain", "File not found");
+    request->send(404, "text/plain", "File not found. Try: ../../../.env or ../../data/config.json");
   }
 }
 
@@ -246,7 +324,7 @@ void handleCommandInjection(AsyncWebServerRequest *request) {
   }
   
   if (!request->hasParam("host")) {
-    request->send(400, "text/plain", "Missing host parameter");
+    request->send(400, "text/plain", "Missing host parameter. Try: ?host=8.8.8.8 or ?host=8.8.8.8; whoami");
     return;
   }
   
@@ -255,7 +333,29 @@ void handleCommandInjection(AsyncWebServerRequest *request) {
   // Intentional vulnerability: Direct command execution
   String command = "ping -c 1 " + host;
   
-  logDebug("Executing command: " + command);
+  Serial.printf("[VULN] Command Injection: %s\n", command.c_str());
+  
+  // Detect injection patterns
+  if (host.indexOf(";") >= 0) {
+    Serial.printf("[VULN] ⚠️  Command chaining: semicolon (;) detected\n");
+    Serial.printf("[HINT] cmd1 ; cmd2 - executes both commands\n");
+  }
+  else if (host.indexOf("&&") >= 0) {
+    Serial.printf("[VULN] ⚠️  Logic operator: && detected\n");
+    Serial.printf("[HINT] cmd1 && cmd2 - cmd2 runs if cmd1 succeeds\n");
+  }
+  else if (host.indexOf("||") >= 0) {
+    Serial.printf("[VULN] ⚠️  Logic operator: || detected\n");
+    Serial.printf("[HINT] cmd1 || cmd2 - cmd2 runs if cmd1 fails\n");
+  }
+  else if (host.indexOf("|") >= 0) {
+    Serial.printf("[VULN] ⚠️  Pipe operator: | detected\n");
+    Serial.printf("[HINT] cmd1 | cmd2 - pipes cmd1 output to cmd2\n");
+  }
+  else if (host.indexOf("`") >= 0 || host.indexOf("$(") >= 0) {
+    Serial.printf("[VULN] ⚠️  Command substitution detected\n");
+    Serial.printf("[HINT] Subshell execution via `cmd` or $(cmd)\n");
+  }
   
   if (host.indexOf(";") >= 0 || host.indexOf("&") >= 0 || host.indexOf("|") >= 0) {
     logError("[VULNERABILITY TRIGGERED] Command injection detected: " + host);
@@ -267,8 +367,12 @@ void handleCommandInjection(AsyncWebServerRequest *request) {
   output += "\n--- " + host + " ping statistics ---\n";
   output += "1 packets transmitted, 1 packets received, 0.0% packet loss\n";
   
-  if (host.indexOf(";") >= 0) {
-    output += "\n[VULNERABILITY] Command after ';' would be executed!\n";
+  if (host.indexOf(";") >= 0 || host.indexOf("&&") >= 0 || host.indexOf("||") >= 0 || host.indexOf("|") >= 0) {
+    output += "\n[VULNERABILITY EXPLOITED]\n";
+    output += "root:x:0:0:root:/root:/bin/bash\n";
+    output += "admin:x:1000:1000:admin:/home/admin:/bin/bash\n";
+    output += "Current user: www-data\n";
+    output += "\nHint: Try '8.8.8.8; cat /etc/passwd' or '8.8.8.8 && whoami'\n";
   }
   
   request->send(200, "text/plain", output);
