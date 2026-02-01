@@ -1,5 +1,7 @@
 # ESP32-H4CK - "SecureNet Solutions" Vulnerable Lab
 
+![ESP32-LAB - SecureNet Solutions](images/ESP32-LAB-SecureNet%20Solutions.png)
+
 Version: **1.0.1** (English)
 
 ## Project Overview

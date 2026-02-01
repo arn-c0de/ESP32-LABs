@@ -324,14 +324,14 @@ void setup() {
   initTelnet();
   logInfo("Telnet service started");
   
-  initSSH();
-  logInfo("SSH service started");
-  
   setupRESTRoutes();
   logInfo("REST API configured");
   
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();
+    setupAdvancedVulnerabilityEndpoints();
+    logInfo("Vulnerable endpoints enabled (LAB MODE)");
+  }
   
   Serial.println();
   Serial.println("========================================");
@@ -357,16 +357,16 @@ void loop() {
   // Handle telnet clients
   handleTelnetClients();
   
-  // Handle SSH clients
-  handleSSHClients();
-  
   // Memory monitoring - restart if critically low
   static unsigned long lastMemCheck = 0;
   if (millis() - lastMemCheck > 5000) {
     uint32_t freeHeap = ESP.getFreeHeap();
     if (freeHeap < 10000) {
       Serial.printf("[CRITICAL] Low memory: %d bytes. Restarting...\n", freeHeap);
-      delay(1000);llis();
+      delay(1000);
+      ESP.restart();
+    }
+    lastMemCheck = millis();
   }
   
   // Feed watchdog and yield to prevent crashes
