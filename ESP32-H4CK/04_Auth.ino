@@ -237,34 +237,65 @@ void handleLogin(AsyncWebServerRequest *request) {
     // Generate JWT token
     String token = generateJWT(username, role);
     
-    // Return success with token
-    DynamicJsonDocument response(512);
-    response["success"] = true;
-    response["token"] = token;
-    response["username"] = username;
-    response["role"] = role;
-    response["message"] = "Login successful";
-    
-    String responseStr;
-    serializeJson(response, responseStr);
-    
-    AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", responseStr);
-    
-    // Set session cookie (intentionally without HttpOnly or Secure flags - vulnerability)
+    // Generate session cookie
     String sessionId = activeSessions.rbegin()->first;
-    resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
-    
-    request->send(resp);
+
+    // Check if this is a browser form submit (not fetch/XHR)
+    bool isBrowserForm = false;
+    if (request->hasHeader("Accept")) {
+      String accept = request->header("Accept");
+      isBrowserForm = accept.indexOf("text/html") >= 0 && accept.indexOf("application/json") < 0;
+    }
+
+    if (isBrowserForm) {
+      // Browser form submit - redirect with session cookie and store token in cookie
+      String redirectUrl = (role == "admin") ? "/admin" : "/";
+      AsyncWebServerResponse *resp = request->beginResponse(302, "text/html", "Redirecting...");
+      resp->addHeader("Location", redirectUrl);
+      resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_token=" + token + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_user=" + username + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_role=" + role + "; Path=/");
+      request->send(resp);
+    } else {
+      // API/fetch request - return JSON
+      DynamicJsonDocument response(512);
+      response["success"] = true;
+      response["token"] = token;
+      response["username"] = username;
+      response["role"] = role;
+      response["message"] = "Login successful";
+
+      String responseStr;
+      serializeJson(response, responseStr);
+
+      AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", responseStr);
+      resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+      request->send(resp);
+    }
   } else {
-    // Return error
-    DynamicJsonDocument response(256);
-    response["success"] = false;
-    response["error"] = "Invalid credentials";
-    response["failed_attempts"] = failedLoginAttempts;
-    
-    String responseStr;
-    serializeJson(response, responseStr);
-    request->send(401, "application/json", responseStr);
+    // Check if browser form submit
+    bool isBrowserForm = false;
+    if (request->hasHeader("Accept")) {
+      String accept = request->header("Accept");
+      isBrowserForm = accept.indexOf("text/html") >= 0 && accept.indexOf("application/json") < 0;
+    }
+
+    if (isBrowserForm) {
+      // Redirect back to login page with error
+      AsyncWebServerResponse *resp = request->beginResponse(302, "text/html", "Redirecting...");
+      resp->addHeader("Location", "/login?error=1");
+      request->send(resp);
+    } else {
+      DynamicJsonDocument response(256);
+      response["success"] = false;
+      response["error"] = "Invalid credentials";
+      response["failed_attempts"] = failedLoginAttempts;
+
+      String responseStr;
+      serializeJson(response, responseStr);
+      request->send(401, "application/json", responseStr);
+    }
   }
 }
 
