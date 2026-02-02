@@ -9,20 +9,7 @@
  */
 
 // ===== DATA STRUCTURES =====
-
-enum DefenseType {
-  DEFENSE_NONE = 0,
-  DEFENSE_IP_BLOCK,
-  DEFENSE_RATE_LIMIT,
-  DEFENSE_SESSION_RESET,
-  DEFENSE_MISTRUST_MODE
-};
-
-struct DefenseCost {
-  int dp;  // Defense Points
-  int ap;  // Action Points
-  int ss;  // Stability Score impact (negative)
-};
+// Note: DefenseType enum and DefenseCost struct are defined in main .ino file
 
 struct DefenseRule {
   String id;              // Unique rule ID (e.g., "r-001")

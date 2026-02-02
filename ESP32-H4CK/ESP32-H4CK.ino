@@ -177,6 +177,23 @@ String allowedCommands[] = {
 };
 const int ALLOWED_COMMANDS_COUNT = 14;
 
+// ===== DEFENSE SYSTEM TYPE DEFINITIONS =====
+// (Must be declared before forward declarations that use them)
+
+enum DefenseType {
+  DEFENSE_NONE = 0,
+  DEFENSE_IP_BLOCK,
+  DEFENSE_RATE_LIMIT,
+  DEFENSE_SESSION_RESET,
+  DEFENSE_MISTRUST_MODE
+};
+
+struct DefenseCost {
+  int dp;  // Defense Points
+  int ap;  // Action Points
+  int ss;  // Stability Score impact (negative)
+};
+
 // ===== FORWARD DECLARATIONS =====
 // Config Module
 void initConfig();
