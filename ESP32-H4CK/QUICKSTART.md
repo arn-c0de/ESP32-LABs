@@ -21,6 +21,9 @@ ESP32-H4CK1/
 ├── 10_Crypto.ino            ✓ Cryptography utilities
 ├── 11_Utils.ino             ✓ Helper functions
 ├── 12_Debug.ino             ✓ Logging & monitoring
+├── 13_PrivEsc.ino           ✓ Privilege escalation simulation
+├── 14_AdvancedVulns.ino     ✓ Advanced vulnerabilities
+├── 15_Defense.ino           ✓ 🎮 Defense & Gameplay system
 ├── partitions.csv           ✓ Partition table (16MB)
 ├── data/                    ✓ Web assets
 │   ├── index.html           ✓ Home page
@@ -284,6 +287,50 @@ http://<ip>/vuln/ping?host=127.0.0.1;ls
 - Path traversal
 - Chaining vulnerabilities
 
+### 🎮 Week 5: Red/Blue Team Defense Game (NEW)
+- Understanding resource constraints (DP/AP/SS)
+- IP blocking strategies and false positives
+- Rate limiting configuration and tuning
+- Session management and incident response
+- Cost/benefit analysis of defensive measures
+- Multi-device coordination exercises
+
+## 🎮 Defense System Quick Reference
+
+The defense system simulates application-level security measures with resource management:
+
+**Serial Commands (115200 baud)**
+```bash
+# IP Blocking
+iptables -A INPUT -s 192.168.4.100 -j DROP --duration 30
+iptables -D INPUT -s 192.168.4.100 -j DROP
+iptables -L
+
+# Rate Limiting
+tc qdisc add rate-limit --src 192.168.4.0/24 --duration 60
+tc qdisc del rate-limit --src 192.168.4.0/24
+tc qdisc show
+
+# Session Management
+session reset --ip 192.168.4.101
+
+# Status & Config
+defense status
+defense config show
+defense config set dp=100 ap=10 stability=100
+```
+
+**Resource Costs (Defaults)**
+- IP Block: DP=15, AP=1, 60s cooldown
+- Rate Limit: DP=10, AP=1, 30s cooldown
+- Session Reset: DP=25, AP=1, 90s cooldown
+
+**Learning Objectives**
+- Understand trade-offs between security and usability
+- Practice resource-constrained decision making
+- Learn realistic system administration commands
+- Experience side-effects of aggressive defensive measures
+
 ## 🤝 Support
 
 - Check Serial Monitor (115200 baud) for debug output
@@ -298,17 +345,20 @@ Before going live, verify:
 - [ ] All .ino files compile without errors
 - [ ] Filesystem uploaded successfully
 - [ ] Serial Monitor shows "System Ready!"
+- [ ] Defense system initialized (check for "[DEFENSE]" messages)
 - [ ] Can access web interface
 - [ ] Can login with default credentials
 - [ ] WebSocket shell connects
 - [ ] Telnet service accepts connections
+- [ ] Defense commands work via serial (try `defense status`)
+- [ ] IP blocking enforced (test with `iptables` command)
 - [ ] Network is isolated from production
 - [ ] Lab documentation prepared
 - [ ] Students briefed on scope
 
 ## 📝 Version Information
 
-- **Version:** 1.0.0
+- **Version:** 1.0.1
 - **Created:** 2026
 - **Platform:** ESP32 (Arduino Framework)
 - **License:** Educational Use Only

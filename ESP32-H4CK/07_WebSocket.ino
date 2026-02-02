@@ -65,6 +65,19 @@ void handleWebSocketMessage(AsyncWebSocketClient *client, String message) {
 }
 
 void executeShellCommand(AsyncWebSocketClient *client, String cmd) {
+  // Defense: Check IP blocking and rate limiting
+  String clientIP = client->remoteIP().toString();
+  if (isIpBlocked(clientIP)) {
+    client->text("ERROR: Access Denied\n");
+    Serial.printf("[DEFENSE] Blocked WebSocket command from %s\n", clientIP.c_str());
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    client->text("ERROR: Rate limit exceeded\n");
+    Serial.printf("[DEFENSE] Rate limited WebSocket command from %s\n", clientIP.c_str());
+    return;
+  }
+  
   cmd.trim();
   cmd.toLowerCase();
   

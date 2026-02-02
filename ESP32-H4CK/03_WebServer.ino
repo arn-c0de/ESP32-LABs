@@ -30,6 +30,21 @@ void initWebServer() {
 void setupRoutes() {
   // Home page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Defense: Check if IP is blocked
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) {
+      Serial.printf("[DEFENSE] Blocked request from %s\n", clientIP.c_str());
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
+    
+    // Defense: Check rate limit
+    if (!checkRateLimit(clientIP)) {
+      Serial.printf("[DEFENSE] Rate limit exceeded for %s\n", clientIP.c_str());
+      request->send(429, "text/plain", "Too Many Requests");
+      return;
+    }
+    
     // Connection limiting
     if (totalRequests > 1000 && ESP.getFreeHeap() < 20000) {
       request->send(503, "text/plain", "Service Temporarily Unavailable - Low Memory");
@@ -80,6 +95,15 @@ void setupRoutes() {
   
   // Login page
   server.on("/login", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      request->send(429, "text/plain", "Too Many Requests");
+      return;
+    }
     Serial.printf("[HTTP] GET /login from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
     if (fileExists("/login.html")) {
@@ -132,6 +156,15 @@ void setupRoutes() {
   
   // Admin panel (requires authentication)
   server.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      request->send(429, "text/plain", "Too Many Requests");
+      return;
+    }
     Serial.printf("[HTTP] GET /admin from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
     if (!isAuthenticated(request)) {
