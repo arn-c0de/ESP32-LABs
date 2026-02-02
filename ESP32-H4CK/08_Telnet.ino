@@ -177,12 +177,31 @@ void handleTelnetClients() {
 
   // Check for new clients
   if (telnetServer.hasClient()) {
+    WiFiClient newClient = telnetServer.available();
+    String clientIP = newClient.remoteIP().toString();
+    
+    // Defense: Check if IP is blocked
+    if (isIpBlocked(clientIP)) {
+      Serial.printf("[DEFENSE] Blocked Telnet connection from %s\n", clientIP.c_str());
+      newClient.println("ERROR: Access Denied");
+      newClient.stop();
+      return;
+    }
+    
+    // Defense: Check rate limit
+    if (!checkRateLimit(clientIP)) {
+      Serial.printf("[DEFENSE] Rate limited Telnet connection from %s\n", clientIP.c_str());
+      newClient.println("ERROR: Too Many Connection Attempts");
+      newClient.stop();
+      return;
+    }
+    
     // Find empty slot
     int freeSlot = -1;
     for (int i = 0; i < 5; i++) {
       if (!telnetClients[i] || !telnetClients[i].connected()) {
         if (telnetClients[i]) telnetClients[i].stop();
-        telnetClients[i] = telnetServer.available();
+        telnetClients[i] = newClient;
         telnetAuthenticated[i] = false;
         telnetUsernames[i] = "";
         telnetLineBuffer[i] = "";

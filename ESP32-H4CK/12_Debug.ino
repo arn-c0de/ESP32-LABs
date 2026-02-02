@@ -261,6 +261,18 @@ void handleSerialCommands() {
       Serial.println("/system   - Show system information");
       Serial.println("/restart  - Restart ESP32");
       Serial.println("/help     - Show this help");
+      Serial.println("");
+      Serial.println("=== DEFENSE COMMANDS (simulated) ===");
+      Serial.println("iptables -A INPUT -s <ip> -j DROP --duration <sec>");
+      Serial.println("iptables -D INPUT -s <ip> -j DROP");
+      Serial.println("iptables -L");
+      Serial.println("tc qdisc add rate-limit --src <ip> --duration <sec>");
+      Serial.println("tc qdisc del rate-limit --src <ip>");
+      Serial.println("tc qdisc show");
+      Serial.println("session reset --ip <ip>");
+      Serial.println("defense status");
+      Serial.println("defense config show");
+      Serial.println("defense config set dp=<n> ap=<n> stability=<n>");
       Serial.println("================================\n");
     }
     else if (command == "/memory" || command == "memory") {
@@ -276,6 +288,26 @@ void handleSerialCommands() {
       Serial.println("\n[SYSTEM] Restarting ESP32...\n");
       delay(1000);
       ESP.restart();
+    }
+    else if (command.startsWith("/defense") || command.startsWith("defense")) {
+      // Strip leading slash if present
+      String defCmd = command;
+      if (defCmd.startsWith("/")) defCmd = defCmd.substring(1);
+      
+      String result = handleDefenseLine(defCmd);
+      Serial.println(result);
+    }
+    else if (command.startsWith("iptables")) {
+      String result = handleDefenseLine(command);
+      Serial.println(result);
+    }
+    else if (command.startsWith("tc ")) {
+      String result = handleDefenseLine(command);
+      Serial.println(result);
+    }
+    else if (command.startsWith("session ")) {
+      String result = handleDefenseLine(command);
+      Serial.println(result);
     }
     else {
       Serial.println("[ERROR] Unknown command. Type /help for available commands.");

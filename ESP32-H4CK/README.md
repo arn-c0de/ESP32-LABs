@@ -18,6 +18,14 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 - Added **version endpoint**: `/api/version` returning firmware metadata.
 - New **Advanced Vulnerability Module** with: unrestricted file upload (`/api/upload`), SSRF (`/api/fetch`), XXE (`/api/xml-parse`), race-condition wallet (`/api/wallet/withdraw`), session fixation (`/api/auth/session-fixation`), HTTP Parameter Pollution (`/api/user/email`), open redirect, clickjacking test, and IDOR-enhanced document access (`/api/documents`).
 - **Privilege Escalation training** integrated in Telnet (SUID discovery, `sudo`/`su` bypasses, `LD_PRELOAD`/`PATH` hijacking hints, cron job injection simulation).
+- **🎮 NEW: Red/Blue Team Gameplay Module** - Application-level defense simulation with resource management:
+  - `iptables`-like IP blocking (simulated at application layer)
+  - `tc`-like rate limiting with configurable thresholds
+  - Session reset capabilities for incident response practice
+  - Defense Points (DP), Action Points (AP), and Stability Score (SS) resource system
+  - Cooldown mechanics and side-effects modeling
+  - Serial command interface for manual control and automation
+  - Multi-device orchestration ready (serial/UDP/MQTT)
 - Recon endpoints for learning: `/.git/config`, `/.env`, `/backup/*`, and an endpoint discovery API `/api/endpoints`.
 - Improved lab UX: serial monitor helper (`monitor.sh`), `build.sh` and `upload.sh` enhancements, `STATION_MODE` support to run AP-only.
 
@@ -36,6 +44,14 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 
 - Telnet Service (Port 23)
   - Multiple concurrent clients, weak auth options, **privilege escalation lessons**
+
+- **🎮 Defense & Gameplay System (NEW)**
+  - Application-level IP blocking (iptables-like syntax)
+  - Rate limiting with configurable thresholds (tc-like syntax)
+  - Session management and reset capabilities
+  - Resource management: Defense Points (DP), Action Points (AP), Stability Score (SS)
+  - Cooldown mechanics and cost/benefit trade-offs
+  - Serial command interface for Red/Blue Team exercises
 
 - Filesystem (LittleFS)
   - Web assets, uploads, backups and deliberate sensitive file exposure
@@ -182,6 +198,34 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 
 ### Other services
 - Telnet (Port 23): `telnet <device-ip> 23` — Interactive shell with privilege escalation lessons (SUDO bypass, SUID discovery, PATH/LD_PRELOAD hijack)
+
+### 🎮 Defense System Commands (Serial Interface)
+All defense commands are available via serial monitor (115200 baud) and simulate application-level enforcement:
+
+**IP Blocking (iptables-like)**
+- `iptables -A INPUT -s <ip> -j DROP --duration <sec>` — Block IP temporarily
+- `iptables -D INPUT -s <ip> -j DROP` — Remove IP block
+- `iptables -L` — List active blocking rules
+
+**Rate Limiting (tc-like)**
+- `tc qdisc add rate-limit --src <ip/range> --duration <sec>` — Apply rate limit
+- `tc qdisc del rate-limit --src <ip>` — Remove rate limit
+- `tc qdisc show` — Show active rate limits
+
+**Session Management**
+- `session reset --ip <ip>` — Force disconnect all sessions from IP
+
+**Defense Status & Configuration**
+- `defense status` — Show DP/AP/SS resources and active rules
+- `defense config show` — Display current cost/cooldown configuration
+- `defense config set dp=<n> ap=<n> stability=<n>` — Adjust resource limits
+
+**Resource Costs (Default)**
+- IP Block: DP=15, AP=1, Cooldown=60s
+- Rate Limit: DP=10, AP=1, Cooldown=30s  
+- Session Reset: DP=25, AP=1, Cooldown=90s
+
+> ⚠️ Note: Defense rules are enforced at **application level only** — not kernel/network stack. Perfect for safe lab education without system changes.
 - WebSocket: `ws://<device-ip>/shell` — Browser shell endpoint
 
 </details>
