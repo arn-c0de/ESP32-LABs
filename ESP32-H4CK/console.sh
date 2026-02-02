@@ -1,47 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Serial monitor helper
-# Usage: ./monitor.sh [PORT] [BAUD] [CMD | --test | -t]
-# If PORT is omitted the script lists available serial ports and asks for selection.
+# Serial console: send commands WITHOUT showing device output.
+# This allows you to run monitor.sh in one terminal and console.sh in another.
+# Usage: ./console.sh [PORT] [BAUD] [CMD | --test | -t]
 
 BAUD="${2:-115200}"
 PORT="${1:-}"
 CMD_TO_SEND="${3:-}"
 
-# Resolve shorthand flags
 case "$CMD_TO_SEND" in
   --test|-t) CMD_TO_SEND="/test" ;;
 esac
 
 cleanup() {
-  # Remove temp file if it exists
-  [[ -n "${_MONITOR_TMP:-}" ]] && rm -f "$_MONITOR_TMP"
+  [[ -n "${_CONSOLE_TMP:-}" ]] && rm -f "$_CONSOLE_TMP"
 }
 trap cleanup EXIT
-
-# Kill any process holding the port (optional, only when port is locked)
-release_port() {
-  local p="$1"
-  if ! fuser "$p" >/dev/null 2>&1; then
-    return 0
-  fi
-  echo "Port $p is locked by another process."
-  read -r -p "Kill the process holding it? [y/N]: " ans
-  case "$ans" in
-    [yY]*)
-      fuser -k "$p" 2>/dev/null || true
-      sleep 0.5
-      if fuser "$p" >/dev/null 2>&1; then
-        echo "Failed to release $p." >&2; exit 5
-      fi
-      echo "Port released."
-      ;;
-    *)
-      echo "Aborting." >&2; exit 5
-      ;;
-  esac
-}
 
 # Gather candidate ports (deduplicated)
 declare -a candidates=()
@@ -58,7 +33,7 @@ done
 if [[ -z "$PORT" ]]; then
   if [[ ${#candidates[@]} -eq 0 ]]; then
     echo "No serial ports found. Connect a device or provide a port as argument." >&2
-    echo "Example: ./monitor.sh /dev/ttyUSB0 115200" >&2
+    echo "Example: ./console.sh /dev/ttyUSB0 115200" >&2
     exit 1
   fi
 
@@ -84,29 +59,23 @@ if [[ ! -e "$PORT" ]]; then
   echo "Port \"$PORT\" does not exist." >&2; exit 3
 fi
 
-# Check for port lock before proceeding
-release_port "$PORT"
-
-# Send an initial command to the device if specified
+# Send initial command if provided
 send_initial_command() {
   if [[ -n "$CMD_TO_SEND" ]]; then
-    echo "Sending initial command to $PORT: $CMD_TO_SEND"
+    echo "[console] Sending: $CMD_TO_SEND"
     sleep 0.1
     printf '%s\r\n' "$CMD_TO_SEND" > "$PORT" || echo "Failed to write command to $PORT" >&2
     sleep 0.2
   fi
 }
 
-# --- Python monitor (preferred) ---
-# Write the Python script to a temp file so that stdin remains the terminal.
-# This fixes the termios "Inappropriate ioctl for device" error that occurs
-# when the script is fed via heredoc on stdin.
-start_python_monitor() {
-  _MONITOR_TMP=$(mktemp /tmp/monitor_XXXXXX.py)
-  cat > "$_MONITOR_TMP" <<'PYEOF'
-import sys, os, serial, select, termios, tty, threading, time, signal, json
+# --- Python console (send-only) ---
+start_python_console() {
+  _CONSOLE_TMP=$(mktemp /tmp/console_XXXXXX.py)
+  cat > "$_CONSOLE_TMP" <<'PYEOF'
+import sys, os, serial, select, termios, tty, signal, json
 
-HISTORY_FILE = os.path.expanduser("~/.serial_monitor_history")
+HISTORY_FILE = os.path.expanduser("~/.serial_console_history")
 MAX_HISTORY = 500
 
 port, baud = sys.argv[1], int(sys.argv[2])
@@ -149,35 +118,24 @@ def save_history(hist):
         pass
 
 history = load_history()
-hist_idx = len(history)  # points past end = "new line"
-saved_line = ""  # stash current input when browsing history
+hist_idx = len(history)
+saved_line = ""
 
 # -- Line editor state --
-line_buf = []   # list of chars
-cursor = 0      # position within line_buf
+line_buf = []
+cursor = 0
 
 def w(s):
     sys.stdout.write(s)
     sys.stdout.flush()
 
-def get_term_width():
-    try:
-        import struct, fcntl
-        res = fcntl.ioctl(tty_fd, termios.TIOCGWINSZ, b'\x00' * 8)
-        return struct.unpack('HHHH', res)[1]
-    except Exception:
-        return 80
-
 def redraw_line():
-    """Clear current line and redraw the buffer with cursor at the right position."""
-    w('\r\x1b[K' + ''.join(line_buf))
-    # Move cursor back to correct position
+    w('\r[console]> ' + ''.join(line_buf))
     trail = len(line_buf) - cursor
     if trail > 0:
         w(f'\x1b[{trail}D')
 
 def set_line(text):
-    """Replace entire line buffer with text and put cursor at end."""
     global line_buf, cursor
     line_buf = list(text)
     cursor = len(line_buf)
@@ -196,29 +154,17 @@ def sigint_handler(_sig, _frame):
 
 signal.signal(signal.SIGINT, sigint_handler)
 
-print(f"Connected to {port} @ {baud} baud", flush=True)
+print(f"Console for {port} @ {baud} baud (send-only, no device output shown)", flush=True)
 print("Arrow Up/Down = history, Left/Right = move cursor", flush=True)
+print("Type commands and press Enter. Use /exit or /bye to quit.", flush=True)
 print("", flush=True)
 
-def read_serial():
-    while running:
-        try:
-            if ser.in_waiting:
-                data = ser.read(ser.in_waiting)
-                sys.stdout.buffer.write(data)
-                sys.stdout.flush()
-        except (serial.SerialException, OSError):
-            break
-        time.sleep(0.01)
-
-thread = threading.Thread(target=read_serial, daemon=True)
-thread.start()
+w("[console]> ")
 
 def read_char():
     """Read one character from the terminal, with escape sequence handling."""
     ch = tty_file.read(1)
     if ch == '\x1b':
-        # Possible escape sequence - peek for more
         if select.select([tty_file], [], [], 0.05)[0]:
             ch2 = tty_file.read(1)
             if ch2 == '[':
@@ -230,11 +176,10 @@ def read_char():
                 if ch3 == 'H': return 'HOME'
                 if ch3 == 'F': return 'END'
                 if ch3 == '3':
-                    # Delete key: ESC [ 3 ~
                     if select.select([tty_file], [], [], 0.05)[0]:
-                        tty_file.read(1)  # consume '~'
+                        tty_file.read(1)
                     return 'DEL'
-                return None  # unknown sequence, ignore
+                return None
             return None
     return ch
 
@@ -276,12 +221,12 @@ try:
                     cursor += 1
                     w('\x1b[C')
 
-            elif ch == 'HOME' or ch == '\x01':  # Home or Ctrl-A
+            elif ch == 'HOME' or ch == '\x01':
                 if cursor > 0:
                     w(f'\x1b[{cursor}D')
                     cursor = 0
 
-            elif ch == 'END' or ch == '\x05':  # End or Ctrl-E
+            elif ch == 'END' or ch == '\x05':
                 trail = len(line_buf) - cursor
                 if trail > 0:
                     w(f'\x1b[{trail}C')
@@ -292,18 +237,18 @@ try:
                     line_buf.pop(cursor)
                     redraw_line()
 
-            elif ch == '\x7f' or ch == '\x08':  # Backspace
+            elif ch == '\x7f' or ch == '\x08':
                 if cursor > 0:
                     cursor -= 1
                     line_buf.pop(cursor)
                     redraw_line()
 
-            elif ch == '\x15':  # Ctrl-U: clear line
+            elif ch == '\x15':  # Ctrl-U
                 line_buf.clear()
                 cursor = 0
                 redraw_line()
 
-            elif ch == '\x0b':  # Ctrl-K: kill to end of line
+            elif ch == '\x0b':  # Ctrl-K
                 line_buf = line_buf[:cursor]
                 redraw_line()
 
@@ -316,7 +261,7 @@ try:
                     w('Exiting...\r\n')
                     break
 
-                # Add to history (skip duplicates of last entry and empty lines)
+                # Add to history
                 if line.strip() and (not history or history[-1] != line):
                     history.append(line)
                     save_history(history)
@@ -324,12 +269,15 @@ try:
                 saved_line = ""
 
                 # Send to serial
-                ser.write((line + '\r\n').encode())
+                if line.strip():
+                    ser.write((line + '\r\n').encode())
+                    w(f"[sent: {line}]\r\n")
+
                 line_buf.clear()
                 cursor = 0
+                w("[console]> ")
 
             elif len(ch) == 1 and ch >= ' ':
-                # Printable character - insert at cursor position
                 line_buf.insert(cursor, ch)
                 cursor += 1
                 redraw_line()
@@ -339,33 +287,22 @@ except KeyboardInterrupt:
 finally:
     restore_and_exit()
 PYEOF
-  exec python3 "$_MONITOR_TMP" "$PORT" "$BAUD"
+  exec python3 "$_CONSOLE_TMP" "$PORT" "$BAUD"
 }
 
-# Choose available monitor tool
+# Start console
 if python3 -c "import serial" >/dev/null 2>&1; then
-  echo "Using Python monitor for $PORT @ $BAUD"
-  echo "Type /exit or /bye to quit. Ctrl-C also works."
+  echo "Using Python console for $PORT @ $BAUD (send-only)"
   send_initial_command
-  start_python_monitor
+  start_python_console
 
 elif command -v socat >/dev/null 2>&1; then
-  echo "Using socat for $PORT @ $BAUD (exit with Ctrl-C)"
+  echo "Using socat for $PORT @ $BAUD (send-only)"
   send_initial_command
-  exec socat -d -d FILE:"$PORT",raw,b"$BAUD",echo=0 STDIO,raw,echo=1
-
-elif command -v picocom >/dev/null 2>&1; then
-  echo "Using picocom for $PORT @ $BAUD (exit with Ctrl-A Ctrl-Q)"
-  send_initial_command
-  exec picocom -b "$BAUD" "$PORT"
-
-elif command -v screen >/dev/null 2>&1; then
-  echo "Using screen for $PORT @ $BAUD (exit with Ctrl-A k)"
-  send_initial_command
-  exec screen "$PORT" "$BAUD"
+  # socat: FILE for writing, /dev/null for discarding device input
+  exec socat STDIO FILE:"$PORT",raw,b"$BAUD",echo=0
 
 else
-  echo "No supported serial monitor found (python3-serial, socat, picocom, or screen)." >&2
-  echo "Install: sudo apt install python3-serial socat picocom screen" >&2
+  echo "No supported tool found. Install python3-serial or socat." >&2
   exit 4
 fi
