@@ -237,6 +237,16 @@ void handleTelnetClients();
 void processTelnetCommand(WiFiClient &client, String cmd);
 void sendTelnetPrompt(WiFiClient &client);
 
+// Defense Module
+void initDefense();
+void tickDefenseResources();
+void tickDefenseRules();
+bool isIpBlocked(String ip);
+bool checkRateLimit(String ip);
+String handleDefenseLine(String line);
+String handleIptablesList();
+String handleTcShow();
+String handleDefenseStatus();
 
 // Vulnerabilities Module
 void setupVulnerableEndpoints();
@@ -324,6 +334,9 @@ void setup() {
   initTelnet();
   logInfo("Telnet service started");
   
+  initDefense();
+  logInfo("Defense system initialized");
+  
   setupRESTRoutes();
   logInfo("REST API configured");
   
@@ -356,6 +369,10 @@ void loop() {
   
   // Handle telnet clients
   handleTelnetClients();
+  
+  // Tick defense system
+  tickDefenseResources();
+  tickDefenseRules();
   
   // Memory monitoring - restart if critically low
   static unsigned long lastMemCheck = 0;
