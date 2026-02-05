@@ -1,6 +1,5 @@
 # ESP32-H4CK - "SecureNet Solutions" Vulnerable Lab
 
-![ESP32-LAB - SecureNet Solutions](images/sns-productshop.png)
 
 **Version:** 1.0.3 | **Platform:** ESP32 | **Framework:** Arduino  
 **Quick Start:** See [QUICKSTART.md](QUICKSTART.md) for step-by-step setup guide.
