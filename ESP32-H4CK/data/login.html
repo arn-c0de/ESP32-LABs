@@ -3,146 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - ESP32-H4CK</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            min-height: 100vh;
-        }
-        .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 0 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 56px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        .navbar-brand {
-            font-size: 1.3em;
-            font-weight: 700;
-            text-decoration: none;
-            color: white;
-        }
-        .navbar-nav { display: flex; align-items: center; gap: 6px; list-style: none; }
-        .navbar-nav a {
-            color: rgba(255,255,255,0.85);
-            text-decoration: none;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-size: 0.9em;
-            transition: background 0.2s;
-        }
-        .navbar-nav a:hover, .navbar-nav a.active { background: rgba(255,255,255,0.18); color: white; }
-        .navbar-user { display: flex; align-items: center; gap: 12px; }
-        .user-badge {
-            display: flex; align-items: center; gap: 8px;
-            background: rgba(255,255,255,0.15);
-            padding: 5px 14px; border-radius: 20px; font-size: 0.9em;
-        }
-        .user-badge .role {
-            background: rgba(255,255,255,0.25); padding: 2px 8px;
-            border-radius: 10px; font-size: 0.8em; text-transform: uppercase; font-weight: 600;
-        }
-        .user-badge .role.admin { background: #e74c3c; }
-        .btn-nav {
-            padding: 6px 16px; border-radius: 6px;
-            border: 1.5px solid rgba(255,255,255,0.5);
-            background: transparent; color: white; font-size: 0.88em;
-            cursor: pointer; transition: background 0.2s; text-decoration: none;
-        }
-        .btn-nav:hover { background: rgba(255,255,255,0.18); }
-        .btn-nav.solid { background: rgba(255,255,255,0.2); border-color: transparent; }
-        .btn-nav.danger { border-color: #e74c3c; color: #ffa0a0; }
-        .btn-nav.danger:hover { background: #e74c3c; color: white; }
-
-        .login-wrap {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: calc(100vh - 56px);
-            padding: 20px;
-        }
-        .login-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.10);
-            max-width: 400px;
-            width: 100%;
-            padding: 36px;
-        }
-        .login-container h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 28px;
-            font-size: 1.6em;
-        }
-        .form-group { margin-bottom: 18px; }
-        label { display: block; color: #555; margin-bottom: 6px; font-weight: 500; font-size: 0.92em; }
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 11px 14px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 15px;
-            transition: border-color 0.2s;
-        }
-        input:focus { outline: none; border-color: #667eea; }
-        .btn-submit {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            margin-top: 4px;
-        }
-        .btn-submit:hover { opacity: 0.92; }
-        .message {
-            padding: 10px 14px;
-            border-radius: 8px;
-            margin-bottom: 18px;
-            display: none;
-            font-size: 0.92em;
-        }
-        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .default-creds {
-            margin-top: 20px;
-            padding: 14px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            font-size: 0.88em;
-        }
-        .default-creds h3 { color: #667eea; margin-bottom: 8px; font-size: 0.95em; }
-        .default-creds ul { list-style: none; color: #666; }
-        .default-creds li { margin: 4px 0; }
-        .back-link {
-            display: block;
-            text-align: center;
-            margin-top: 18px;
-            color: #667eea;
-            text-decoration: none;
-            font-size: 0.92em;
-        }
-        .back-link:hover { text-decoration: underline; }
-    </style>
+    <title>Login - SecureNet Banking</title>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <nav class="navbar">
-        <a href="/" class="navbar-brand">ESP32-H4CK</a>
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
         <ul class="navbar-nav">
             <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/transactions">Transactions</a></li>
+            <li><a href="/transfer">Transfer</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin">Admin</a></li>
             <li><a href="/shell.html">Shell</a></li>
-            <li><a href="/api/info">API</a></li>
         </ul>
         <div class="navbar-user" id="navUser">
             <a href="/login" class="btn-nav solid active">Login</a>
@@ -151,7 +26,7 @@
 
     <div class="login-wrap">
         <div class="login-container" id="loginBox">
-            <h1>Login</h1>
+            <h1>SecureNet Login</h1>
             <div id="message" class="message"></div>
             <form id="loginForm">
                 <div class="form-group">
@@ -162,14 +37,15 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" required autocomplete="current-password">
                 </div>
-                <button type="submit" class="btn-submit">Login</button>
+                <button type="submit" class="btn-submit">Sign In</button>
             </form>
             <div class="default-creds">
                 <h3>Default Credentials (for testing)</h3>
                 <ul>
-                    <li><strong>Admin:</strong> admin / admin</li>
-                    <li><strong>Root:</strong> root / root</li>
-                    <li><strong>Guest:</strong> guest / guest</li>
+                    <li><strong>Admin:</strong> admin / admin (5000 credits)</li>
+                    <li><strong>Root:</strong> root / root (5000 credits)</li>
+                    <li><strong>Operator:</strong> operator / operator123 (2000 credits)</li>
+                    <li><strong>Guest:</strong> guest / guest (1000 credits)</li>
                 </ul>
             </div>
             <a href="/" class="back-link">Back to Home</a>
@@ -177,87 +53,58 @@
     </div>
 
     <script>
-        function getCookie(name) {
-            var m = document.cookie.match('(^|;)\\s*' + name + '=([^;]*)');
-            return m ? decodeURIComponent(m[2]) : null;
-        }
-        (function() {
-            var ct = getCookie('auth_token'), cu = getCookie('auth_user'), cr = getCookie('auth_role');
-            if (ct && cu) {
-                localStorage.setItem('token', ct);
-                localStorage.setItem('username', cu);
-                localStorage.setItem('role', cr || 'guest');
-            }
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){
+            var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');
+            if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}
         })();
-        (function() {
-            var token = localStorage.getItem('token');
-            var username = localStorage.getItem('username');
-            var role = localStorage.getItem('role');
-            if (token && username) {
-                // Already logged in - update navbar
-                var nav = document.getElementById('navUser');
-                var roleClass = role === 'admin' ? ' admin' : '';
-                nav.innerHTML =
-                    '<div class="user-badge">' +
-                        '<span>' + username + '</span>' +
-                        '<span class="role' + roleClass + '">' + role + '</span>' +
-                    '</div>' +
-                    (role === 'admin' ? '<a href="/admin" class="btn-nav solid">Admin</a>' : '') +
+        (function(){
+            var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+            if(token&&username){
+                var nav=document.getElementById('navUser');
+                var rc=role==='admin'?' admin':'';
+                nav.innerHTML='<div class="user-badge"><span>'+username+'</span><span class="role'+rc+'">'+role+'</span></div>'+
+                    (role==='admin'?'<a href="/admin" class="btn-nav solid">Admin</a>':'')+
+                    '<a href="/dashboard" class="btn-nav solid">Dashboard</a>'+
                     '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
-                // Show already logged in message
-                var box = document.getElementById('loginBox');
-                box.innerHTML =
-                    '<h1>Already Logged In</h1>' +
-                    '<p style="text-align:center;color:#555;margin:18px 0;">You are logged in as <strong>' + username + '</strong> (' + role + ').</p>' +
-                    '<div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">' +
-                        '<a href="/" class="back-link" style="margin:0;padding:10px 22px;background:#667eea;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Home</a>' +
-                        (role === 'admin' ? '<a href="/admin" class="back-link" style="margin:0;padding:10px 22px;background:#667eea;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">Admin Panel</a>' : '') +
-                        '<button onclick="doLogout()" style="padding:10px 22px;background:#e74c3c;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.92em;">Logout</button>' +
-                    '</div>';
+                var box=document.getElementById('loginBox');
+                box.innerHTML='<h1>Already Logged In</h1>'+
+                    '<p style="text-align:center;color:#555;margin:18px 0;">You are logged in as <strong>'+username+'</strong> ('+role+').</p>'+
+                    '<div style="display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap">'+
+                    '<a href="/dashboard" class="btn">Dashboard</a>'+
+                    (role==='admin'?'<a href="/admin" class="btn btn-outline">Admin Panel</a>':'')+
+                    '<button onclick="doLogout()" class="btn btn-danger">Logout</button></div>';
             }
         })();
 
-        function doLogout() {
-            fetch('/api/logout').finally(function() {
-                localStorage.removeItem('token');
-                localStorage.removeItem('username');
-                localStorage.removeItem('role');
+        function doLogout(){
+            fetch('/api/logout').finally(function(){
+                localStorage.removeItem('token');localStorage.removeItem('username');localStorage.removeItem('role');
                 window.location.reload();
             });
         }
 
-        var form = document.getElementById('loginForm');
-        if (form) {
-            form.addEventListener('submit', async function(e) {
+        var form=document.getElementById('loginForm');
+        if(form){
+            form.addEventListener('submit',async function(e){
                 e.preventDefault();
-                var uname = document.getElementById('username').value;
-                var pass = document.getElementById('password').value;
-                var msg = document.getElementById('message');
-                try {
-                    var fd = new FormData();
-                    fd.append('username', uname);
-                    fd.append('password', pass);
-                    var resp = await fetch('/api/login', { method: 'POST', body: fd });
-                    var data = await resp.json();
-                    if (data.success) {
-                        msg.className = 'message success';
-                        msg.textContent = 'Login successful! Redirecting...';
-                        msg.style.display = 'block';
-                        localStorage.setItem('token', data.token);
-                        localStorage.setItem('username', data.username);
-                        localStorage.setItem('role', data.role);
-                        setTimeout(function() {
-                            window.location.href = data.role === 'admin' ? '/admin' : '/';
-                        }, 800);
-                    } else {
-                        msg.className = 'message error';
-                        msg.textContent = data.error || 'Login failed';
-                        msg.style.display = 'block';
+                var uname=document.getElementById('username').value;
+                var pass=document.getElementById('password').value;
+                var msg=document.getElementById('message');
+                try{
+                    var fd=new FormData();
+                    fd.append('username',uname);fd.append('password',pass);
+                    var resp=await fetch('/api/login',{method:'POST',body:fd});
+                    var data=await resp.json();
+                    if(data.success){
+                        msg.className='message success';msg.textContent='Login successful! Redirecting...';msg.style.display='block';
+                        localStorage.setItem('token',data.token);localStorage.setItem('username',data.username);localStorage.setItem('role',data.role);
+                        setTimeout(function(){window.location.href='/dashboard';},600);
+                    }else{
+                        msg.className='message error';msg.textContent=data.error||'Login failed';msg.style.display='block';
                     }
-                } catch (err) {
-                    msg.className = 'message error';
-                    msg.textContent = 'Network error: ' + err.message;
-                    msg.style.display = 'block';
+                }catch(err){
+                    msg.className='message error';msg.textContent='Network error: '+err.message;msg.style.display='block';
                 }
             });
         }

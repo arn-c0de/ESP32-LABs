@@ -86,10 +86,15 @@ void setupRESTRoutes() {
     DynamicJsonDocument doc(2048);
     JsonArray public_endpoints = doc.createNestedArray("public");
     public_endpoints.add("/");
+    public_endpoints.add("/login");
+    public_endpoints.add("/dashboard");
+    public_endpoints.add("/transactions");
+    public_endpoints.add("/transfer");
+    public_endpoints.add("/profile");
+    public_endpoints.add("/admin");
     public_endpoints.add("/about");
     public_endpoints.add("/products");
     public_endpoints.add("/support");
-    public_endpoints.add("/login");
     
     JsonArray api = doc.createNestedArray("api");
     api.add("/api/info");
@@ -104,6 +109,16 @@ void setupRESTRoutes() {
     api.add("/api/admin/sessions");
     api.add("/api/admin/config-update");
     api.add("/api/system/reboot");
+
+    JsonArray wallet = doc.createNestedArray("wallet");
+    wallet.add("/api/wallet/balance");
+    wallet.add("/api/wallet/transactions");
+    wallet.add("/api/wallet/transfer");
+    wallet.add("/api/wallet/withdraw");
+    wallet.add("/api/wallet/deposit");
+    wallet.add("/api/wallet/export");
+    wallet.add("/api/admin/wallet/reset");
+    wallet.add("/api/admin/wallet/stats");
     
     JsonArray vulns = doc.createNestedArray("vulnerabilities");
     vulns.add("/vuln/search");
