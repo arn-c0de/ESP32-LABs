@@ -67,6 +67,17 @@ You can configure the device at build time (using `.env` + `./build.sh`), by edi
 >
 > **Note:** In `testing` mode pages show hints and UI elements with `.testing-only` — use only in an isolated lab environment.
 - `JWT_SECRET` — JWT signing secret (weak by default for lab). Set in `.env` or via compile-time define.
+- `PROTECT_ADMIN_ENDPOINTS` — `true` or `false` to enforce admin-role checks on all admin routes/endpoints. **Default:** `true` (recommended). When `false`, admin endpoints are accessible without admin role (INSECURE, use only in isolated lab scenarios).
+  - Toggle at runtime (admin-only): `POST /api/config/lab-mode` with JSON body e.g. `{"mode":"pentest","protect_admin_endpoints":false}`. Example:
+
+    ```bash
+    curl -X POST "http://<device-ip>/api/config/lab-mode" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer <ADMIN_TOKEN>" \
+      -d '{"mode":"pentest","protect_admin_endpoints":false}'
+    ```
+
+  - Current value is exposed in `GET /api/config` and `GET /api/info` as `protect_admin_endpoints`.
 - `ENABLE_VULNERABILITIES` — `true` or `false` to enable/disable vulnerable endpoints. Default: `true` (lab mode).
 - `DEBUG_MODE` — Enables verbose logging (default: `true`).
 - `SSL_ENABLED` — Enable HTTPS (default: `false`).

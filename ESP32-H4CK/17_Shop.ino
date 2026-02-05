@@ -453,17 +453,9 @@ void handleDeleteOrder(AsyncWebServerRequest *request) {
 // ========================================
 
 void handleAdminAddProduct(AsyncWebServerRequest *request) {
-  // Check admin auth (weak in vuln mode)
-  if (!VULN_WEAK_AUTH) {
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
-      return;
-    }
-    String role = getRequestRole(request);
-    if (role != "admin") {
-      request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
-      return;
-    }
+  // Require admin access
+  if (!requireAdmin(request)) {
+    return;
   }
   
   if (!request->hasParam("name") || !request->hasParam("price")) {
@@ -488,17 +480,9 @@ void handleAdminAddProduct(AsyncWebServerRequest *request) {
 }
 
 void handleAdminUpdateProduct(AsyncWebServerRequest *request) {
-  // Weak auth check in vuln mode
-  if (!VULN_WEAK_AUTH) {
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
-      return;
-    }
-    String role = getRequestRole(request);
-    if (role != "admin") {
-      request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
-      return;
-    }
+  // Require admin access
+  if (!requireAdmin(request)) {
+    return;
   }
   
   if (!request->hasParam("product_id")) {
@@ -521,17 +505,9 @@ void handleAdminUpdateProduct(AsyncWebServerRequest *request) {
 }
 
 void handleAdminDeleteProduct(AsyncWebServerRequest *request) {
-  // Weak auth in vuln mode
-  if (!VULN_WEAK_AUTH) {
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
-      return;
-    }
-    String role = getRequestRole(request);
-    if (role != "admin") {
-      request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
-      return;
-    }
+  // Require admin access
+  if (!requireAdmin(request)) {
+    return;
   }
   
   if (!request->hasParam("product_id")) {
@@ -549,19 +525,9 @@ void handleAdminDeleteProduct(AsyncWebServerRequest *request) {
 }
 
 void handleAdminGetAllOrders(AsyncWebServerRequest *request) {
-  // Weak auth - info disclosure in vuln mode
-  if (!VULN_WEAK_AUTH) {
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
-      return;
-    }
-    String role = getRequestRole(request);
-    if (role != "admin") {
-      request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
-      return;
-    }
-  } else {
-    Serial.println("[VULN] Weak auth: admin orders accessed without proper auth");
+  // Require admin access
+  if (!requireAdmin(request)) {
+    return;
   }
   
   String orders = getAllOrders();
@@ -569,19 +535,9 @@ void handleAdminGetAllOrders(AsyncWebServerRequest *request) {
 }
 
 void handleAdminOrderStats(AsyncWebServerRequest *request) {
-  // Info disclosure in vuln mode
-  if (!VULN_WEAK_AUTH) {
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
-      return;
-    }
-    String role = getRequestRole(request);
-    if (role != "admin") {
-      request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
-      return;
-    }
-  } else {
-    Serial.println("[VULN] Info disclosure: order stats accessed without auth");
+  // Require admin access
+  if (!requireAdmin(request)) {
+    return;
   }
   
   String stats = getOrderStats();

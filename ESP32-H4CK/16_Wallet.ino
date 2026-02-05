@@ -68,28 +68,9 @@ String getRequestUsername(AsyncWebServerRequest *request) {
   return "";
 }
 
-String getRequestRole(AsyncWebServerRequest *request) {
-  String username = getRequestUsername(request);
-  if (username == "") return "guest";
+// Use centralized getRequestRole() implementation in 04_Auth.ino to avoid duplicate symbol
+// String getRequestRole(AsyncWebServerRequest *request);
 
-  // Check default users
-  for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
-    if (defaultUsers[i].username == username) {
-      return defaultUsers[i].role;
-    }
-  }
-
-  // Check DB
-  String userData = getUserByUsername(username);
-  if (userData != "") {
-    DynamicJsonDocument doc(512);
-    if (!deserializeJson(doc, userData)) {
-      return doc["role"].as<String>();
-    }
-  }
-
-  return "guest";
-}
 
 void setupWalletEndpoints() {
 
@@ -463,19 +444,9 @@ void setupWalletEndpoints() {
   server.on("/api/admin/wallet/reset", HTTP_POST, [](AsyncWebServerRequest *request) {
     totalRequests++;
 
-    // Vulnerable when VULN_WEAK_AUTH: only checks if authenticated, not if admin
-    if (!VULN_WEAK_AUTH) {
-      if (!isAuthenticated(request) || getRequestRole(request) != "admin") {
-        request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
-        return;
-      }
-    } else {
-      // Weak auth: any authenticated user can reset
-      if (!isAuthenticated(request)) {
-        request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-      }
-      Serial.printf("[WALLET] Weak auth: wallet reset by non-admin!\n");
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
     }
 
     String content = readFile(DB_FILE_PATH);
@@ -513,9 +484,8 @@ void setupWalletEndpoints() {
   server.on("/api/admin/wallet/stats", HTTP_GET, [](AsyncWebServerRequest *request) {
     totalRequests++;
 
-    // Intentionally no auth check when vulnerabilities enabled
-    if (!ENABLE_VULNERABILITIES && !isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
 
@@ -570,14 +540,8 @@ void setupWalletEndpoints() {
   server.on("/api/admin/wallet/adjust", HTTP_POST, [](AsyncWebServerRequest *request) {
     totalRequests++;
 
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
-    }
-
-    // Weak auth check: should verify admin role but doesn't in vuln mode
-    if (!VULN_WEAK_AUTH && getRequestRole(request) != "admin") {
-      request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
 

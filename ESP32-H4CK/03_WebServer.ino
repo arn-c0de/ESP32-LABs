@@ -167,12 +167,14 @@ void setupRoutes() {
     }
     Serial.printf("[HTTP] GET /admin from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
-    if (!isAuthenticated(request)) {
-      Serial.printf("[HTTP] /admin access denied - not authenticated\n");
-      request->redirect("/login");
+    
+    // Check authentication AND admin role
+    if (!requireAdmin(request)) {
+      // requireAdmin already sends appropriate error response
       return;
     }
-    Serial.printf("[HTTP] /admin access granted\n");
+    
+    Serial.printf("[HTTP] /admin access granted to admin user\n");
     
     if (fileExists("/admin.html")) {
       request->send(LittleFS, "/admin.html", "text/html");
@@ -368,12 +370,13 @@ void setupRoutes() {
     request->send(200, "text/html", html);
   });
 
-  // Version control discovery - .git/config (intentional exposure)
+  // Version control discovery - .git/config (ADMIN ONLY)
   server.on("/.git/config", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.printf("[HTTP] ⚠️  .git/config access from %s\n", request->client()->remoteIP().toString().c_str());
+    Serial.printf("[HTTP] .git/config access from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
-    if (!ENABLE_VULNERABILITIES) {
-      request->send(404, "text/plain", "Not Found");
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
     String gitConfig = "[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n";
@@ -385,12 +388,13 @@ void setupRoutes() {
     request->send(200, "text/plain", gitConfig);
   });
 
-  // .env file exposure (critical vulnerability)
+  // .env file exposure (ADMIN ONLY)
   server.on("/.env", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.printf("[HTTP] ⚠️  CRITICAL: .env file access from %s\n", request->client()->remoteIP().toString().c_str());
+    Serial.printf("[HTTP] .env file access from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
-    if (!ENABLE_VULNERABILITIES) {
-      request->send(404, "text/plain", "Not Found");
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
     String envContent = "# SecureNet ESP32 Configuration\n";
@@ -405,10 +409,15 @@ void setupRoutes() {
     request->send(200, "text/plain", envContent);
   });
 
-  // Backup directory listing
+  // Backup directory listing (ADMIN ONLY)
   server.on("/backup", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] /backup directory access from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
+    }
     String html = "<!DOCTYPE html><html><head><title>Backup Directory</title>";
     html += "<style>body{font-family:monospace;padding:20px;background:#f4f4f4}h1{color:#333}ul{list-style:none;padding:0}li{padding:8px;background:#fff;margin:5px 0;border-left:4px solid #0066cc}a{text-decoration:none;color:#0066cc}</style></head><body>";
     html += "<h1>Index of /backup</h1><hr><ul>";
@@ -422,9 +431,14 @@ void setupRoutes() {
     request->send(200, "text/html", html);
   });
 
-  // Backup file downloads (simulated)
+  // Backup file downloads (ADMIN ONLY)
   server.on("/backup/database_backup_2024_11_15.sql", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.printf("[HTTP] ⚠️  Database backup download from %s\n", request->client()->remoteIP().toString().c_str());
+    Serial.printf("[HTTP] Database backup download from %s\n", request->client()->remoteIP().toString().c_str());
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
+    }
     String sql = "-- SecureNet Database Backup\n-- Date: 2024-11-15\n\n";
     sql += "INSERT INTO users VALUES (1, 'admin', 'admin', 'admin');\n";
     sql += "INSERT INTO users VALUES (2, 'guest', 'guest', 'guest');\n";
@@ -435,6 +449,11 @@ void setupRoutes() {
 
   server.on("/backup/.env.backup", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] .env.backup download from %s\n", request->client()->remoteIP().toString().c_str());
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
+    }
     request->send(200, "text/plain", "JWT_SECRET=old_secret_key_456\nADMIN_PASS=admin\n");
   });
 
@@ -451,13 +470,14 @@ void setupRoutes() {
     request->send(200, "text/plain", robots);
   });
 
-  // Debug endpoint (intentionally exposed - vulnerability)
+  // Debug endpoint (ADMIN ONLY)
   server.on("/debug", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] GET /debug from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
     addCORSHeaders(request);
-    if (!ENABLE_VULNERABILITIES) {
-      request->send(403, "text/plain", "Forbidden");
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
     

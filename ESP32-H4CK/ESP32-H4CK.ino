@@ -87,6 +87,8 @@ bool DEBUG_MODE = true;
 bool SSL_ENABLED = false;
 bool ENABLE_TELNET = true;
 bool ENABLE_WEBSOCKET = true;
+// Admin endpoints protection toggle (true = admin checks enforced)
+bool PROTECT_ADMIN_ENDPOINTS = true;
 #ifndef STATION_MODE_DEFAULT
 #define STATION_MODE_DEFAULT false
 #endif
@@ -236,7 +238,10 @@ bool authenticateUser(String username, String password);
 String generateJWT(String username, String role);
 bool validateJWT(String token);
 bool isAuthenticated(AsyncWebServerRequest *request);
+bool isAdmin(AsyncWebServerRequest *request);
+bool requireAdmin(AsyncWebServerRequest *request);
 String getUserRole(String token);
+String getRequestRole(AsyncWebServerRequest *request);
 void handleLogin(AsyncWebServerRequest *request);
 void handleLogout(AsyncWebServerRequest *request);
 
