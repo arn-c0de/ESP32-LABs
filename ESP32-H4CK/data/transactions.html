@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transactions - SecureNet Banking</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/transactions" class="active">Transactions</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>Transaction History</h2>
+
+            <div class="filter-bar">
+                <select id="filterType" onchange="loadTransactions()">
+                    <option value="">All Types</option>
+                    <option value="transfer">Transfers</option>
+                    <option value="deposit">Deposits</option>
+                    <option value="withdraw">Withdrawals</option>
+                    <option value="adjustment">Adjustments</option>
+                </select>
+                <input type="number" id="filterLimit" placeholder="Limit (50)" value="50" style="width:100px" onchange="loadTransactions()">
+                <button class="btn btn-sm" onclick="loadTransactions()">Refresh</button>
+                <button class="btn btn-sm btn-outline" onclick="exportCSV()">Export CSV</button>
+            </div>
+
+            <div id="txnTable"><div class="empty-msg">Loading...</div></div>
+
+            <div id="txnSummary" style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;display:none">
+                <strong>Summary:</strong>
+                <span id="summaryText"></span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>IDOR Test</h2>
+            <div class="info-box">
+                Try viewing other users' transactions by changing the user_id parameter.
+                This endpoint is vulnerable to Insecure Direct Object Reference (IDOR).
+            </div>
+            <div class="filter-bar">
+                <input type="number" id="idorUserId" placeholder="user_id (e.g. 1)" style="width:160px">
+                <button class="btn btn-sm btn-danger" onclick="loadIDOR()">Fetch Other User</button>
+            </div>
+            <div id="idorResult"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        function authHeaders(){return{'Authorization':'Bearer '+token}}
+
+        function renderTxnTable(transactions,targetDiv){
+            var div=document.getElementById(targetDiv);
+            if(transactions&&transactions.length>0){
+                var h='<table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Amount</th></tr></thead><tbody>';
+                var totalIn=0,totalOut=0;
+                transactions.forEach(function(tx){
+                    var isIncoming=tx.to_user===username;
+                    var amtClass=isIncoming?'amount-positive':'amount-negative';
+                    var amtPrefix=isIncoming?'+':'-';
+                    if(isIncoming)totalIn+=tx.amount;else totalOut+=tx.amount;
+                    h+='<tr><td style="font-family:monospace;font-size:.82em">'+tx.id+'</td>'+
+                        '<td>'+(tx.date||'--')+'</td>'+
+                        '<td><span class="type-badge '+tx.type+'">'+tx.type+'</span></td>'+
+                        '<td>'+tx.from_user+'</td><td>'+tx.to_user+'</td>'+
+                        '<td class="'+amtClass+'">'+amtPrefix+tx.amount.toFixed(2)+'</td></tr>';
+                });
+                h+='</tbody></table>';
+                div.innerHTML=h;
+
+                var summary=document.getElementById('txnSummary');
+                summary.style.display='block';
+                document.getElementById('summaryText').textContent=
+                    transactions.length+' transactions | In: +'+totalIn.toFixed(2)+' | Out: -'+totalOut.toFixed(2)+' | Net: '+(totalIn-totalOut).toFixed(2);
+            }else{
+                div.innerHTML='<div class="empty-msg">No transactions found.</div>';
+            }
+        }
+
+        async function loadTransactions(){
+            try{
+                var limit=document.getElementById('filterLimit').value||50;
+                var r=await fetch('/api/wallet/transactions?limit='+limit,{headers:authHeaders()});
+                var d=await r.json();
+                var filter=document.getElementById('filterType').value;
+                var txns=d.transactions||[];
+                if(filter){txns=txns.filter(function(t){return t.type===filter})}
+                renderTxnTable(txns,'txnTable');
+            }catch(e){
+                document.getElementById('txnTable').innerHTML='<div class="empty-msg">Error loading transactions</div>';
+            }
+        }
+
+        async function loadIDOR(){
+            var userId=document.getElementById('idorUserId').value;
+            if(!userId){return}
+            try{
+                var r=await fetch('/api/wallet/transactions?user_id='+userId,{headers:authHeaders()});
+                var d=await r.json();
+                var div=document.getElementById('idorResult');
+                if(d.transactions&&d.transactions.length>0){
+                    var h='<p style="color:var(--danger);font-weight:600;margin:8px 0">IDOR Success! Viewing user_id='+userId+' transactions:</p>';
+                    h+='<table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Amount</th></tr></thead><tbody>';
+                    d.transactions.forEach(function(tx){
+                        h+='<tr><td style="font-family:monospace;font-size:.82em">'+tx.id+'</td>'+
+                            '<td>'+(tx.date||'--')+'</td>'+
+                            '<td><span class="type-badge '+tx.type+'">'+tx.type+'</span></td>'+
+                            '<td>'+tx.from_user+'</td><td>'+tx.to_user+'</td>'+
+                            '<td>'+tx.amount.toFixed(2)+'</td></tr>';
+                    });
+                    h+='</tbody></table>';
+                    div.innerHTML=h;
+                }else{
+                    div.innerHTML='<div class="empty-msg">No transactions for user_id='+userId+'</div>';
+                }
+            }catch(e){
+                document.getElementById('idorResult').innerHTML='<div class="empty-msg">Error: '+e.message+'</div>';
+            }
+        }
+
+        function exportCSV(){
+            window.open('/api/wallet/export','_blank');
+        }
+
+        window.addEventListener('load',loadTransactions);
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

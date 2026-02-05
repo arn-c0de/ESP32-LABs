@@ -1,180 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/js/auth-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32-H4CK Vulnerable Lab</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            min-height: 100vh;
-        }
-        .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 0 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 56px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        .navbar-brand {
-            font-size: 1.3em;
-            font-weight: 700;
-            text-decoration: none;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .navbar-nav {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            list-style: none;
-        }
-        .navbar-nav a {
-            color: rgba(255,255,255,0.85);
-            text-decoration: none;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-size: 0.9em;
-            transition: background 0.2s, color 0.2s;
-        }
-        .navbar-nav a:hover, .navbar-nav a.active {
-            background: rgba(255,255,255,0.18);
-            color: white;
-        }
-        .navbar-user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .user-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(255,255,255,0.15);
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 0.9em;
-        }
-        .user-badge .role {
-            background: rgba(255,255,255,0.25);
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.8em;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        .user-badge .role.admin { background: #e74c3c; }
-        .btn-nav {
-            padding: 6px 16px;
-            border-radius: 6px;
-            border: 1.5px solid rgba(255,255,255,0.5);
-            background: transparent;
-            color: white;
-            font-size: 0.88em;
-            cursor: pointer;
-            transition: background 0.2s;
-            text-decoration: none;
-        }
-        .btn-nav:hover { background: rgba(255,255,255,0.18); }
-        .btn-nav.solid { background: rgba(255,255,255,0.2); border-color: transparent; }
-        .btn-nav.danger { border-color: #e74c3c; color: #ffa0a0; }
-        .btn-nav.danger:hover { background: #e74c3c; color: white; }
-
-        .container {
-            max-width: 860px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-        .card {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            padding: 30px;
-            margin-bottom: 24px;
-        }
-        .card-header {
-            text-align: center;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        .card-header h1 { color: #333; font-size: 2.2em; }
-        .card-header .version { color: #888; font-size: 0.9em; margin-top: 4px; }
-        .warning {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
-            padding: 14px 18px;
-            margin-bottom: 24px;
-            color: #856404;
-            font-size: 0.92em;
-            line-height: 1.5;
-        }
-        .warning strong { display: block; margin-bottom: 4px; }
-        h2 { color: #667eea; margin-bottom: 16px; font-size: 1.3em; }
-        .endpoint-list { list-style: none; }
-        .endpoint-item {
-            background: #f8f9fa;
-            padding: 14px 16px;
-            margin-bottom: 8px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-            transition: transform 0.15s;
-        }
-        .endpoint-item:hover { transform: translateX(4px); background: #eef0f5; }
-        .endpoint-item a { color: #667eea; text-decoration: none; font-weight: 600; font-size: 1.05em; }
-        .endpoint-item p { color: #666; margin-top: 4px; font-size: 0.88em; }
-        .method {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75em;
-            font-weight: 700;
-            margin-right: 6px;
-            vertical-align: middle;
-        }
-        .method.get { background: #28a745; color: white; }
-        .method.post { background: #007bff; color: white; }
-        .btn-group { text-align: center; margin: 24px 0; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-        .btn {
-            display: inline-block;
-            padding: 10px 22px;
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.95em;
-            transition: background 0.2s, transform 0.1s;
-        }
-        .btn:hover { background: #764ba2; transform: translateY(-1px); }
-        .footer {
-            text-align: center;
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 2px solid #f0f0f0;
-            color: #aaa;
-            font-size: 0.85em;
-        }
-    </style>
+    <title>SecureNet Banking - ESP32-H4CK</title>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <nav class="navbar">
-        <a href="/" class="navbar-brand">ESP32-H4CK</a>
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
         <ul class="navbar-nav">
             <li><a href="/" class="active">Home</a></li>
-            <li><a href="/shell.html">Shell</a></li>
-            <li><a href="/api/info">API</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
         </ul>
         <div class="navbar-user" id="navUser">
             <a href="/login" class="btn-nav solid">Login</a>
@@ -184,8 +29,8 @@
     <div class="container">
         <div class="card">
             <div class="card-header">
-                <h1>ESP32-H4CK</h1>
-                <p class="version">Vulnerable Web Application Lab v1.0.0</p>
+                <h1>SecureNet Banking</h1>
+                <p class="version">ESP32-H4CK Vulnerable Lab v2.5.1</p>
             </div>
 
             <div class="warning">
@@ -193,8 +38,14 @@
                 This system contains intentional security vulnerabilities for cybersecurity training and penetration testing education. Deploy ONLY in isolated lab environments.
             </div>
 
-            <h2>Available Endpoints</h2>
-            <ul class="endpoint-list">
+            <div class="quick-actions" id="authActions" style="display:none;">
+                <a href="/dashboard" class="btn btn-lg">Dashboard</a>
+                <a href="/transfer" class="btn btn-lg">Transfer Funds</a>
+                <a href="/transactions" class="btn btn-lg btn-outline">Transactions</a>
+            </div>
+
+            <h2 class="testing-only">Available Endpoints</h2>
+            <ul class="endpoint-list testing-only">
                 <li class="endpoint-item">
                     <span class="method get">GET</span>
                     <a href="/login">/login</a>
@@ -202,8 +53,23 @@
                 </li>
                 <li class="endpoint-item">
                     <span class="method get">GET</span>
+                    <a href="/dashboard">/dashboard</a>
+                    <p>User dashboard with balance and recent transactions</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
                     <a href="/admin">/admin</a>
-                    <p>Admin panel (requires authentication)</p>
+                    <p>Admin panel with user & wallet management</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/api/wallet/balance">/api/wallet/balance</a>
+                    <p>Wallet balance API (IDOR: try ?user_id=1)</p>
+                </li>
+                <li class="endpoint-item">
+                    <span class="method post">POST</span>
+                    <a href="/transfer">/api/wallet/transfer</a>
+                    <p>Fund transfer (IDOR + Race Condition)</p>
                 </li>
                 <li class="endpoint-item">
                     <span class="method get">GET</span>
@@ -222,30 +88,25 @@
                 </li>
                 <li class="endpoint-item">
                     <span class="method get">GET</span>
-                    <a href="/debug">/debug</a>
-                    <p>Debug information endpoint (info disclosure)</p>
-                </li>
-                <li class="endpoint-item">
-                    <span class="method get">GET</span>
-                    <a href="/vuln/comments">/vuln/comments</a>
-                    <p>Comment system (vulnerable to XSS)</p>
-                </li>
-                <li class="endpoint-item">
-                    <span class="method get">GET</span>
                     <a href="/vuln/search?q=admin">/vuln/search</a>
                     <p>Search endpoint (vulnerable to SQL injection)</p>
                 </li>
+                <li class="endpoint-item">
+                    <span class="method get">GET</span>
+                    <a href="/api/endpoints">/api/endpoints</a>
+                    <p>Full endpoint discovery</p>
+                </li>
             </ul>
 
-            <div class="btn-group">
+            <div class="btn-group" style="text-align:center;margin:24px 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
                 <a href="/login" class="btn" id="btnLogin">Login</a>
-                <a href="/shell.html" class="btn">Web Shell</a>
-                <a href="/api/info" class="btn">System Info</a>
-                <a href="/admin" class="btn" id="btnAdmin" style="display:none;">Admin Panel</a>
+                <a href="/shell.html" class="btn testing-only shell-link">Web Shell</a>
+                <a href="/api/info" class="btn btn-outline testing-only">System Info</a>
+                <a href="/admin" class="btn btn-outline" id="btnAdmin" style="display:none;">Admin Panel</a>
             </div>
 
-            <h2>Other Services</h2>
-            <ul class="endpoint-list">
+            <h2 class="testing-only">Other Services</h2>
+            <ul class="endpoint-list testing-only">
                 <li class="endpoint-item">
                     <strong>Telnet Service:</strong> Port 23
                     <p>Connect with: <code>telnet &lt;device-ip&gt; 23</code></p>
@@ -257,51 +118,26 @@
             </ul>
 
             <div class="footer">
-                <p>ESP32-H4CK Vulnerable Lab Project - For Educational Use Only</p>
+                <p>ESP32-H4CK Vulnerable Lab - SecureNet Banking Edition - For Educational Use Only</p>
             </div>
         </div>
     </div>
 
     <script>
-        function getCookie(name) {
-            var m = document.cookie.match('(^|;)\\s*' + name + '=([^;]*)');
-            return m ? decodeURIComponent(m[2]) : null;
-        }
-        // Sync cookies to localStorage (for browser form login redirect)
-        (function() {
-            var ct = getCookie('auth_token'), cu = getCookie('auth_user'), cr = getCookie('auth_role');
-            if (ct && cu) {
-                localStorage.setItem('token', ct);
-                localStorage.setItem('username', cu);
-                localStorage.setItem('role', cr || 'guest');
-            }
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){
+            var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');
+            if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}
         })();
-        (function() {
-            var token = localStorage.getItem('token');
-            var username = localStorage.getItem('username');
-            var role = localStorage.getItem('role');
-            var nav = document.getElementById('navUser');
-            if (token && username) {
-                var roleClass = role === 'admin' ? ' admin' : '';
-                nav.innerHTML =
-                    '<div class="user-badge">' +
-                        '<span>' + username + '</span>' +
-                        '<span class="role' + roleClass + '">' + role + '</span>' +
-                    '</div>' +
-                    (role === 'admin' ? '<a href="/admin" class="btn-nav solid">Admin</a>' : '') +
-                    '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
-                document.getElementById('btnLogin').style.display = 'none';
-                if (role === 'admin') document.getElementById('btnAdmin').style.display = '';
-            }
-        })();
-        function doLogout() {
-            fetch('/api/logout').finally(function() {
-                localStorage.removeItem('token');
-                localStorage.removeItem('username');
-                localStorage.removeItem('role');
-                window.location.href = '/login';
-            });
+        
+        // Show admin button only for admin users
+        var role = localStorage.getItem('role');
+        if (role === 'admin') {
+            var adminBtn = document.getElementById('btnAdmin');
+            if (adminBtn) adminBtn.style.display = 'inline-block';
         }
     </script>
+    <script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
 </body>
 </html>

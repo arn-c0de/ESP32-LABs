@@ -188,6 +188,111 @@ void setupRoutes() {
     }
   });
   
+  // Dashboard page (auth required)
+  server.on("/dashboard", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    if (!checkRateLimit(clientIP)) { request->send(429, "text/plain", "Too Many Requests"); return; }
+    Serial.printf("[HTTP] GET /dashboard from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/dashboard.html")) {
+      request->send(LittleFS, "/dashboard.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Transactions page
+  server.on("/transactions", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /transactions from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/transactions.html")) {
+      request->send(LittleFS, "/transactions.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Transfer page
+  server.on("/transfer", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /transfer from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/transfer.html")) {
+      request->send(LittleFS, "/transfer.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Profile page
+  server.on("/profile", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /profile from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/profile.html")) {
+      request->send(LittleFS, "/profile.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Shop page
+  server.on("/shop", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /shop from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/shop.html")) {
+      request->send(LittleFS, "/shop.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Cart page
+  server.on("/cart", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /cart from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/cart.html")) {
+      request->send(LittleFS, "/cart.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Checkout page
+  server.on("/checkout", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /checkout from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/checkout.html")) {
+      request->send(LittleFS, "/checkout.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Orders page
+  server.on("/orders", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /orders from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/orders.html")) {
+      request->send(LittleFS, "/orders.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
   // About page
   server.on("/about", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] GET /about from %s\n", request->client()->remoteIP().toString().c_str());

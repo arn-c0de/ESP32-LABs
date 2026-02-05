@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - SecureNet Banking</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/transactions">Transactions</a></li>
+            <li><a href="/transfer">Transfer</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile" class="active">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container-narrow">
+        <div class="card">
+            <h2>User Profile</h2>
+            <div id="profileInfo">
+                <div class="stats" style="margin-bottom:20px">
+                    <div class="stat-item"><h3>Username</h3><p id="pUser">--</p></div>
+                    <div class="stat-item"><h3>Role</h3><p id="pRole">--</p></div>
+                    <div class="stat-item"><h3>Balance</h3><p id="pBalance">--</p></div>
+                    <div class="stat-item"><h3>Email</h3><p id="pEmail">--</p></div>
+                </div>
+                <div class="stats">
+                    <div class="stat-item"><h3>First Name</h3><p id="pFirst">--</p></div>
+                    <div class="stat-item"><h3>Last Name</h3><p id="pLast">--</p></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Change Password</h2>
+            <div id="pwdMsg" class="message" style="display:none"></div>
+            <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Enter new password">
+            </div>
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="confirmPassword" placeholder="Confirm new password">
+            </div>
+            <button class="btn" onclick="changePassword()">Update Password</button>
+        </div>
+
+        <div class="card">
+            <h2>API Keys</h2>
+            <div class="info-box">
+                API keys allow programmatic access to your account. Use the Authorization header with your JWT token.
+            </div>
+            <div class="form-group">
+                <label>Your JWT Token</label>
+                <textarea id="tokenDisplay" rows="3" readonly style="font-family:monospace;font-size:.82em"></textarea>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="copyToken()">Copy Token</button>
+        </div>
+
+        <div class="card">
+            <h2>IDOR Profile Lookup</h2>
+            <div class="info-box">
+                The /api/profile endpoint accepts a <code>username</code> parameter. Try viewing other users' profiles!
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="lookupUser" placeholder="Username to lookup" style="flex:1">
+                <button class="btn btn-sm btn-danger" onclick="lookupProfile()">Lookup</button>
+            </div>
+            <div id="lookupResult"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        document.getElementById('tokenDisplay').value=token;
+
+        function authHeaders(){return{'Authorization':'Bearer '+token}}
+        function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(function(){t.className='toast'},3000)}
+
+        async function loadProfile(){
+            try{
+                var r=await fetch('/api/profile',{headers:authHeaders()});
+                var d=await r.json();
+                document.getElementById('pUser').textContent=d.username||'--';
+                document.getElementById('pRole').textContent=(d.role||'--').toUpperCase();
+                document.getElementById('pBalance').textContent=(d.balance!==undefined?d.balance.toFixed(2)+' credits':'--');
+                document.getElementById('pEmail').textContent=d.email||'--';
+                document.getElementById('pFirst').textContent=d.first_name||'--';
+                document.getElementById('pLast').textContent=d.last_name||'--';
+            }catch(e){}
+        }
+
+        async function changePassword(){
+            var np=document.getElementById('newPassword').value;
+            var cp=document.getElementById('confirmPassword').value;
+            var msg=document.getElementById('pwdMsg');
+            if(!np){msg.className='message error';msg.textContent='Enter a new password';msg.style.display='block';return}
+            if(np!==cp){msg.className='message error';msg.textContent='Passwords do not match';msg.style.display='block';return}
+            try{
+                var fd=new FormData();
+                fd.append('username',username);fd.append('password',np);
+                var r=await fetch('/api/users',{method:'PUT',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){
+                    msg.className='message success';msg.textContent='Password updated successfully';msg.style.display='block';
+                    showToast('Password updated','success');
+                }else{
+                    msg.className='message error';msg.textContent=d.error||'Failed';msg.style.display='block';
+                }
+            }catch(e){msg.className='message error';msg.textContent='Error: '+e.message;msg.style.display='block';}
+        }
+
+        function copyToken(){
+            var el=document.getElementById('tokenDisplay');el.select();
+            document.execCommand('copy');
+            showToast('Token copied to clipboard','success');
+        }
+
+        async function lookupProfile(){
+            var u=document.getElementById('lookupUser').value.trim();
+            if(!u){showToast('Enter a username','error');return}
+            try{
+                var r=await fetch('/api/profile?username='+encodeURIComponent(u),{headers:authHeaders()});
+                var d=await r.json();
+                var div=document.getElementById('lookupResult');
+                if(d.username){
+                    var h='<div style="margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px">';
+                    h+='<p><strong>Username:</strong> '+d.username+'</p>';
+                    h+='<p><strong>Role:</strong> '+d.role+'</p>';
+                    h+='<p><strong>Balance:</strong> '+(d.balance!==undefined?d.balance.toFixed(2)+' credits':'N/A')+'</p>';
+                    h+='<p><strong>Email:</strong> '+(d.email||'N/A')+'</p>';
+                    if(d.password)h+='<p style="color:var(--danger)"><strong>Password:</strong> '+d.password+' (exposed!)</p>';
+                    h+='</div>';
+                    div.innerHTML=h;
+                }else{
+                    div.innerHTML='<div class="empty-msg">'+(d.error||'Not found')+'</div>';
+                }
+            }catch(e){document.getElementById('lookupResult').innerHTML='<div class="empty-msg">Error: '+e.message+'</div>';}
+        }
+
+        window.addEventListener('load',loadProfile);
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

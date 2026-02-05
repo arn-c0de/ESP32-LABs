@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - SecureNet Solutions</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .checkout-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .checkout-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        .checkout-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        @media (max-width: 768px) {
+            .checkout-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .order-summary {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .summary-item:last-child {
+            border-bottom: none;
+            font-size: 1.25rem;
+            font-weight: 700;
+            padding-top: 1rem;
+            margin-top: 0.5rem;
+            border-top: 2px solid #dee2e6;
+        }
+        .vuln-warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            color: #856404;
+        }
+        .vuln-warning strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .order-items-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .order-item {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+        .order-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container checkout-container">
+        <div class="checkout-header">
+            <h1>💳 Checkout</h1>
+            <p>Complete your order</p>
+        </div>
+
+        <div class="vuln-warning">
+            <strong>⚠️ LAB VULNERABILITY:</strong>
+            This checkout process has intentional security flaws for educational purposes:
+            <ul>
+                <li>No CSRF protection</li>
+                <li>Race condition on balance check (100ms window)</li>
+                <li>Shipping address can be modified after order (IDOR)</li>
+                <li>No address validation</li>
+            </ul>
+        </div>
+
+        <div id="checkoutContent">
+            <div class="empty-msg">Loading...</div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        var currentBalance = 0;
+        var cartData = null;
+
+        // Update navbar user
+        var navUser=document.getElementById('navUser');
+        if(navUser){
+            navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+'</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';
+            fetch('/api/wallet/balance',{headers:{'Authorization':'Bearer '+token}})
+            .then(r=>r.json())
+            .then(d=>{
+                currentBalance = d.balance;
+                navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+' | '+d.balance.toFixed(2)+' credits</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';
+            })
+            .catch(e=>{});
+        }
+
+        // Load cart and display checkout form
+        function loadCheckout() {
+            fetch('/api/shop/cart', {
+                headers: {'Authorization': 'Bearer ' + token}
+            })
+            .then(r => r.json())
+            .then(data => {
+                cartData = data;
+                if (!data.items || data.items.length === 0) {
+                    document.getElementById('checkoutContent').innerHTML = '<div class="card"><div class="empty-msg">Your cart is empty<br><br><a href="/shop" class="btn btn-primary">Start Shopping</a></div></div>';
+                    return;
+                }
+                displayCheckoutForm(data);
+            })
+            .catch(e => {
+                console.error('Failed to load cart', e);
+                document.getElementById('checkoutContent').innerHTML = '<div class="empty-msg">Failed to load checkout</div>';
+            });
+        }
+
+        function displayCheckoutForm(data) {
+            var html = '<div class="checkout-grid">';
+            
+            // Shipping form
+            html += '<div class="card">';
+            html += '<h2>Shipping Information</h2>';
+            html += '<div class="form-group">';
+            html += '<label>Full Name</label>';
+            html += '<input type="text" id="fullName" value="' + username + '" required>';
+            html += '</div>';
+            html += '<div class="form-group">';
+            html += '<label>Shipping Address *</label>';
+            html += '<input type="text" id="shippingAddress" placeholder="123 Main St, Apt 4B" required>';
+            html += '</div>';
+            html += '<div class="form-group">';
+            html += '<label>City</label>';
+            html += '<input type="text" id="shippingCity" placeholder="New York">';
+            html += '</div>';
+            html += '<div class="form-group">';
+            html += '<label>ZIP Code</label>';
+            html += '<input type="text" id="shippingZip" placeholder="10001">';
+            html += '</div>';
+            html += '</div>';
+            
+            // Order summary
+            html += '<div class="card">';
+            html += '<h2>Order Summary</h2>';
+            html += '<div class="order-summary">';
+            html += '<h4>Items (' + data.total_items + '):</h4>';
+            html += '<div class="order-items-list">';
+            data.items.forEach(item => {
+                html += '<div class="order-item">';
+                html += '<strong>' + item.name + '</strong><br>';
+                html += 'Qty: ' + item.qty + ' × ' + item.price_per_unit.toFixed(2) + ' credits = ' + item.subtotal.toFixed(2) + ' credits';
+                html += '</div>';
+            });
+            html += '</div>';
+            html += '<div style="margin-top:1rem;">';
+            html += '<div class="summary-item"><span>Subtotal:</span><span>' + data.total_price.toFixed(2) + ' credits</span></div>';
+            html += '<div class="summary-item"><span>Shipping:</span><span>FREE</span></div>';
+            html += '<div class="summary-item"><span><strong>Total:</strong></span><span><strong>' + data.total_price.toFixed(2) + ' credits</strong></span></div>';
+            html += '</div>';
+            html += '</div>';
+            
+            html += '<div style="margin-top:1rem;">';
+            html += '<div><strong>Current Balance:</strong> ' + currentBalance.toFixed(2) + ' credits</div>';
+            if (currentBalance < data.total_price) {
+                html += '<div style="color:#e74c3c;margin-top:0.5rem;"><strong>⚠️ Insufficient balance!</strong></div>';
+            } else {
+                html += '<div style="color:#27ae60;margin-top:0.5rem;">✓ Balance after order: ' + (currentBalance - data.total_price).toFixed(2) + ' credits</div>';
+            }
+            html += '</div>';
+            
+            html += '<button class="btn btn-primary btn-lg" style="width:100%;margin-top:1.5rem;" onclick="placeOrder()">Place Order</button>';
+            html += '<a href="/cart" class="btn btn-outline" style="width:100%;margin-top:0.5rem;text-align:center;display:block;">Back to Cart</a>';
+            html += '</div>';
+            
+            html += '</div>';
+            
+            document.getElementById('checkoutContent').innerHTML = html;
+        }
+
+        function placeOrder() {
+            var address = document.getElementById('shippingAddress').value.trim();
+            var city = document.getElementById('shippingCity').value.trim();
+            var zip = document.getElementById('shippingZip').value.trim();
+            
+            if (!address) {
+                showToast('❌ Please enter shipping address', 'error');
+                return;
+            }
+            
+            if (!confirm('Place order for ' + cartData.total_price.toFixed(2) + ' credits?')) {
+                return;
+            }
+            
+            // Disable button
+            var btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            
+            var formData = new FormData();
+            formData.append('shipping_address', address);
+            formData.append('shipping_city', city);
+            formData.append('shipping_zip', zip);
+            
+            fetch('/api/shop/checkout', {
+                method: 'POST',
+                headers: {'Authorization': 'Bearer ' + token},
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✅ Order placed successfully! Order ID: ' + data.order_id, 'success');
+                    setTimeout(() => {
+                        window.location.href = '/orders';
+                    }, 2000);
+                } else {
+                    showToast('❌ Order failed: ' + (data.error || 'Unknown error'), 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Place Order';
+                }
+            })
+            .catch(e => {
+                console.error('Checkout failed', e);
+                showToast('❌ Checkout failed', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Place Order';
+            });
+        }
+
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+
+        // Load checkout on page load
+        loadCheckout();
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

@@ -1,134 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/js/auth-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - ESP32-H4CK</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
-        .navbar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; padding: 0 24px; display: flex; align-items: center;
-            justify-content: space-between; height: 56px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            position: sticky; top: 0; z-index: 100;
-        }
-        .navbar-brand { font-size: 1.3em; font-weight: 700; text-decoration: none; color: white; }
-        .navbar-nav { display: flex; align-items: center; gap: 6px; list-style: none; }
-        .navbar-nav a {
-            color: rgba(255,255,255,0.85); text-decoration: none; padding: 6px 14px;
-            border-radius: 6px; font-size: 0.9em; transition: background 0.2s;
-        }
-        .navbar-nav a:hover, .navbar-nav a.active { background: rgba(255,255,255,0.18); color: white; }
-        .navbar-user { display: flex; align-items: center; gap: 12px; }
-        .user-badge {
-            display: flex; align-items: center; gap: 8px;
-            background: rgba(255,255,255,0.15); padding: 5px 14px; border-radius: 20px; font-size: 0.9em;
-        }
-        .user-badge .role {
-            background: rgba(255,255,255,0.25); padding: 2px 8px;
-            border-radius: 10px; font-size: 0.8em; text-transform: uppercase; font-weight: 600;
-        }
-        .user-badge .role.admin { background: #e74c3c; }
-        .btn-nav {
-            padding: 6px 16px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,0.5);
-            background: transparent; color: white; font-size: 0.88em; cursor: pointer;
-            transition: background 0.2s; text-decoration: none;
-        }
-        .btn-nav:hover { background: rgba(255,255,255,0.18); }
-        .btn-nav.danger { border-color: #e74c3c; color: #ffa0a0; }
-        .btn-nav.danger:hover { background: #e74c3c; color: white; }
-
-        .container { max-width: 1100px; margin: 24px auto; padding: 0 20px; }
-        .card {
-            background: white; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            padding: 24px; margin-bottom: 20px;
-        }
-        .card h2 {
-            color: #667eea; margin-bottom: 16px; padding-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0; font-size: 1.2em;
-        }
-        .stats {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;
-        }
-        .stat-item {
-            background: #f8f9fa; padding: 14px; border-radius: 8px; border-left: 4px solid #667eea;
-        }
-        .stat-item h3 { color: #888; font-size: 0.82em; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .stat-item p { color: #333; font-size: 1.4em; font-weight: 700; }
-
-        .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-        .btn {
-            display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px;
-            background: #667eea; color: white; text-decoration: none; border-radius: 6px;
-            border: none; cursor: pointer; font-size: 0.88em; font-weight: 600;
-            transition: background 0.2s, transform 0.1s;
-        }
-        .btn:hover { background: #5a6fd6; transform: translateY(-1px); }
-        .btn-danger { background: #e74c3c; }
-        .btn-danger:hover { background: #c0392b; }
-        .btn-outline {
-            background: transparent; border: 1.5px solid #667eea; color: #667eea;
-        }
-        .btn-outline:hover { background: #667eea; color: white; }
-        .btn-sm { padding: 5px 12px; font-size: 0.82em; }
-
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; font-size: 0.92em; }
-        th { background: #f8f9fa; color: #555; font-weight: 600; text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.5px; }
-        tr:hover td { background: #fafbff; }
-        .role-badge {
-            display: inline-block; padding: 2px 10px; border-radius: 10px;
-            font-size: 0.82em; font-weight: 600; text-transform: uppercase;
-        }
-        .role-badge.admin { background: #fde8e8; color: #e74c3c; }
-        .role-badge.guest { background: #e8f4fd; color: #2980b9; }
-        .empty-msg { text-align: center; padding: 30px; color: #999; }
-
-        /* Modal */
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.45); z-index: 200; justify-content: center; align-items: center;
-        }
-        .modal-overlay.open { display: flex; }
-        .modal {
-            background: white; border-radius: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.2);
-            width: 400px; max-width: 90vw; padding: 28px;
-        }
-        .modal h3 { color: #333; margin-bottom: 20px; font-size: 1.15em; }
-        .modal .form-group { margin-bottom: 14px; }
-        .modal label { display: block; color: #555; margin-bottom: 5px; font-weight: 500; font-size: 0.88em; }
-        .modal input, .modal select {
-            width: 100%; padding: 9px 12px; border: 2px solid #e0e0e0;
-            border-radius: 6px; font-size: 14px; transition: border-color 0.2s;
-        }
-        .modal input:focus, .modal select:focus { outline: none; border-color: #667eea; }
-        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-        .toast {
-            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
-            border-radius: 8px; color: white; font-weight: 600; font-size: 0.9em;
-            z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none;
-        }
-        .toast.show { opacity: 1; }
-        .toast.success { background: #27ae60; }
-        .toast.error { background: #e74c3c; }
-
-        .actions-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-    </style>
+    <title>Admin Panel - SecureNet Banking</title>
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <nav class="navbar">
-        <a href="/" class="navbar-brand">ESP32-H4CK</a>
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
         <ul class="navbar-nav">
             <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/transactions">Transactions</a></li>
+            <li><a href="/transfer">Transfer</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
             <li><a href="/admin" class="active">Admin</a></li>
-            <li><a href="/shell.html">Shell</a></li>
-            <li><a href="/api/info">API</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
         </ul>
         <div class="navbar-user" id="navUser"></div>
     </nav>
 
     <div class="container">
+        <!-- System Stats -->
         <div class="card">
             <h2>System Statistics</h2>
             <div class="stats" id="systemStats">
@@ -136,6 +35,16 @@
             </div>
         </div>
 
+        <!-- Wallet Stats -->
+        <div class="card" id="walletStatsCard">
+            <h2>Wallet Statistics</h2>
+            <div class="stats" id="walletStats">
+                <div class="empty-msg">Loading...</div>
+            </div>
+            <div style="margin-top:16px" id="walletAccounts"></div>
+        </div>
+
+        <!-- User Management -->
         <div class="card" id="userMgmtCard">
             <h2>User Management</h2>
             <div class="toolbar">
@@ -146,11 +55,45 @@
             <div id="usersTable"><div class="empty-msg">Loading users...</div></div>
         </div>
 
+        <!-- Wallet Management -->
+        <div class="card" id="walletMgmtCard">
+            <h2>Wallet Management</h2>
+            <div class="toolbar">
+                <button class="btn btn-danger" onclick="resetWallets()">Reset All Balances</button>
+                <button class="btn btn-outline" onclick="loadWalletStats()">Refresh Stats</button>
+            </div>
+            <h3 style="color:var(--text);font-size:1em;margin:16px 0 8px">Adjust User Balance</h3>
+            <div class="filter-bar">
+                <input type="text" id="adjustUser" placeholder="Username" style="flex:1">
+                <input type="number" id="adjustBalance" placeholder="New balance" step="0.01" style="width:140px">
+                <button class="btn btn-sm" onclick="adjustBalance()">Set Balance</button>
+            </div>
+            <div id="adjustResult"></div>
+        </div>
+
+        <!-- Shop Management -->
+        <div class="card" id="shopMgmtCard">
+            <h2>Shop Management</h2>
+            <div class="toolbar">
+                <button class="btn" onclick="openAddProductModal()">+ Add Product</button>
+                <button class="btn btn-outline" onclick="loadProducts()">Refresh Products</button>
+                <button class="btn btn-outline" onclick="loadOrderStats()">Order Stats</button>
+            </div>
+            <h3 style="color:var(--text);font-size:1em;margin:16px 0 8px">Products</h3>
+            <div id="productsTable"><div class="empty-msg">Loading products...</div></div>
+            <h3 style="color:var(--text);font-size:1em;margin:24px 0 8px">Order Statistics</h3>
+            <div id="orderStatsSection"><div class="empty-msg">Loading...</div></div>
+            <h3 style="color:var(--text);font-size:1em;margin:24px 0 8px">Recent Orders</h3>
+            <div id="recentOrdersTable"><div class="empty-msg">Loading orders...</div></div>
+        </div>
+
+        <!-- Active Sessions -->
         <div class="card" id="sessionsCard">
             <h2>Active Sessions</h2>
             <div id="sessionsTable"><div class="empty-msg">Loading sessions...</div></div>
         </div>
 
+        <!-- Quick Actions -->
         <div class="card">
             <h2>Quick Actions</h2>
             <div class="actions-grid">
@@ -159,6 +102,7 @@
                 <a href="/debug" class="btn btn-outline">Debug Info</a>
                 <a href="/api/endpoints" class="btn btn-outline">Endpoints</a>
                 <a href="/api/admin/logs" class="btn btn-outline">Access Logs</a>
+                <a href="/api/admin/wallet/stats" class="btn btn-outline">Wallet Stats JSON</a>
             </div>
         </div>
     </div>
@@ -201,238 +145,296 @@
         </div>
     </div>
 
-    <!-- Toast -->
     <div class="toast" id="toast"></div>
 
     <script>
-        function getCookie(name) {
-            var m = document.cookie.match('(^|;)\\s*' + name + '=([^;]*)');
-            return m ? decodeURIComponent(m[2]) : null;
-        }
-        (function() {
-            var ct = getCookie('auth_token'), cu = getCookie('auth_user'), cr = getCookie('auth_role');
-            if (ct && cu) {
-                localStorage.setItem('token', ct);
-                localStorage.setItem('username', cu);
-                localStorage.setItem('role', cr || 'guest');
-            }
-        })();
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
 
-        var token = localStorage.getItem('token');
-        var currentUser = localStorage.getItem('username');
-        var currentRole = localStorage.getItem('role');
-        var editingUser = null;
-        var deletingUser = null;
+        var token=localStorage.getItem('token'),currentUser=localStorage.getItem('username'),currentRole=localStorage.getItem('role');
+        var editingUser=null,deletingUser=null;
 
-        if (!token) { window.location.href = '/login'; }
+        if(!token){window.location.href='/login';}
 
-        // Navbar
-        (function() {
-            var nav = document.getElementById('navUser');
-            var rc = currentRole === 'admin' ? ' admin' : '';
-            nav.innerHTML =
-                '<div class="user-badge"><span>' + currentUser + '</span><span class="role' + rc + '">' + currentRole + '</span></div>' +
-                '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
-            // Hide admin-only sections for non-admins
-            if (currentRole !== 'admin') {
-                document.getElementById('userMgmtCard').style.display = 'none';
-                document.getElementById('sessionsCard').style.display = 'none';
-            }
-        })();
-
-        function doLogout() {
-            fetch('/api/logout').finally(function() {
-                localStorage.clear();
-                window.location.href = '/login';
-            });
+        // Check admin access
+        if(currentRole!=='admin'){
+            document.getElementById('userMgmtCard').style.display='none';
+            document.getElementById('sessionsCard').style.display='none';
+            document.getElementById('walletMgmtCard').style.display='none';
         }
 
-        function showToast(msg, type) {
-            var t = document.getElementById('toast');
-            t.textContent = msg;
-            t.className = 'toast ' + type + ' show';
-            setTimeout(function() { t.className = 'toast'; }, 3000);
+        function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(function(){t.className='toast'},3000)}
+        function authHeaders(){return{'Authorization':'Bearer '+token}}
+
+        // System Stats
+        async function loadSystemStats(){
+            try{
+                var r=await fetch('/api/info');var d=await r.json();
+                document.getElementById('systemStats').innerHTML=
+                    '<div class="stat-item"><h3>Uptime</h3><p>'+d.uptime+'s</p></div>'+
+                    '<div class="stat-item"><h3>Free Heap</h3><p>'+(d.free_heap/1024).toFixed(1)+' KB</p></div>'+
+                    '<div class="stat-item"><h3>Requests</h3><p>'+d.server.total_requests+'</p></div>'+
+                    '<div class="stat-item"><h3>Sessions</h3><p>'+d.server.active_sessions+'</p></div>'+
+                    '<div class="stat-item"><h3>IP</h3><p>'+d.wifi.ip+'</p></div>'+
+                    '<div class="stat-item"><h3>WiFi</h3><p>'+d.wifi.rssi+' dBm</p></div>';
+            }catch(e){document.getElementById('systemStats').innerHTML='<div class="empty-msg">Failed to load</div>';}
         }
 
-        function authHeaders() {
-            return { 'Authorization': 'Bearer ' + token };
-        }
+        // Wallet Stats
+        async function loadWalletStats(){
+            try{
+                var r=await fetch('/api/admin/wallet/stats',{headers:authHeaders()});
+                var d=await r.json();
+                document.getElementById('walletStats').innerHTML=
+                    '<div class="stat-item"><h3>Total Balance</h3><p>'+d.total_balance.toFixed(0)+'</p></div>'+
+                    '<div class="stat-item"><h3>Users</h3><p>'+d.user_count+'</p></div>'+
+                    '<div class="stat-item"><h3>Avg Balance</h3><p>'+d.average_balance.toFixed(0)+'</p></div>'+
+                    '<div class="stat-item"><h3>Richest</h3><p>'+d.richest_user+'</p></div>';
 
-        // --- System Stats ---
-        async function loadSystemStats() {
-            try {
-                var resp = await fetch('/api/info');
-                var d = await resp.json();
-                document.getElementById('systemStats').innerHTML =
-                    '<div class="stat-item"><h3>Uptime</h3><p>' + d.uptime + 's</p></div>' +
-                    '<div class="stat-item"><h3>Free Heap</h3><p>' + (d.free_heap/1024).toFixed(1) + ' KB</p></div>' +
-                    '<div class="stat-item"><h3>Requests</h3><p>' + d.server.total_requests + '</p></div>' +
-                    '<div class="stat-item"><h3>Sessions</h3><p>' + d.server.active_sessions + '</p></div>' +
-                    '<div class="stat-item"><h3>IP</h3><p>' + d.wifi.ip + '</p></div>' +
-                    '<div class="stat-item"><h3>WiFi</h3><p>' + d.wifi.rssi + ' dBm</p></div>';
-            } catch (e) {
-                document.getElementById('systemStats').innerHTML = '<div class="empty-msg">Failed to load</div>';
-            }
-        }
-
-        // --- Users ---
-        async function loadUsers() {
-            try {
-                var resp = await fetch('/api/users', { headers: authHeaders() });
-                var d = await resp.json();
-                var div = document.getElementById('usersTable');
-                if (d.users && d.users.length > 0) {
-                    var h = '<table><thead><tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
-                    d.users.forEach(function(u) {
-                        var rc = u.role === 'admin' ? 'admin' : 'guest';
-                        h += '<tr>' +
-                            '<td><strong>' + u.username + '</strong></td>' +
-                            '<td><span class="role-badge ' + rc + '">' + u.role + '</span></td>' +
-                            '<td>' + (u.created || 'N/A') + '</td>' +
-                            '<td>' +
-                                '<button class="btn btn-sm btn-outline" onclick="openEditModal(\'' + u.username + '\',\'' + u.role + '\')">Edit</button> ' +
-                                '<button class="btn btn-sm btn-danger" onclick="openDeleteModal(\'' + u.username + '\')">Delete</button>' +
-                            '</td></tr>';
+                // Accounts table
+                if(d.accounts&&d.accounts.length>0){
+                    var h='<table><thead><tr><th>User</th><th>Role</th><th>Balance</th></tr></thead><tbody>';
+                    d.accounts.forEach(function(a){
+                        var rc=a.role==='admin'?'admin':'guest';
+                        h+='<tr><td><strong>'+a.username+'</strong></td>'+
+                            '<td><span class="role-badge '+rc+'">'+a.role+'</span></td>'+
+                            '<td>'+a.balance.toFixed(2)+' credits</td></tr>';
                     });
-                    h += '</tbody></table>';
-                    div.innerHTML = h;
-                } else {
-                    div.innerHTML = '<div class="empty-msg">No users found in database.</div>';
+                    h+='</tbody></table>';
+                    document.getElementById('walletAccounts').innerHTML=h;
                 }
-            } catch (e) {
-                document.getElementById('usersTable').innerHTML = '<div class="empty-msg">Error loading users</div>';
-            }
+            }catch(e){document.getElementById('walletStats').innerHTML='<div class="empty-msg">Failed to load</div>';}
         }
 
-        // --- Sessions ---
-        async function loadSessions() {
-            try {
-                var resp = await fetch('/api/admin/sessions');
-                var d = await resp.json();
-                var div = document.getElementById('sessionsTable');
-                if (d.sessions && d.sessions.length > 0) {
-                    var h = '<table><thead><tr><th>User</th><th>Role</th><th>IP</th><th>Session ID</th></tr></thead><tbody>';
-                    d.sessions.forEach(function(s) {
-                        var rc = s.role === 'admin' ? 'admin' : 'guest';
-                        h += '<tr><td><strong>' + s.username + '</strong></td>' +
-                             '<td><span class="role-badge ' + rc + '">' + s.role + '</span></td>' +
-                             '<td>' + s.ip_address + '</td>' +
-                             '<td style="font-family:monospace;font-size:0.82em;color:#888;">' + s.session_id.substring(0, 16) + '...</td></tr>';
+        // Users
+        async function loadUsers(){
+            try{
+                var r=await fetch('/api/users',{headers:authHeaders()});var d=await r.json();
+                var div=document.getElementById('usersTable');
+                if(d.users&&d.users.length>0){
+                    var h='<table><thead><tr><th>Username</th><th>Role</th><th>Balance</th><th>Email</th><th>Actions</th></tr></thead><tbody>';
+                    d.users.forEach(function(u){
+                        var rc=u.role==='admin'?'admin':'guest';
+                        var bal=u.balance!==undefined?u.balance.toFixed(2):'--';
+                        h+='<tr><td><strong>'+u.username+'</strong></td>'+
+                            '<td><span class="role-badge '+rc+'">'+u.role+'</span></td>'+
+                            '<td>'+bal+' credits</td>'+
+                            '<td style="font-size:.82em">'+(u.email||'--')+'</td>'+
+                            '<td><button class="btn btn-sm btn-outline" onclick="openEditModal(\''+u.username+'\',\''+u.role+'\')">Edit</button> '+
+                            '<button class="btn btn-sm btn-danger" onclick="openDeleteModal(\''+u.username+'\')">Delete</button></td></tr>';
                     });
-                    h += '</tbody></table>';
-                    div.innerHTML = h;
-                } else {
-                    div.innerHTML = '<div class="empty-msg">No active sessions.</div>';
-                }
-            } catch (e) {
-                document.getElementById('sessionsTable').innerHTML = '<div class="empty-msg">Error loading sessions</div>';
-            }
+                    h+='</tbody></table>';
+                    div.innerHTML=h;
+                }else{div.innerHTML='<div class="empty-msg">No users found.</div>';}
+            }catch(e){document.getElementById('usersTable').innerHTML='<div class="empty-msg">Error loading users</div>';}
         }
 
-        // --- Create/Edit Modal ---
-        function openCreateModal() {
-            editingUser = null;
-            document.getElementById('modalTitle').textContent = 'Create User';
-            document.getElementById('modalSubmit').textContent = 'Create';
-            document.getElementById('modalUsername').value = '';
-            document.getElementById('modalUsername').disabled = false;
-            document.getElementById('modalPassword').value = '';
-            document.getElementById('modalRole').value = 'guest';
+        // Sessions
+        async function loadSessions(){
+            try{
+                var r=await fetch('/api/admin/sessions');var d=await r.json();
+                var div=document.getElementById('sessionsTable');
+                if(d.sessions&&d.sessions.length>0){
+                    var h='<table><thead><tr><th>User</th><th>Role</th><th>IP</th><th>Session ID</th></tr></thead><tbody>';
+                    d.sessions.forEach(function(s){
+                        var rc=s.role==='admin'?'admin':'guest';
+                        h+='<tr><td><strong>'+s.username+'</strong></td>'+
+                            '<td><span class="role-badge '+rc+'">'+s.role+'</span></td>'+
+                            '<td>'+s.ip_address+'</td>'+
+                            '<td style="font-family:monospace;font-size:.82em;color:#888">'+s.session_id.substring(0,16)+'...</td></tr>';
+                    });
+                    h+='</tbody></table>';
+                    div.innerHTML=h;
+                }else{div.innerHTML='<div class="empty-msg">No active sessions.</div>';}
+            }catch(e){document.getElementById('sessionsTable').innerHTML='<div class="empty-msg">Error loading sessions</div>';}
+        }
+
+        // Create/Edit Modal
+        function openCreateModal(){
+            editingUser=null;
+            document.getElementById('modalTitle').textContent='Create User';
+            document.getElementById('modalSubmit').textContent='Create';
+            document.getElementById('modalUsername').value='';
+            document.getElementById('modalUsername').disabled=false;
+            document.getElementById('modalPassword').value='';
+            document.getElementById('modalRole').value='guest';
             document.getElementById('userModal').classList.add('open');
         }
-
-        function openEditModal(username, role) {
-            editingUser = username;
-            document.getElementById('modalTitle').textContent = 'Edit User: ' + username;
-            document.getElementById('modalSubmit').textContent = 'Save';
-            document.getElementById('modalUsername').value = username;
-            document.getElementById('modalUsername').disabled = true;
-            document.getElementById('modalPassword').value = '';
-            document.getElementById('modalPassword').placeholder = 'Leave empty to keep current';
-            document.getElementById('modalRole').value = role;
+        function openEditModal(username,role){
+            editingUser=username;
+            document.getElementById('modalTitle').textContent='Edit User: '+username;
+            document.getElementById('modalSubmit').textContent='Save';
+            document.getElementById('modalUsername').value=username;
+            document.getElementById('modalUsername').disabled=true;
+            document.getElementById('modalPassword').value='';
+            document.getElementById('modalPassword').placeholder='Leave empty to keep current';
+            document.getElementById('modalRole').value=role;
             document.getElementById('userModal').classList.add('open');
         }
+        function closeModal(){document.getElementById('userModal').classList.remove('open')}
 
-        function closeModal() {
-            document.getElementById('userModal').classList.remove('open');
+        async function submitUserForm(){
+            var username=document.getElementById('modalUsername').value.trim();
+            var password=document.getElementById('modalPassword').value;
+            var role=document.getElementById('modalRole').value;
+            if(!editingUser&&(!username||!password)){showToast('Username and password required','error');return}
+            var fd=new FormData();
+            fd.append('username',username);if(password)fd.append('password',password);fd.append('role',role);
+            try{
+                var r=await fetch('/api/users',{method:editingUser?'PUT':'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast(editingUser?'User updated':'User created','success');closeModal();loadUsers();loadWalletStats();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Network error','error');}
         }
 
-        async function submitUserForm() {
-            var username = document.getElementById('modalUsername').value.trim();
-            var password = document.getElementById('modalPassword').value;
-            var role = document.getElementById('modalRole').value;
+        function openDeleteModal(username){deletingUser=username;document.getElementById('deleteUsername').textContent=username;document.getElementById('deleteModal').classList.add('open')}
+        function closeDeleteModal(){document.getElementById('deleteModal').classList.remove('open')}
 
-            if (!editingUser && (!username || !password)) {
-                showToast('Username and password are required', 'error');
-                return;
-            }
-
-            var fd = new FormData();
-            fd.append('username', username);
-            if (password) fd.append('password', password);
-            fd.append('role', role);
-
-            try {
-                var resp = await fetch('/api/users', {
-                    method: editingUser ? 'PUT' : 'POST',
-                    headers: authHeaders(),
-                    body: fd
-                });
-                var d = await resp.json();
-                if (d.success) {
-                    showToast(editingUser ? 'User updated' : 'User created', 'success');
-                    closeModal();
-                    loadUsers();
-                } else {
-                    showToast(d.error || 'Operation failed', 'error');
-                }
-            } catch (e) {
-                showToast('Network error', 'error');
-            }
-        }
-
-        // --- Delete Modal ---
-        function openDeleteModal(username) {
-            deletingUser = username;
-            document.getElementById('deleteUsername').textContent = username;
-            document.getElementById('deleteModal').classList.add('open');
-        }
-
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').classList.remove('open');
-        }
-
-        async function confirmDelete() {
-            try {
-                var resp = await fetch('/api/users?username=' + encodeURIComponent(deletingUser), {
-                    method: 'DELETE',
-                    headers: authHeaders()
-                });
-                var d = await resp.json();
-                if (d.success) {
-                    showToast('User deleted', 'success');
-                    loadUsers();
-                } else {
-                    showToast(d.error || 'Delete failed', 'error');
-                }
-            } catch (e) {
-                showToast('Network error', 'error');
-            }
+        async function confirmDelete(){
+            try{
+                var r=await fetch('/api/users?username='+encodeURIComponent(deletingUser),{method:'DELETE',headers:authHeaders()});
+                var d=await r.json();
+                if(d.success){showToast('User deleted','success');loadUsers();loadWalletStats();}
+                else{showToast(d.error||'Delete failed','error');}
+            }catch(e){showToast('Network error','error');}
             closeDeleteModal();
         }
 
-        // --- Export ---
-        function exportUsers() {
-            window.open('/api/admin/users-export', '_blank');
+        function exportUsers(){window.open('/api/admin/users-export','_blank')}
+
+        // Wallet Management
+        async function resetWallets(){
+            if(!confirm('Reset ALL user balances to defaults? This cannot be undone.'))return;
+            try{
+                var r=await fetch('/api/admin/wallet/reset',{method:'POST',headers:authHeaders()});
+                var d=await r.json();
+                if(d.success){showToast('All balances reset','success');loadWalletStats();loadUsers();}
+                else{showToast(d.error||'Reset failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
         }
 
-        // --- Init ---
-        window.addEventListener('load', function() {
-            loadSystemStats();
-            loadUsers();
-            loadSessions();
-            setInterval(loadSystemStats, 10000);
-        });
+        async function adjustBalance(){
+            var user=document.getElementById('adjustUser').value.trim();
+            var bal=document.getElementById('adjustBalance').value;
+            if(!user||bal===''){showToast('Enter username and balance','error');return}
+            try{
+                var fd=new FormData();fd.append('username',user);fd.append('balance',bal);
+                var r=await fetch('/api/admin/wallet/adjust',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                var div=document.getElementById('adjustResult');
+                if(d.success){
+                    div.innerHTML='<div class="message success" style="display:block;margin-top:8px">'+d.username+': '+d.old_balance.toFixed(2)+' -> '+d.new_balance.toFixed(2)+' credits</div>';
+                    showToast('Balance adjusted','success');
+                    loadWalletStats();loadUsers();
+                }else{
+                    div.innerHTML='<div class="message error" style="display:block;margin-top:8px">'+(d.error||'Failed')+'</div>';
+                }
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        // Shop Management
+        async function loadProducts(){
+            try{
+                var r=await fetch('/api/shop/products');
+                var d=await r.json();
+                var html='<div class="table-responsive"><table style="width:100%"><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Inventory</th><th>Category</th><th>Actions</th></tr></thead><tbody>';
+                if(d.products&&d.products.length>0){
+                    d.products.forEach(p=>{
+                        html+='<tr><td style="font-size:0.85em;font-family:monospace">'+p.id+'</td><td>'+p.name+'</td><td>'+p.price.toFixed(2)+' cr</td><td>'+p.inventory+'</td><td>'+p.category+'</td>';
+                        html+='<td><button class="btn btn-sm btn-outline" onclick="editProduct(\''+p.id+'\')">Edit</button> ';
+                        html+='<button class="btn btn-sm btn-danger" onclick="deleteProduct(\''+p.id+'\',\''+p.name+'\')">Delete</button></td></tr>';
+                    });
+                }else{html+='<tr><td colspan="6" class="empty-msg">No products found</td></tr>';}
+                html+='</tbody></table></div>';
+                document.getElementById('productsTable').innerHTML=html;
+            }catch(e){document.getElementById('productsTable').innerHTML='<div class="empty-msg">Error loading products</div>';}
+        }
+
+        async function loadOrderStats(){
+            try{
+                var r=await fetch('/api/admin/shop/order-stats',{headers:authHeaders()});
+                var d=await r.json();
+                var html='<div class="stats"><div class="stat-item"><h3>Total Revenue</h3><p>'+d.total_revenue.toFixed(2)+' credits</p></div>';
+                html+='<div class="stat-item"><h3>Total Orders</h3><p>'+d.order_count+'</p></div>';
+                html+='<div class="stat-item"><h3>Completed</h3><p>'+d.completed_orders+'</p></div>';
+                html+='<div class="stat-item"><h3>Pending</h3><p>'+d.pending_orders+'</p></div></div>';
+                document.getElementById('orderStatsSection').innerHTML=html;
+                loadAllOrders();
+            }catch(e){document.getElementById('orderStatsSection').innerHTML='<div class="empty-msg">Error loading stats</div>';}
+        }
+
+        async function loadAllOrders(){
+            try{
+                var r=await fetch('/api/admin/shop/orders',{headers:authHeaders()});
+                var d=await r.json();
+                var html='<div class="table-responsive"><table style="width:100%"><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+                if(d.orders&&d.orders.length>0){
+                    d.orders.slice(0,10).forEach(o=>{
+                        var date=new Date(o.timestamp).toLocaleDateString();
+                        var items=o.items.length+' item(s)';
+                        html+='<tr><td style="font-size:0.85em;font-family:monospace">'+o.order_id+'</td><td>'+o.username+'</td>';
+                        html+='<td>'+items+'</td><td>'+o.total_amount.toFixed(2)+' cr</td><td><span class="status-badge status-'+o.status+'">'+o.status+'</span></td><td>'+date+'</td></tr>';
+                    });
+                }else{html+='<tr><td colspan="6" class="empty-msg">No orders found</td></tr>';}
+                html+='</tbody></table></div>';
+                document.getElementById('recentOrdersTable').innerHTML=html;
+            }catch(e){document.getElementById('recentOrdersTable').innerHTML='<div class="empty-msg">Error loading orders</div>';}
+        }
+
+        function openAddProductModal(){
+            var name=prompt('Product Name:');
+            if(!name)return;
+            var desc=prompt('Description:');
+            var price=prompt('Price (credits):');
+            var inv=prompt('Inventory:');
+            var cat=prompt('Category (Hardware/Software):');
+            if(!price||!inv)return;
+            addProduct(name,desc,price,inv,cat||'General');
+        }
+
+        async function addProduct(name,desc,price,inv,cat){
+            try{
+                var fd=new FormData();
+                fd.append('name',name);fd.append('description',desc);fd.append('price',price);fd.append('inventory',inv);fd.append('category',cat);
+                var r=await fetch('/api/admin/shop/product/add',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Product added: '+d.product_id,'success');loadProducts();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        async function editProduct(id){
+            var price=prompt('New price (leave empty to skip):');
+            var inv=prompt('New inventory (leave empty to skip):');
+            if(!price&&!inv)return;
+            try{
+                var fd=new FormData();
+                fd.append('product_id',id);
+                if(price)fd.append('price',price);
+                if(inv)fd.append('inventory',inv);
+                var r=await fetch('/api/admin/shop/product/update',{method:'PUT',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Product updated','success');loadProducts();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        async function deleteProduct(id,name){
+            if(!confirm('Delete product: '+name+'?'))return;
+            try{
+                var fd=new FormData();fd.append('product_id',id);
+                var r=await fetch('/api/admin/shop/product/delete',{method:'DELETE',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Product deleted','success');loadProducts();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        // Init
+        window.addEventListener('load',function(){loadSystemStats();loadUsers();loadSessions();loadWalletStats();loadProducts();loadOrderStats();setInterval(loadSystemStats,10000)});
     </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
 </body>
 </html>

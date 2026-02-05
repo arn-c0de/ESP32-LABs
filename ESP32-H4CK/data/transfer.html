@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer - SecureNet Banking</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/transactions">Transactions</a></li>
+            <li><a href="/transfer" class="active">Transfer</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container-narrow">
+        <!-- Balance Display -->
+        <div class="balance-card" id="balanceCard">
+            <div class="balance-label">Your Balance</div>
+            <div class="balance-amount" id="balanceAmount">--</div>
+        </div>
+
+        <!-- Transfer Form -->
+        <div class="card">
+            <h2>Transfer Funds</h2>
+            <div id="transferMsg" class="message" style="display:none"></div>
+
+            <form id="transferForm">
+                <div class="form-group">
+                    <label>From Account</label>
+                    <input type="text" id="fromUser" readonly>
+                </div>
+                <div class="form-group">
+                    <label>To Account (username)</label>
+                    <input type="text" id="toUser" placeholder="Enter recipient username" required>
+                </div>
+                <div class="form-group">
+                    <label>Amount (credits)</label>
+                    <input type="number" id="amount" placeholder="0.00" min="0.01" step="0.01" required>
+                </div>
+                <button type="submit" class="btn btn-lg" style="width:100%;justify-content:center">Send Transfer</button>
+            </form>
+        </div>
+
+        <!-- Deposit / Withdraw -->
+        <div class="grid-2">
+            <div class="card">
+                <h2>Deposit</h2>
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="number" id="depositAmount" placeholder="0.00" step="0.01">
+                </div>
+                <button class="btn btn-success" style="width:100%;justify-content:center" onclick="doDeposit()">Deposit</button>
+                <p style="color:var(--text-muted);font-size:.8em;margin-top:8px">Hint: Try negative amounts...</p>
+            </div>
+            <div class="card">
+                <h2>Withdraw</h2>
+                <div class="form-group">
+                    <label>Amount</label>
+                    <input type="number" id="withdrawAmount" placeholder="0.00" min="0.01" step="0.01">
+                </div>
+                <button class="btn btn-danger" style="width:100%;justify-content:center" onclick="doWithdraw()">Withdraw</button>
+                <p style="color:var(--text-muted);font-size:.8em;margin-top:8px">Hint: Race condition - concurrent requests!</p>
+            </div>
+        </div>
+
+        <!-- IDOR Test -->
+        <div class="card">
+            <h2>IDOR Transfer Test</h2>
+            <div class="info-box">
+                The transfer API accepts a <code>from_user</code> parameter. Try sending funds FROM another user's account!
+            </div>
+            <div class="form-group">
+                <label>From User (IDOR)</label>
+                <input type="text" id="idorFrom" placeholder="e.g. admin">
+            </div>
+            <div class="form-group">
+                <label>To User</label>
+                <input type="text" id="idorTo" placeholder="e.g. guest">
+            </div>
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" id="idorAmount" placeholder="100" step="0.01">
+            </div>
+            <button class="btn btn-danger" onclick="doIDORTransfer()">IDOR Transfer</button>
+            <div id="idorResult" style="margin-top:12px"></div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+            <h3>Confirm Transfer</h3>
+            <p style="color:#555;margin-bottom:16px" id="confirmText"></p>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="document.getElementById('confirmModal').classList.remove('open')">Cancel</button>
+                <button class="btn" id="confirmBtn" onclick="executeTransfer()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        document.getElementById('fromUser').value=username;
+
+        function authHeaders(){return{'Authorization':'Bearer '+token}}
+        function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(function(){t.className='toast'},3000)}
+
+        // Load balance
+        async function loadBalance(){
+            try{
+                var r=await fetch('/api/wallet/balance',{headers:authHeaders()});
+                var d=await r.json();
+                document.getElementById('balanceAmount').textContent=d.balance.toFixed(2)+' credits';
+            }catch(e){document.getElementById('balanceAmount').textContent='Error';}
+        }
+
+        // Transfer form
+        var pendingTransfer=null;
+        document.getElementById('transferForm').addEventListener('submit',function(e){
+            e.preventDefault();
+            var to=document.getElementById('toUser').value.trim();
+            var amt=parseFloat(document.getElementById('amount').value);
+            if(!to||!amt||amt<=0){showToast('Invalid transfer details','error');return}
+            pendingTransfer={to:to,amount:amt};
+            document.getElementById('confirmText').textContent='Transfer '+amt.toFixed(2)+' credits to '+to+'?';
+            document.getElementById('confirmModal').classList.add('open');
+        });
+
+        async function executeTransfer(){
+            document.getElementById('confirmModal').classList.remove('open');
+            if(!pendingTransfer)return;
+            var msg=document.getElementById('transferMsg');
+            try{
+                var fd=new FormData();
+                fd.append('to_user',pendingTransfer.to);
+                fd.append('amount',pendingTransfer.amount);
+                var r=await fetch('/api/wallet/transfer',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){
+                    msg.className='message success';msg.textContent='Transfer successful! New balance: '+d.new_balance.toFixed(2)+' credits';
+                    msg.style.display='block';
+                    loadBalance();
+                    showToast('Transfer completed','success');
+                }else{
+                    msg.className='message error';msg.textContent=d.error||'Transfer failed';msg.style.display='block';
+                    showToast(d.error||'Transfer failed','error');
+                }
+            }catch(e){msg.className='message error';msg.textContent='Error: '+e.message;msg.style.display='block';}
+            pendingTransfer=null;
+        }
+
+        async function doDeposit(){
+            var amt=document.getElementById('depositAmount').value;
+            if(!amt){showToast('Enter amount','error');return}
+            try{
+                var fd=new FormData();fd.append('amount',amt);
+                var r=await fetch('/api/wallet/deposit',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Deposited '+d.amount.toFixed(2)+' credits','success');loadBalance();}
+                else{showToast(d.error||'Deposit failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        async function doWithdraw(){
+            var amt=document.getElementById('withdrawAmount').value;
+            if(!amt||parseFloat(amt)<=0){showToast('Enter valid amount','error');return}
+            try{
+                var fd=new FormData();fd.append('amount',amt);
+                var r=await fetch('/api/wallet/withdraw',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Withdrew '+d.withdrawn.toFixed(2)+' credits','success');loadBalance();}
+                else{showToast(d.error||'Withdraw failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        async function doIDORTransfer(){
+            var from=document.getElementById('idorFrom').value.trim();
+            var to=document.getElementById('idorTo').value.trim();
+            var amt=document.getElementById('idorAmount').value;
+            if(!from||!to||!amt){showToast('Fill all IDOR fields','error');return}
+            try{
+                var fd=new FormData();
+                fd.append('from_user',from);fd.append('to_user',to);fd.append('amount',amt);
+                var r=await fetch('/api/wallet/transfer',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                var div=document.getElementById('idorResult');
+                if(d.success){
+                    div.innerHTML='<div class="message success" style="display:block">IDOR Success! Transferred '+d.amount.toFixed(2)+' from '+d.from+' to '+d.to+'. New balance: '+d.new_balance.toFixed(2)+'</div>';
+                    loadBalance();
+                }else{
+                    div.innerHTML='<div class="message error" style="display:block">'+d.error+'</div>';
+                }
+            }catch(e){document.getElementById('idorResult').innerHTML='<div class="message error" style="display:block">Error: '+e.message+'</div>';}
+        }
+
+        window.addEventListener('load',loadBalance);
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

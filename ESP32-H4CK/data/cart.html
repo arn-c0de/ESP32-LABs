@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart - SecureNet Solutions</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .cart-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        .cart-header h1 { margin: 0 0 0.5rem 0; }
+        .cart-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .cart-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .cart-table th {
+            background: #f8f9fa;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .cart-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .cart-table tr:last-child td {
+            border-bottom: none;
+        }
+        .qty-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .qty-control button {
+            padding: 0.25rem 0.75rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .qty-control button:hover {
+            background: #5568d3;
+        }
+        .qty-control input {
+            width: 60px;
+            text-align: center;
+            padding: 0.25rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .cart-summary {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-top: 1.5rem;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .summary-row:last-child {
+            border-bottom: none;
+            font-size: 1.25rem;
+            font-weight: 700;
+            padding-top: 1rem;
+        }
+        .cart-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+        .remove-btn {
+            color: #e74c3c;
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .remove-btn:hover {
+            color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart" class="active">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container">
+        <div class="cart-header">
+            <h1>🛒 Shopping Cart</h1>
+            <p id="cartSubtitle">Loading...</p>
+        </div>
+
+        <div id="cartContent">
+            <div class="empty-msg">Loading cart...</div>
+        </div>
+
+        <div id="cartSummary" style="display:none;">
+            <div class="cart-summary">
+                <h3>Order Summary</h3>
+                <div class="summary-row">
+                    <span>Total Items:</span>
+                    <span id="summaryItems">0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Subtotal:</span>
+                    <span id="summarySubtotal">0 credits</span>
+                </div>
+                <div class="summary-row">
+                    <span><strong>Total:</strong></span>
+                    <span id="summaryTotal"><strong>0 credits</strong></span>
+                </div>
+            </div>
+            <div class="cart-actions">
+                <button class="btn btn-outline" onclick="clearCart()">Clear Cart</button>
+                <a href="/shop" class="btn btn-outline">Continue Shopping</a>
+                <a href="/checkout" class="btn btn-primary btn-lg" id="checkoutBtn">Proceed to Checkout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        // Update navbar user
+        var navUser=document.getElementById('navUser');
+        if(navUser){
+            navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+'</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';
+            fetch('/api/wallet/balance',{headers:{'Authorization':'Bearer '+token}})
+            .then(r=>r.json())
+            .then(d=>{navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+' | '+d.balance.toFixed(2)+' credits</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';})
+            .catch(e=>{});
+        }
+
+        var cartData = null;
+
+        // Load cart
+        function loadCart() {
+            fetch('/api/shop/cart', {
+                headers: {'Authorization': 'Bearer ' + token}
+            })
+            .then(r => r.json())
+            .then(data => {
+                cartData = data;
+                displayCart(data);
+            })
+            .catch(e => {
+                console.error('Failed to load cart', e);
+                document.getElementById('cartContent').innerHTML = '<div class="empty-msg">Failed to load cart</div>';
+            });
+        }
+
+        function displayCart(data) {
+            var subtitle = document.getElementById('cartSubtitle');
+            var content = document.getElementById('cartContent');
+            var summary = document.getElementById('cartSummary');
+            
+            if (!data.items || data.items.length === 0) {
+                subtitle.textContent = 'Your cart is empty';
+                content.innerHTML = '<div class="card"><div class="empty-msg">Your cart is empty<br><br><a href="/shop" class="btn btn-primary">Start Shopping</a></div></div>';
+                summary.style.display = 'none';
+                return;
+            }
+            
+            subtitle.textContent = data.total_items + ' item(s) in your cart';
+            
+            var html = '<div class="cart-table"><table>';
+            html += '<thead><tr>';
+            html += '<th>Product</th>';
+            html += '<th>Price</th>';
+            html += '<th>Quantity</th>';
+            html += '<th>Subtotal</th>';
+            html += '<th>Action</th>';
+            html += '</tr></thead><tbody>';
+            
+            data.items.forEach(item => {
+                html += '<tr>';
+                html += '<td><strong>' + item.name + '</strong><br><small>' + item.product_id + '</small></td>';
+                html += '<td>' + item.price_per_unit.toFixed(2) + ' credits</td>';
+                html += '<td><div class="qty-control">';
+                html += '<button onclick="updateQty(\'' + item.product_id + '\', ' + (item.qty - 1) + ')">-</button>';
+                html += '<input type="number" value="' + item.qty + '" min="1" onchange="updateQty(\'' + item.product_id + '\', this.value)">';
+                html += '<button onclick="updateQty(\'' + item.product_id + '\', ' + (item.qty + 1) + ')">+</button>';
+                html += '</div></td>';
+                html += '<td><strong>' + item.subtotal.toFixed(2) + ' credits</strong></td>';
+                html += '<td><button class="remove-btn" onclick="removeItem(\'' + item.product_id + '\', \'' + item.name + '\')">Remove</button></td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            content.innerHTML = html;
+            
+            // Update summary
+            document.getElementById('summaryItems').textContent = data.total_items;
+            document.getElementById('summarySubtotal').textContent = data.total_price.toFixed(2) + ' credits';
+            document.getElementById('summaryTotal').textContent = data.total_price.toFixed(2) + ' credits';
+            summary.style.display = 'block';
+        }
+
+        function updateQty(productId, newQty) {
+            newQty = parseInt(newQty);
+            if (newQty < 1) {
+                removeItem(productId, 'Item');
+                return;
+            }
+            
+            var formData = new FormData();
+            formData.append('product_id', productId);
+            formData.append('quantity', newQty);
+            
+            fetch('/api/shop/cart/update', {
+                method: 'POST',
+                headers: {'Authorization': 'Bearer ' + token},
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    loadCart();
+                } else {
+                    showToast('❌ Failed to update quantity', 'error');
+                }
+            })
+            .catch(e => {
+                console.error('Update failed', e);
+                showToast('❌ Failed to update quantity', 'error');
+            });
+        }
+
+        function removeItem(productId, productName) {
+            if (!confirm('Remove ' + productName + ' from cart?')) return;
+            
+            var formData = new FormData();
+            formData.append('product_id', productId);
+            
+            fetch('/api/shop/cart/remove', {
+                method: 'POST',
+                headers: {'Authorization': 'Bearer ' + token},
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✅ Item removed from cart', 'success');
+                    loadCart();
+                } else {
+                    showToast('❌ Failed to remove item', 'error');
+                }
+            })
+            .catch(e => {
+                console.error('Remove failed', e);
+                showToast('❌ Failed to remove item', 'error');
+            });
+        }
+
+        function clearCart() {
+            if (!confirm('Clear all items from cart?')) return;
+            
+            fetch('/api/shop/cart/clear', {
+                method: 'POST',
+                headers: {'Authorization': 'Bearer ' + token}
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✅ Cart cleared', 'success');
+                    loadCart();
+                } else {
+                    showToast('❌ Failed to clear cart', 'error');
+                }
+            })
+            .catch(e => {
+                console.error('Clear failed', e);
+                showToast('❌ Failed to clear cart', 'error');
+            });
+        }
+
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+
+        // Load cart on page load
+        loadCart();
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

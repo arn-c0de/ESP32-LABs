@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SecureNet Banking</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard" class="active">Dashboard</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container">
+        <!-- Balance Card -->
+        <div class="balance-card" id="balanceCard">
+            <div class="balance-label">Available Balance</div>
+            <div class="balance-amount" id="balanceAmount">--</div>
+            <div class="balance-user" id="balanceUser">Loading...</div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <h2>Quick Actions</h2>
+            <div class="quick-actions">
+                <a href="/transfer" class="btn btn-lg">Transfer Funds</a>
+                <a href="/transactions" class="btn btn-lg btn-outline">View Transactions</a>
+                <a href="/profile" class="btn btn-lg btn-outline">My Profile</a>
+                <a href="/api/wallet/export" class="btn btn-lg btn-outline" id="exportBtn">Export CSV</a>
+            </div>
+        </div>
+
+        <!-- Account Info -->
+        <div class="grid-2">
+            <div class="card">
+                <h2>Account Info</h2>
+                <div class="stats" id="accountStats">
+                    <div class="stat-item"><h3>Username</h3><p id="statUser">--</p></div>
+                    <div class="stat-item"><h3>Role</h3><p id="statRole">--</p></div>
+                    <div class="stat-item"><h3>Email</h3><p id="statEmail">--</p></div>
+                    <div class="stat-item"><h3>Member Since</h3><p id="statCreated">--</p></div>
+                </div>
+            </div>
+            <div class="card">
+                <h2>System Status</h2>
+                <div class="stats" id="sysStats">
+                    <div class="empty-msg">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="card">
+            <h2>Recent Transactions</h2>
+            <div id="recentTxns"><div class="empty-msg">Loading...</div></div>
+            <div style="text-align:center;margin-top:16px">
+                <a href="/transactions" class="btn btn-outline btn-sm">View All Transactions</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        function authHeaders(){return{'Authorization':'Bearer '+token}}
+
+        // Load balance
+        async function loadBalance(){
+            try{
+                var r=await fetch('/api/wallet/balance',{headers:authHeaders()});
+                var d=await r.json();
+                document.getElementById('balanceAmount').textContent=d.balance.toFixed(2)+' credits';
+                document.getElementById('balanceUser').textContent=d.username+' | '+d.role;
+            }catch(e){document.getElementById('balanceAmount').textContent='Error';}
+        }
+
+        // Load profile
+        async function loadProfile(){
+            try{
+                var r=await fetch('/api/profile',{headers:authHeaders()});
+                var d=await r.json();
+                document.getElementById('statUser').textContent=d.username||'--';
+                document.getElementById('statRole').textContent=(d.role||'--').toUpperCase();
+                document.getElementById('statEmail').textContent=d.email||'--';
+                document.getElementById('statCreated').textContent=d.created?'T+'+Math.floor(d.created/1000)+'s':'--';
+            }catch(e){}
+        }
+
+        // Load system stats
+        async function loadSysStats(){
+            try{
+                var r=await fetch('/api/info');
+                var d=await r.json();
+                document.getElementById('sysStats').innerHTML=
+                    '<div class="stat-item"><h3>Lab Version</h3><p>'+d.version+'</p></div>'+
+                    '<div class="stat-item"><h3>Uptime</h3><p>'+d.uptime+'s</p></div>'+
+                    '<div class="stat-item"><h3>Free Heap</h3><p>'+(d.free_heap/1024).toFixed(1)+' KB</p></div>'+
+                    '<div class="stat-item"><h3>Requests</h3><p>'+d.server.total_requests+'</p></div>'+
+                    '<div class="stat-item"><h3>Sessions</h3><p>'+d.server.active_sessions+'</p></div>';
+            }catch(e){document.getElementById('sysStats').innerHTML='<div class="empty-msg">Failed to load</div>';}
+        }
+
+        // Load recent transactions
+        async function loadRecentTxns(){
+            try{
+                var r=await fetch('/api/wallet/transactions?limit=10',{headers:authHeaders()});
+                var d=await r.json();
+                var div=document.getElementById('recentTxns');
+                if(d.transactions&&d.transactions.length>0){
+                    var h='<table><thead><tr><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Amount</th></tr></thead><tbody>';
+                    d.transactions.forEach(function(tx){
+                        var isIncoming=tx.to_user===username;
+                        var amtClass=isIncoming?'amount-positive':'amount-negative';
+                        var amtPrefix=isIncoming?'+':'-';
+                        h+='<tr><td>'+(tx.date||'--')+'</td>'+
+                            '<td><span class="type-badge '+tx.type+'">'+tx.type+'</span></td>'+
+                            '<td>'+tx.from_user+'</td><td>'+tx.to_user+'</td>'+
+                            '<td class="'+amtClass+'">'+amtPrefix+tx.amount.toFixed(2)+'</td></tr>';
+                    });
+                    h+='</tbody></table>';
+                    div.innerHTML=h;
+                }else{
+                    div.innerHTML='<div class="empty-msg">No transactions yet. Make a transfer to get started!</div>';
+                }
+            }catch(e){document.getElementById('recentTxns').innerHTML='<div class="empty-msg">Error loading transactions</div>';}
+        }
+
+        window.addEventListener('load',function(){loadBalance();loadProfile();loadSysStats();loadRecentTxns();});
+    </script>
+    <script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

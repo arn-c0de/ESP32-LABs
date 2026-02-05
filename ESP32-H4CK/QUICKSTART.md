@@ -1,8 +1,10 @@
 # ESP32-H4CK - Quick Start Guide
 
+**Version:** 1.0.3 | **Platform:** ESP32 | **Framework:** Arduino
+
 ## ✅ Implementation Complete
 
-All modules have been successfully created and are ready for deployment.
+All core modules, wallet system, e-commerce shop, and lab mode controls are deployed and ready for penetration testing exercises.
 
 ## 📁 Project Structure
 
@@ -24,7 +26,9 @@ ESP32-H4CK1/
 ├── 13_PrivEsc.ino           ✓ Privilege escalation simulation
 ├── 14_AdvancedVulns.ino     ✓ Advanced vulnerabilities
 ├── 15_Defense.ino           ✓ 🎮 Defense & Gameplay system
-├── partitions.csv           ✓ Partition table (16MB)
+├── 16_Wallet.ino            ✓ Wallet & credit system
+├── 17_Shop.ino              ✓ E-commerce shop system
+├── partitions.csv           ✓ Partition table (1.2MB LittleFS)
 ├── data/                    ✓ Web assets
 │   ├── index.html           ✓ Home page
 │   ├── login.html           ✓ Login page
@@ -52,6 +56,7 @@ You can configure the device at build time (using `.env` + `./build.sh`), by edi
 - `WIFI_SSID` / `WIFI_PASSWORD` — Station (client) WiFi credentials. Set in `.env` or `ESP32-H4CK.ino` defaults.
 - `AP_SSID` / `AP_PASSWORD` — Access Point SSID/password when running in AP mode.
 - `STATION_MODE` — `true` to connect to an existing WiFi network (station), `false` to run AP-only. Default: `false`.
+- `LAB_MODE` — Controls vulnerability visibility: `testing` (show hints), `pentest` (hide hints), `realism` (maximum security). Default: `testing`.
 - `JWT_SECRET` — JWT signing secret (weak by default for lab). Set in `.env` or via compile-time define.
 - `ENABLE_VULNERABILITIES` — `true` or `false` to enable/disable vulnerable endpoints. Default: `true` (lab mode).
 - `DEBUG_MODE` — Enables verbose logging (default: `true`).
@@ -74,6 +79,7 @@ WIFI_PASSWORD=YourNetworkPassword
 AP_SSID=ESP32-H4CK-AP
 AP_PASSWORD=vulnerable
 STATION_MODE=false
+LAB_MODE=testing
 JWT_SECRET=weak_secret_key_123
 ```
 
@@ -144,13 +150,14 @@ Open browser to: `http://192.168.1.xxx/`
 
 | Service | Endpoint | Description |
 |---------|----------|-------------|
-| Web UI | `http://<ip>/` | Main interface |
+| Web UI | `http://<ip>/` | Main interface with unified navbar |
+| Dashboard | `http://<ip>/dashboard` | User wallet dashboard |
+| Shop | `http://<ip>/shop` | E-commerce product catalog |
 | Login | `http://<ip>/login` | Authentication |
-| Admin | `http://<ip>/admin` | Admin panel |
-| REST API | `http://<ip>/api/*` | JSON API |
+| Admin | `http://<ip>/admin` | Admin panel (wallet & shop management) |
+| REST API | `http://<ip>/api/*` | JSON API endpoints |
 | WebSocket | `ws://<ip>/shell` | Interactive shell |
 | Telnet | `telnet <ip> 23` | Remote shell |
-| Debug | `http://<ip>/debug` | Info disclosure |
 
 ## 🐛 Vulnerable Endpoints (for Testing)
 
@@ -160,9 +167,10 @@ Open browser to: `http://192.168.1.xxx/`
 | `/vuln/comments` | XSS (Stored) | A03 |
 | `/vuln/download?file=` | Path Traversal | A01 |
 | `/vuln/ping?host=` | Command Injection | A03 |
-| `/vuln/transfer` | CSRF | A01 |
-| `/vuln/user?id=` | IDOR | A01 |
-| `/debug` | Info Disclosure | A05 |
+| `/api/wallet/balance?user_id=` | IDOR (Wallet) | A01 |
+| `/api/shop/order?order_id=` | IDOR (Orders) | A01 |
+| `/api/wallet/transfer` | Race Condition | A04 |
+| `/api/shop/checkout` | Race Condition | A04 |
 | `/api/config` | Sensitive Data Exposure | A02 |
 
 ## 🛠️ Troubleshooting
@@ -282,12 +290,18 @@ http://<ip>/vuln/ping?host=127.0.0.1;ls
 - Command injection
 - XSS attacks
 
-### Week 4: Advanced Exploitation
+### Week 4: E-Commerce & Financial Attacks
+- Wallet IDOR exploitation
+- Race condition attacks on transfers
+- Order manipulation and hijacking
+- Shopping cart vulnerabilities
+
+### Week 5: Advanced Exploitation
 - CSRF attacks
 - Path traversal
 - Chaining vulnerabilities
 
-### 🎮 Week 5: Red/Blue Team Defense Game (NEW)
+### 🎮 Week 6: Red/Blue Team Defense Game
 - Understanding resource constraints (DP/AP/SS)
 - IP blocking strategies and false positives
 - Rate limiting configuration and tuning
@@ -343,25 +357,38 @@ defense config set dp=100 ap=10 stability=100
 Before going live, verify:
 
 - [ ] All .ino files compile without errors
-- [ ] Filesystem uploaded successfully
-- [ ] Serial Monitor shows "System Ready!"
+- [ ] Filesystem uploaded successfully (1.2MB LittleFS partition)
+- [ ] Serial Monitor shows "System Ready!" and "[DATABASE] Database initialized"
 - [ ] Defense system initialized (check for "[DEFENSE]" messages)
-- [ ] Can access web interface
+- [ ] Wallet system loaded (check for "[WALLET]" messages)
+- [ ] Shop database initialized (check for "[SHOP]" messages)
+- [ ] Can access web interface with unified navbar
 - [ ] Can login with default credentials
+- [ ] Dashboard shows balance and transactions
+- [ ] Shop displays products correctly
+- [ ] Cart add/remove operations work
 - [ ] WebSocket shell connects
 - [ ] Telnet service accepts connections
 - [ ] Defense commands work via serial (try `defense status`)
-- [ ] IP blocking enforced (test with `iptables` command)
+- [ ] LAB_MODE controls work (test `pentest` mode)
 - [ ] Network is isolated from production
 - [ ] Lab documentation prepared
 - [ ] Students briefed on scope
 
 ## 📝 Version Information
 
-- **Version:** 1.0.1
-- **Created:** 2026
+- **Version:** 1.0.3
+- **Release:** February 2026
 - **Platform:** ESP32 (Arduino Framework)
 - **License:** Educational Use Only
+- **New in 1.0.3:**
+  - LAB_MODE configuration (testing/pentest/realism)
+  - Unified navbar with dropdown across all pages
+  - Wallet banking system with credit management
+  - E-commerce shop with cart and checkout
+  - Expanded LittleFS partition (1.2MB)
+  - English UI translations
+  - Cookie-to-localStorage authentication sync
 
 ---
 
