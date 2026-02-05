@@ -22,19 +22,17 @@ void setupRESTRoutes() {
   server.on("/api/users", HTTP_DELETE, handleDeleteUser);
   server.on("/api/users", HTTP_PUT, handlePutUser);
   
-  // Config endpoint (intentionally exposed)
+  // Config endpoint (ADMIN ONLY)
   server.on("/api/config", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
     Serial.printf("[API] GET /api/config from %s\n", clientIP.c_str());
     totalRequests++;
     addCORSHeaders(request);
     
-    if (!ENABLE_VULNERABILITIES) {
-      request->send(403, "application/json", "{\"error\":\"Forbidden\"}");
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
-    
-    Serial.printf("[API] ⚠️  Exposing credentials to %s\n", clientIP.c_str());
     
     DynamicJsonDocument doc(512);
     doc["wifi_ssid"] = WIFI_SSID_STR;
@@ -43,6 +41,7 @@ void setupRESTRoutes() {
     doc["enable_vulnerabilities"] = ENABLE_VULNERABILITIES;
     doc["debug_mode"] = DEBUG_MODE;
     doc["lab_mode"] = LAB_MODE_STR;
+    doc["protect_admin_endpoints"] = PROTECT_ADMIN_ENDPOINTS;
     
     String output;
     serializeJson(doc, output);
@@ -54,6 +53,11 @@ void setupRESTRoutes() {
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
       String clientIP = request->client()->remoteIP().toString();
       Serial.printf("[API] POST /api/config/lab-mode from %s\n", clientIP.c_str());
+      
+      // Require admin access to change lab mode or admin protection
+      if (!requireAdmin(request)) {
+        return;
+      }
       
       // Parse JSON body
       DynamicJsonDocument doc(256);
@@ -71,13 +75,19 @@ void setupRESTRoutes() {
       }
       
       LAB_MODE_STR = newMode;
+      // Optional server-side config: allow toggling admin protection via this endpoint
+      if (doc.containsKey("protect_admin_endpoints")) {
+        PROTECT_ADMIN_ENDPOINTS = doc["protect_admin_endpoints"].as<bool>();
+      }
       saveConfigToFS();
       
       Serial.printf("[API] Lab mode changed to: %s\n", LAB_MODE_STR.c_str());
+      Serial.printf("[API] protect_admin_endpoints set to: %s\n", PROTECT_ADMIN_ENDPOINTS ? "true" : "false");
       
       DynamicJsonDocument response(256);
       response["success"] = true;
       response["lab_mode"] = LAB_MODE_STR;
+      response["protect_admin_endpoints"] = PROTECT_ADMIN_ENDPOINTS;
       response["message"] = "Lab mode updated to " + LAB_MODE_STR;
       
       String output;
@@ -230,13 +240,16 @@ void setupRESTRoutes() {
     request->send(200, "application/json", output);
   });
 
-  // Hidden admin endpoint - user export (NO AUTH CHECK)
+  // Hidden admin endpoint - user export (ADMIN ONLY)
   server.on("/api/admin/users-export", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
-    Serial.printf("[API] ⚠️  CRITICAL: /api/admin/users-export accessed WITHOUT AUTH from %s\n", clientIP.c_str());
+    Serial.printf("[API] /api/admin/users-export accessed from %s\n", clientIP.c_str());
     totalRequests++;
     
-    // Intentionally NO authentication check - broken access control
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
+    }
     String csv = "id,username,password,role,email\n";
     for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
       csv += String(i+1) + ",";
@@ -251,10 +264,15 @@ void setupRESTRoutes() {
     request->send(response);
   });
 
-  // Hidden admin endpoint - logs (NO AUTH CHECK)
+  // Hidden admin endpoint - logs (ADMIN ONLY)
   server.on("/api/admin/logs", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.printf("[API] ⚠️  /api/admin/logs accessed from %s\n", request->client()->remoteIP().toString().c_str());
+    Serial.printf("[API] /api/admin/logs accessed from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
+    }
     
     String logs = readFile(LOG_FILE_PATH);
     if (logs == "") {
@@ -267,10 +285,15 @@ void setupRESTRoutes() {
     request->send(200, "text/plain", logs);
   });
 
-  // Admin sessions viewer
+  // Admin sessions viewer (ADMIN ONLY)
   server.on("/api/admin/sessions", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[API] /api/admin/sessions from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
+    
+    // Require admin access
+    if (!requireAdmin(request)) {
+      return;
+    }
     
     DynamicJsonDocument doc(2048);
     doc["active_sessions"] = activeSessions.size();
@@ -291,14 +314,13 @@ void setupRESTRoutes() {
     request->send(200, "application/json", output);
   });
 
-  // Admin config update (dangerous endpoint)
+  // Admin config update (dangerous endpoint - ADMIN ONLY)
   server.on("/api/admin/config-update", HTTP_POST, [](AsyncWebServerRequest *request) {
-    Serial.printf("[API] ⚠️  /api/admin/config-update from %s\n", request->client()->remoteIP().toString().c_str());
+    Serial.printf("[API] /api/admin/config-update from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
     
-    // Weak auth check
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
     
@@ -315,13 +337,13 @@ void setupRESTRoutes() {
     request->send(200, "application/json", "{\"success\":true,\"message\":\"Config updated\"}");
   });
 
-  // System reboot endpoint (DOS vulnerability)
+  // System reboot endpoint (ADMIN ONLY)
   server.on("/api/system/reboot", HTTP_POST, [](AsyncWebServerRequest *request) {
-    Serial.printf("[API] ⚠️  CRITICAL: System reboot requested from %s\n", request->client()->remoteIP().toString().c_str());
+    Serial.printf("[API] System reboot requested from %s\n", request->client()->remoteIP().toString().c_str());
     totalRequests++;
     
-    if (!ENABLE_VULNERABILITIES) {
-      request->send(403, "application/json", "{\"error\":\"Forbidden\"}");
+    // Require admin access
+    if (!requireAdmin(request)) {
       return;
     }
     
@@ -384,6 +406,7 @@ void handleGetSystemInfo(AsyncWebServerRequest *request) {
   doc["cpu_freq"] = ESP.getCpuFreqMHz();
   doc["flash_size"] = ESP.getFlashChipSize();
   doc["flash_speed"] = ESP.getFlashChipSpeed();
+  doc["protect_admin_endpoints"] = PROTECT_ADMIN_ENDPOINTS;
   
   // WiFi info
   JsonObject wifi = doc.createNestedObject("wifi");

@@ -170,6 +170,78 @@ String getUserRole(String token) {
   return "guest";
 }
 
+String getRequestRole(AsyncWebServerRequest *request) {
+  // Check session cookie first
+  if (request->hasHeader("Cookie")) {
+    String cookies = request->header("Cookie");
+    int sessionPos = cookies.indexOf("session=");
+    if (sessionPos >= 0) {
+      int endPos = cookies.indexOf(';', sessionPos);
+      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
+      
+      if (activeSessions.find(sessionId) != activeSessions.end()) {
+        return activeSessions[sessionId].role;
+      }
+    }
+  }
+  
+  // Check Authorization header (JWT)
+  if (request->hasHeader("Authorization")) {
+    String authHeader = request->header("Authorization");
+    if (authHeader.startsWith("Bearer ")) {
+      String token = authHeader.substring(7);
+      if (validateJWT(token)) {
+        return getUserRole(token);
+      }
+    }
+  }
+  
+  // Check role cookie
+  if (request->hasHeader("Cookie")) {
+    String cookies = request->header("Cookie");
+    int pos = cookies.indexOf("auth_role=");
+    if (pos >= 0) {
+      int endPos = cookies.indexOf(';', pos);
+      return cookies.substring(pos + 10, endPos > 0 ? endPos : cookies.length());
+    }
+  }
+  
+  return "guest";
+}
+
+bool isAdmin(AsyncWebServerRequest *request) {
+  if (!isAuthenticated(request)) {
+    return false;
+  }
+  
+  String role = getRequestRole(request);
+  return (role == "admin");
+}
+
+bool requireAdmin(AsyncWebServerRequest *request) {
+  // Honor global toggle: allow disabling admin checks for lab scenarios
+  if (!PROTECT_ADMIN_ENDPOINTS) {
+    Serial.printf("[AUTH] WARNING: Admin endpoint protection DISABLED - allowing access (INSECURE)\n");
+    return true;
+  }
+
+  if (!isAuthenticated(request)) {
+    Serial.printf("[AUTH] Admin access denied - not authenticated\n");
+    request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
+    return false;
+  }
+  
+  if (!isAdmin(request)) {
+    String role = getRequestRole(request);
+    Serial.printf("[AUTH] Admin access denied - insufficient privileges (role: %s)\n", role.c_str());
+    request->send(403, "application/json", "{\"error\":\"Admin privileges required\"}");
+    return false;
+  }
+  
+  Serial.printf("[AUTH] Admin access granted\n");
+  return true;
+}
+
 void createSession(String username, String role, String ipAddress) {
   String sessionId = generateRandomToken(SESSION_ID_LENGTH);
   

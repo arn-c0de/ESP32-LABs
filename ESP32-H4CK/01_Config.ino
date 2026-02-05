@@ -28,6 +28,7 @@ void initConfig() {
   Serial.printf("[CONFIG] Station Mode: %s\n", STATION_MODE ? "YES" : "NO");
   Serial.printf("[CONFIG] Vulnerabilities: %s\n", ENABLE_VULNERABILITIES ? "ENABLED" : "DISABLED");
   Serial.printf("[CONFIG] Debug Mode: %s\n", DEBUG_MODE ? "ENABLED" : "DISABLED");
+  Serial.printf("[CONFIG] Admin protection: %s\n", PROTECT_ADMIN_ENDPOINTS ? "ENABLED" : "DISABLED");
 }
 
 void loadConfigFromFS() {
@@ -47,6 +48,9 @@ void loadConfigFromFS() {
   if (preferences.isKey("lab_mode")) {
     LAB_MODE_STR = preferences.getString("lab_mode", LAB_MODE_STR);
   }
+  if (preferences.isKey("protect_admin_endpoints")) {
+    PROTECT_ADMIN_ENDPOINTS = preferences.getBool("protect_admin_endpoints", PROTECT_ADMIN_ENDPOINTS);
+  }
 }
 
 void saveConfigToFS() {
@@ -55,6 +59,7 @@ void saveConfigToFS() {
   preferences.putString("lab_mode", LAB_MODE_STR);
   preferences.putBool("debug_mode", DEBUG_MODE);
   preferences.putBool("enable_vulns", ENABLE_VULNERABILITIES);
+  preferences.putBool("protect_admin_endpoints", PROTECT_ADMIN_ENDPOINTS);
   Serial.println("[CONFIG] Configuration saved to flash");
 }
 
@@ -63,6 +68,7 @@ String getConfigValue(String key) {
   if (key == "wifi_password" || key == "wifi_pass") return WIFI_PASSWORD_STR;
   if (key == "debug_mode") return DEBUG_MODE ? "true" : "false";
   if (key == "enable_vulnerabilities") return ENABLE_VULNERABILITIES ? "true" : "false";
+  if (key == "protect_admin_endpoints") return PROTECT_ADMIN_ENDPOINTS ? "true" : "false";
   return "";
 }
 
@@ -71,6 +77,9 @@ void setConfigValue(String key, String value) {
   else if (key == "wifi_password" || key == "wifi_pass") WIFI_PASSWORD_STR = value;
   else if (key == "debug_mode") DEBUG_MODE = (value == "true");
   else if (key == "enable_vulnerabilities") ENABLE_VULNERABILITIES = (value == "true");
+  else if (key == "protect_admin_endpoints") PROTECT_ADMIN_ENDPOINTS = (value == "true");
+  
+  saveConfigToFS();
   
   saveConfigToFS();
 }
