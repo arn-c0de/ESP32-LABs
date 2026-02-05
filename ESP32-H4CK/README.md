@@ -254,6 +254,10 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 - Telnet (Port 23): `telnet <device-ip> 23` — Interactive shell with privilege escalation lessons (SUDO bypass, SUID discovery, PATH/LD_PRELOAD hijack)
 
 ### 🎮 Defense System Commands (Serial Interface)
+
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Defense System Commands & Configuration - Click to reveal</strong></summary>
+
 All defense commands are available via serial monitor (115200 baud) and simulate application-level enforcement:
 
 **IP Blocking (iptables-like)**
@@ -280,6 +284,8 @@ All defense commands are available via serial monitor (115200 baud) and simulate
 - Session Reset: DP=25, AP=1, Cooldown=90s
 
 > ⚠️ Note: Defense rules are enforced at **application level only** — not kernel/network stack. Perfect for safe lab education without system changes.
+
+</details>
 - WebSocket: `ws://<device-ip>/shell` — Browser shell endpoint
 
 </details>
@@ -313,6 +319,16 @@ All defense commands are available via serial monitor (115200 baud) and simulate
 - Progress to `pentest` mode for realistic assessment
 - Use `realism` mode only for advanced students
 - Switch modes via: `POST /api/config/lab-mode` with `{"mode":"testing|pentest|realism"}`
+
+> **⚠️ Important — Reveal Hints / Spoilers in the Live Web App:**
+>
+> To have the app display inline hints and `testing`-only spoilers on pages, set the LAB_MODE to `testing`. Methods:
+>
+> - Edit your `.env` and set `LAB_MODE=testing`, then rebuild/upload firmware (recommended for persistent setups).
+> - Or change the running device via API: `POST /api/config/lab-mode` with `{"mode":"testing"}` (e.g. `curl -X POST -H "Content-Type: application/json" -d '{"mode":"testing"}' http://<device-ip>/api/config/lab-mode`).
+> - For quick local changes in source: change the compile-time define in `ESP32-H4CK.ino` from `#define LAB_MODE "pentest"` to `#define LAB_MODE "testing"` and rebuild.
+>
+> When `testing` is active, UI elements marked with the `.testing-only` class and additional hint text are visible — use only in isolated lab environments.
 
 ---
 
