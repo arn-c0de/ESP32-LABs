@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .login-page { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .login-box { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:40px; width:100%; max-width:400px; }
+    .login-logo { text-align:center; margin-bottom:24px; }
+    .login-logo h1 { font-family:var(--font-mono); color:var(--scada-cyan); font-size:1.4rem; }
+    .login-logo p { color:var(--text-muted); font-size:0.85rem; margin-top:4px; }
+    .login-error { color:var(--scada-red); font-size:0.85rem; margin-top:8px; display:none; }
+  </style>
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-box">
+      <div class="login-logo">
+        <h1>ESP32-SCADA</h1>
+        <p>Industrial Security Lab v2.0</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" id="username" class="form-input" placeholder="Enter username" autocomplete="off" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="password" class="form-input" placeholder="Enter password" required>
+        </div>
+        <div class="login-error" id="login-error"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:16px;justify-content:center">
+          Login
+        </button>
+      </form>
+
+      <div style="margin-top:24px;text-align:center">
+        <button class="btn btn-sm mode-toggle">Light</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script>
+    // Redirect if already logged in
+    if (Auth.isLoggedIn) location.href = '/dashboard';
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'none';
+
+      try {
+        const result = await API.login(user, pass);
+        if (result.success) {
+          location.href = '/dashboard';
+        } else {
+          errEl.textContent = result.message || 'Login failed';
+          errEl.style.display = 'block';
+        }
+      } catch (err) {
+        errEl.textContent = err.message || 'Connection error';
+        errEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/scada.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">ESP32-SCADA</div>
+        <div class="sidebar-subtitle">Industrial Security Lab</div>
+      </div>
+      <div class="sidebar-nav">
+        <a href="/dashboard" class="nav-item active"><span class="nav-icon">D</span> Dashboard</a>
+        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
+        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
+        <a href="/alarms" class="nav-item"><span class="nav-icon">!</span> Alarms <span class="nav-badge" id="nav-alarm-count">0</span></a>
+        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
+        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
+        <a href="/defense" class="nav-item"><span class="nav-icon">D</span> Defense</a>
+        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
+        <a href="/admin" class="nav-item admin-only"><span class="nav-icon">*</span> Admin</a>
+      </div>
+      <div style="padding:16px;border-top:1px solid var(--border-color)">
+        <div class="text-sm"><span class="user-name"></span> (<span class="user-role"></span>)</div>
+        <button class="btn btn-sm mt-md" onclick="API.logout()" style="width:100%">Logout</button>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="main-content">
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
+
+      <div class="topbar">
+        <h1 class="topbar-title">SCADA Dashboard</h1>
+        <div class="topbar-actions">
+          <span class="topbar-time" id="clock"></span>
+          <button class="btn btn-sm mode-toggle">Light</button>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="grid grid-4 mb-md">
+        <div class="card text-center">
+          <div class="metric-value text-green" id="uptime">--</div>
+          <div class="metric-label">Uptime</div>
+        </div>
+        <div class="card text-center">
+          <div class="metric-value text-red" id="alarm-count">0</div>
+          <div class="metric-label">Active Alarms</div>
+        </div>
+        <div class="card text-center">
+          <div class="metric-value text-yellow" id="incident-count">0</div>
+          <div class="metric-label">Incidents</div>
+        </div>
+        <div class="card text-center">
+          <div class="metric-value text-blue" id="client-count">--</div>
+          <div class="metric-label">Connected</div>
+        </div>
+      </div>
+
+      <!-- Production Lines -->
+      <div class="grid grid-2" id="line-cards">
+        <div class="card"><p class="text-muted">Loading production lines...</p></div>
+      </div>
+
+      <!-- P&ID Mimic Panel -->
+      <div class="card mt-md">
+        <div class="card-header">
+          <span class="card-title">P&ID Mimic Panel</span>
+          <div class="mimic-controls">
+            <select id="line-filter" onchange="dashboard.refresh()">
+              <option value="all">All Lines</option>
+              <option value="1">Line 1</option>
+              <option value="2">Line 2</option>
+              <option value="3">Line 3</option>
+              <option value="4">Line 4</option>
+            </select>
+          </div>
+        </div>
+        <div class="mimic-panel">
+          <canvas id="pid-canvas"></canvas>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script>
+    Auth.requireAuth();
+    Auth.updateUI();
+  </script>
+</body>
+</html>

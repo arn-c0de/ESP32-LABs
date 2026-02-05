@@ -1,0 +1,89 @@
+/* ============================================================
+   Mobile Responsive Styles
+   ============================================================ */
+
+@media (max-width: 1024px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .mimic-panel canvas { height: 500px; }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .main-content { margin-left: 0; padding: var(--space-md); }
+
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+
+  .topbar { padding: var(--space-sm) 0; }
+
+  .mobile-menu-btn {
+    display: block;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: var(--space-sm);
+  }
+
+  .process-card .card-metrics { grid-template-columns: repeat(2, 1fr); }
+
+  .defense-resources { grid-template-columns: 1fr; }
+
+  .flag-progress { grid-template-columns: 1fr; }
+
+  .control-buttons { flex-wrap: wrap; }
+
+  .chart-legend { flex-wrap: wrap; }
+
+  .mimic-panel canvas { height: 300px; }
+
+  table { font-size: 0.8rem; }
+  th, td { padding: var(--space-xs) var(--space-sm); }
+
+  .modal { width: 95%; max-height: 90vh; }
+}
+
+@media (max-width: 480px) {
+  html { font-size: 13px; }
+
+  .topbar-title { font-size: 1rem; }
+
+  .card { padding: var(--space-md); }
+
+  .metric-value { font-size: 1.4rem; }
+
+  .alarm-item { flex-direction: column; gap: var(--space-sm); }
+
+  .sensor-mini { font-size: 0.75rem; }
+
+  .toast { min-width: auto; width: calc(100vw - 32px); }
+  .toast-container { right: var(--space-md); left: var(--space-md); }
+}
+
+/* ===== Mobile menu button (hidden on desktop) ===== */
+.mobile-menu-btn { display: none; }
+
+@media (max-width: 768px) {
+  .mobile-menu-btn { display: block; }
+}
+
+/* ===== Sidebar overlay on mobile ===== */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+}
+
+@media (max-width: 768px) {
+  .sidebar-overlay.active { display: block; }
+}

@@ -1,0 +1,6 @@
+#!/media/arn/4E786B03786AE8E31/Projects/Arduino-FOLDER/ESP32-LABs/ESP32-H4CK-SCADA/.venv/bin/python3
+import sys
+from esp_rfc2217_server.__init__ import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())

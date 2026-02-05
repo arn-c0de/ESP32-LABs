@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Alarms</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/scada.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+    <nav class="sidebar">
+      <div class="sidebar-header"><div class="sidebar-logo">ESP32-SCADA</div><div class="sidebar-subtitle">Industrial Security Lab</div></div>
+      <div class="sidebar-nav">
+        <a href="/dashboard" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
+        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
+        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
+        <a href="/alarms" class="nav-item active"><span class="nav-icon">!</span> Alarms</a>
+        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
+        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
+        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
+      </div>
+      <div style="padding:16px;border-top:1px solid var(--border-color)"><button class="btn btn-sm" onclick="API.logout()" style="width:100%">Logout</button></div>
+    </nav>
+
+    <main class="main-content">
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
+      <div class="topbar">
+        <h1 class="topbar-title">Alarms</h1>
+        <div class="topbar-actions">
+          <span class="badge badge-red" id="alarm-total">0 Active</span>
+          <button class="btn btn-sm mode-toggle">Light</button>
+        </div>
+      </div>
+
+      <!-- Active Alarms -->
+      <div class="card alarm-panel">
+        <div class="card-header">
+          <span class="card-title">Active Alarms</span>
+        </div>
+        <div class="alarm-list" id="active-alarms">
+          <p class="text-muted text-center">Loading...</p>
+        </div>
+      </div>
+
+      <!-- Alarm History -->
+      <div class="card mt-md">
+        <div class="card-header">
+          <span class="card-title">Alarm History</span>
+          <select class="form-select" style="width:auto" id="history-line" onchange="loadHistory()">
+            <option value="">All Lines</option>
+            <option value="1">Line 1</option><option value="2">Line 2</option>
+            <option value="3">Line 3</option><option value="4">Line 4</option>
+          </select>
+        </div>
+        <div class="table-wrapper" id="alarm-history">
+          <p class="text-muted text-center">Loading...</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script>
+    Auth.requireAuth(); Auth.updateUI();
+
+    async function loadAlarms() {
+      try {
+        const data = await API.get('/api/alarms/active');
+        const alarms = data.alarms || [];
+        document.getElementById('alarm-total').textContent = (data.count || 0) + ' Active';
+        document.getElementById('active-alarms').innerHTML = alarms.length ? alarms.map(a => `
+          <div class="alarm-item alarm-${a.severity.toLowerCase()}">
+            <div class="alarm-indicator"></div>
+            <div class="alarm-content">
+              <div class="alarm-title">${a.message}</div>
+              <div class="alarm-details">
+                ${a.sensor} | ${a.value} (threshold: ${a.threshold})
+              </div>
+              <div class="alarm-meta">
+                <span>${a.age_sec}s ago</span>
+                <span>Line ${a.line}</span>
+                <span class="badge badge-${a.severity==='CRITICAL'?'red':a.severity==='HIGH'?'orange':'yellow'}">${a.severity}</span>
+              </div>
+            </div>
+          </div>
+        `).join('') : '<p class="text-muted text-center" style="padding:16px">No active alarms</p>';
+      } catch (err) { /* silent */ }
+    }
+
+    async function loadHistory() {
+      const line = document.getElementById('history-line').value;
+      try {
+        const data = await API.get(`/api/alarms/history?line=${line}&limit=30`);
+        const history = data.history ? (typeof data.history === 'string' ? JSON.parse(data.history) : data.history) : [];
+        document.getElementById('alarm-history').innerHTML = history.length ? `
+          <table>
+            <tr><th>ID</th><th>Sensor</th><th>Severity</th><th>Value</th><th>Message</th><th>Time</th></tr>
+            ${history.map(h => `
+              <tr>
+                <td class="text-mono text-xs">${h.id||''}</td>
+                <td class="text-mono">${h.sensor||''}</td>
+                <td><span class="badge badge-${h.severity==='CRITICAL'?'red':'yellow'}">${h.severity||''}</span></td>
+                <td class="text-mono">${h.value||''}</td>
+                <td class="text-sm">${h.message||''}</td>
+                <td class="text-xs">${h.timestamp||''}</td>
+              </tr>
+            `).join('')}
+          </table>
+          ${data._access_note ? '<div class="text-mono text-sm text-green mt-md">' + data._access_note + '</div>' : ''}
+        ` : '<p class="text-muted text-center" style="padding:16px">No history</p>';
+      } catch (err) { /* silent */ }
+    }
+
+    loadAlarms(); loadHistory();
+    setInterval(loadAlarms, 5000);
+  </script>
+</body>
+</html>
