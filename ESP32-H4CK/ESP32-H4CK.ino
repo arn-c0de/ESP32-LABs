@@ -115,8 +115,10 @@ String TELNET_ROOT_PASSWORD_STR = TELNET_ROOT_PASSWORD;
 
 // Database Configuration
 #define DB_FILE_PATH "/db/users.json"
+#define TX_FILE_PATH "/db/transactions.json"
 #define LOG_FILE_PATH "/logs/access.log"
 #define MAX_LOG_SIZE 102400
+#define MAX_TRANSACTIONS 1000
 
 // Global Server Objects
 AsyncWebServer server(HTTP_PORT);
@@ -148,14 +150,18 @@ struct DefaultUser {
   String username;
   String password;
   String role;
+  float balance;
+  String email;
+  String first_name;
+  String last_name;
 };
 
 DefaultUser defaultUsers[] = {
-  {"admin", "admin", "admin"},
-  {"root", "root", "admin"},
-  {"guest", "guest", "guest"},
-  {"test", "test", "guest"},
-  {"operator", "operator123", "guest"}
+  {"admin", "admin", "admin", 5000.0, "admin@securenet-solutions.local", "Sarah", "Chen"},
+  {"root", "root", "admin", 5000.0, "root@securenet-solutions.local", "System", "Root"},
+  {"guest", "guest", "guest", 1000.0, "guest@securenet-solutions.local", "Guest", "User"},
+  {"test", "test", "guest", 1000.0, "test@securenet-solutions.local", "Test", "Account"},
+  {"operator", "operator123", "guest", 2000.0, "operator@securenet-solutions.local", "John", "Smith"}
 };
 
 const int DEFAULT_USERS_COUNT = 5;
@@ -233,6 +239,15 @@ void createUserTable();
 bool insertUser(String username, String password, String role);
 String getUserByUsername(String username);
 void seedTestData();
+void migrateUserSchema();
+float getUserBalance(String username);
+bool updateBalance(String username, float newBalance);
+bool logTransaction(String fromUser, String toUser, float amount, String type);
+String getTransactionHistory(String username, int limit = 50);
+bool transferFunds(String fromUser, String toUser, float amount);
+
+// Wallet Module
+void setupWalletEndpoints();
 
 // REST API Module
 void setupRESTRoutes();
@@ -357,6 +372,9 @@ void setup() {
   setupRESTRoutes();
   logInfo("REST API configured");
   
+  setupWalletEndpoints();
+  logInfo("Wallet endpoints configured");
+
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();
     setupAdvancedVulnerabilityEndpoints();

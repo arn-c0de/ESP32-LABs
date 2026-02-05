@@ -103,38 +103,9 @@ void setupAdvancedVulnerabilityEndpoints() {
     }
   });
   
-  // RACE CONDITION
-  server.on("/api/wallet/withdraw", HTTP_POST, [](AsyncWebServerRequest *request) {
-    static int balance = 1000;
-    
-    if (!request->hasParam("amount", true)) {
-      request->send(400, "application/json", "{\"error\":\"Missing amount\"}");
-      return;
-    }
-    
-    int amount = request->getParam("amount", true)->value().toInt();
-    Serial.printf("[API] ⚠️  RACE: Withdraw $%d (balance: $%d)\n", amount, balance);
-    
-    if (balance >= amount) {
-      delay(100);  // Race window
-      balance -= amount;
-      
-      Serial.printf("[VULN] ⚠️  No locking - race condition!\n");
-      
-      DynamicJsonDocument doc(256);
-      doc["success"] = true;
-      doc["withdrawn"] = amount;
-      doc["balance"] = balance;
-      doc["hint"] = "Send 10 concurrent requests to exploit";
-      
-      String output;
-      serializeJson(doc, output);
-      request->send(200, "application/json", output);
-    } else {
-      request->send(400, "application/json", "{\"error\":\"Insufficient balance\"}");
-    }
-  });
-  
+  // RACE CONDITION - Now handled by 16_Wallet.ino with persistent balance
+  // The /api/wallet/withdraw endpoint uses real user balances from LittleFS
+
   // SESSION FIXATION
   server.on("/api/auth/session-fixation", HTTP_GET, [](AsyncWebServerRequest *request) {
     String sessionId = "";

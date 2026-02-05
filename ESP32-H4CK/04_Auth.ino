@@ -249,7 +249,7 @@ void handleLogin(AsyncWebServerRequest *request) {
 
     if (isBrowserForm) {
       // Browser form submit - redirect with session cookie and store token in cookie
-      String redirectUrl = (role == "admin") ? "/admin" : "/";
+      String redirectUrl = "/dashboard";
       AsyncWebServerResponse *resp = request->beginResponse(302, "text/html", "Redirecting...");
       resp->addHeader("Location", redirectUrl);
       resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
