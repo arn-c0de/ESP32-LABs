@@ -90,6 +90,10 @@ void setupRESTRoutes() {
     public_endpoints.add("/dashboard");
     public_endpoints.add("/transactions");
     public_endpoints.add("/transfer");
+    public_endpoints.add("/shop");
+    public_endpoints.add("/cart");
+    public_endpoints.add("/checkout");
+    public_endpoints.add("/orders");
     public_endpoints.add("/profile");
     public_endpoints.add("/admin");
     public_endpoints.add("/about");
@@ -119,6 +123,25 @@ void setupRESTRoutes() {
     wallet.add("/api/wallet/export");
     wallet.add("/api/admin/wallet/reset");
     wallet.add("/api/admin/wallet/stats");
+    
+    JsonArray shop = doc.createNestedArray("shop");
+    shop.add("/api/shop/products");
+    shop.add("/api/shop/product");
+    shop.add("/api/shop/cart");
+    shop.add("/api/shop/cart/add");
+    shop.add("/api/shop/cart/update");
+    shop.add("/api/shop/cart/remove");
+    shop.add("/api/shop/cart/clear");
+    shop.add("/api/shop/checkout");
+    shop.add("/api/shop/orders");
+    shop.add("/api/shop/order");
+    shop.add("/api/shop/order/update");
+    shop.add("/api/shop/order/delete");
+    shop.add("/api/admin/shop/product/add");
+    shop.add("/api/admin/shop/product/update");
+    shop.add("/api/admin/shop/product/delete");
+    shop.add("/api/admin/shop/orders");
+    shop.add("/api/admin/shop/order-stats");
     
     JsonArray vulns = doc.createNestedArray("vulnerabilities");
     vulns.add("/vuln/search");
@@ -315,7 +338,7 @@ void handleGetSystemInfo(AsyncWebServerRequest *request) {
   addCORSHeaders(request);
   
   DynamicJsonDocument doc(1024);
-  doc["version"] = "1.0.0";
+  doc["version"] = LAB_VERSION;
   doc["uptime"] = millis() / 1000;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["chip_model"] = ESP.getChipModel();

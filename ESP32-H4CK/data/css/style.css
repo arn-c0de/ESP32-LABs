@@ -158,3 +158,26 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media(max-width:768px){.grid-2{grid-template-columns:1fr}}
 .actions-grid{display:flex;flex-wrap:wrap;gap:8px}
+
+/* User Dropdown Menu */
+.user-dropdown{position:relative;display:flex;align-items:center}
+.user-dropdown-toggle{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);padding:6px 14px;border-radius:20px;border:none;color:#fff;cursor:pointer;font-size:.88em;transition:background .2s;font-family:inherit}
+.user-dropdown-toggle:hover{background:rgba(255,255,255,.25)}
+.user-dropdown-toggle .user-name{font-weight:600}
+.user-dropdown-toggle .user-balance{color:#ffd700;font-weight:600}
+.user-dropdown-toggle .user-role{background:rgba(255,255,255,.25);padding:2px 8px;border-radius:10px;font-size:.78em;text-transform:uppercase;font-weight:600;margin:0 4px}
+.user-dropdown-toggle .user-role.admin{background:var(--danger);color:#fff}
+.user-dropdown-toggle .dropdown-arrow{font-size:.7em;transition:transform .2s}
+.user-dropdown.open .dropdown-arrow{transform:rotate(180deg)}
+.user-dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);min-width:220px;padding:8px;display:none;z-index:1000}
+.user-dropdown.open .user-dropdown-menu{display:block}
+.dropdown-header{padding:10px 12px;border-bottom:1px solid #eee;margin-bottom:4px}
+.dropdown-header .dropdown-name{font-weight:700;color:var(--text);font-size:.95em}
+.dropdown-header .dropdown-role{color:var(--text-muted);font-size:.75em;text-transform:uppercase;margin-top:2px;letter-spacing:.3px}
+.dropdown-balance{padding:8px 12px;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;border-radius:6px;text-align:center;font-weight:700;font-size:1.1em;margin:4px 0}
+.dropdown-divider{height:1px;background:#eee;margin:4px 0}
+.dropdown-item{display:block;padding:8px 12px;color:var(--text);text-decoration:none;border-radius:6px;font-size:.88em;transition:background .2s;border:none;background:none;width:100%;text-align:left;cursor:pointer;font-family:inherit}
+.dropdown-item:hover{background:#f8f9fa}
+.dropdown-item.admin-link{color:var(--danger);font-weight:600}
+.dropdown-item.danger{color:var(--danger);font-weight:600}
+.dropdown-item.danger:hover{background:#fde8e8}

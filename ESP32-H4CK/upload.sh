@@ -6,6 +6,48 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
+# Create virtual environment if it doesn't exist
+if [ ! -d ".venv" ]; then
+    echo "🔧 Creating Python virtual environment..."
+    python3 -m venv .venv
+    echo "✅ Virtual environment created"
+fi
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Upgrade pip
+echo "🔄 Upgrading pip..."
+pip install --upgrade pip 2>/dev/null || true
+
+# Install requirements
+echo "📦 Installing Python requirements..."
+pip install -q -r requirements.txt
+
+# Check dependencies first
+echo "🔍 Checking dependencies..."
+
+MKLITTLEFS=""
+ESPTOOL="esptool.py"
+
+# Find mklittlefs in Arduino tools (comes with esp32 core)
+MKLITTLEFS=$(find "$HOME/.arduino15/packages/esp32/tools/mklittlefs" -name "mklittlefs" -type f -executable 2>/dev/null | head -n 1)
+if [ -z "$MKLITTLEFS" ]; then
+    MKLITTLEFS=$(which mklittlefs 2>/dev/null || true)
+fi
+
+# Check if mklittlefs exists
+if [ -z "$MKLITTLEFS" ]; then
+    echo "❌ mklittlefs not found in Arduino tools!"
+    echo ""
+    echo "Please install Arduino ESP32 core:"
+    echo "  arduino-cli core install esp32:esp32"
+    exit 1
+fi
+
+echo "✅ All dependencies available"
+echo ""
+
 # Ensure .env exists - create automatically when missing
 if [ ! -f ".env" ]; then
   echo "⚠️  No .env file found."
@@ -125,14 +167,35 @@ echo "🔨 Building..."
 ./build.sh
 
 echo ""
-echo "🚀 Uploading to $PORT..."
+echo "🚀 Uploading firmware to $PORT..."
 
-# Upload
+# Upload firmware
 arduino-cli upload \
   -b esp32:esp32:esp32 \
   -p "$PORT" \
   .
 
 echo ""
-echo "✅ Upload successful!"
+echo "✅ Firmware upload successful!"
+echo ""
+
+# Upload filesystem
+echo "🚀 Uploading filesystem (LittleFS)..."
+
+LITTLEFS_IMAGE="littlefs.bin"
+PARTITION_OFFSET="0x3D0000"
+PARTITION_SIZE_DEC=196608
+
+echo "  Creating LittleFS image..."
+"$MKLITTLEFS" -c data -b 4096 -p 256 -s $PARTITION_SIZE_DEC "$LITTLEFS_IMAGE" 2>/dev/null
+
+echo "  Flashing filesystem..."
+"$ESPTOOL" --chip esp32 --port "$PORT" --baud 921600 \
+    write_flash -z $PARTITION_OFFSET "$LITTLEFS_IMAGE" 2>/dev/null
+
+rm -f "$LITTLEFS_IMAGE"
+echo "✅ Filesystem upload successful!"
+
+echo ""
+echo "✅ All uploads complete!"
 echo "🔌 Open serial monitor at 115200 baud to see logs"

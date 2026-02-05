@@ -15,6 +15,9 @@
             <li><a href="/dashboard">Dashboard</a></li>
             <li><a href="/transactions">Transactions</a></li>
             <li><a href="/transfer">Transfer</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
             <li><a href="/profile">Profile</a></li>
             <li><a href="/admin" class="active">Admin</a></li>
             <li><a href="/shell.html">Shell</a></li>
@@ -65,6 +68,22 @@
                 <button class="btn btn-sm" onclick="adjustBalance()">Set Balance</button>
             </div>
             <div id="adjustResult"></div>
+        </div>
+
+        <!-- Shop Management -->
+        <div class="card" id="shopMgmtCard">
+            <h2>Shop Management</h2>
+            <div class="toolbar">
+                <button class="btn" onclick="openAddProductModal()">+ Add Product</button>
+                <button class="btn btn-outline" onclick="loadProducts()">Refresh Products</button>
+                <button class="btn btn-outline" onclick="loadOrderStats()">Order Stats</button>
+            </div>
+            <h3 style="color:var(--text);font-size:1em;margin:16px 0 8px">Products</h3>
+            <div id="productsTable"><div class="empty-msg">Loading products...</div></div>
+            <h3 style="color:var(--text);font-size:1em;margin:24px 0 8px">Order Statistics</h3>
+            <div id="orderStatsSection"><div class="empty-msg">Loading...</div></div>
+            <h3 style="color:var(--text);font-size:1em;margin:24px 0 8px">Recent Orders</h3>
+            <div id="recentOrdersTable"><div class="empty-msg">Loading orders...</div></div>
         </div>
 
         <!-- Active Sessions -->
@@ -136,21 +155,13 @@
 
         if(!token){window.location.href='/login';}
 
-        // Navbar
-        (function(){
-            var nav=document.getElementById('navUser');
-            var rc=currentRole==='admin'?' admin':'';
-            nav.innerHTML='<div class="user-badge"><span>'+currentUser+'</span><span class="role'+rc+'">'+currentRole+'</span></div>'+
-                '<a href="/dashboard" class="btn-nav solid">Dashboard</a>'+
-                '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
-            if(currentRole!=='admin'){
-                document.getElementById('userMgmtCard').style.display='none';
-                document.getElementById('sessionsCard').style.display='none';
-                document.getElementById('walletMgmtCard').style.display='none';
-            }
-        })();
+        // Check admin access
+        if(currentRole!=='admin'){
+            document.getElementById('userMgmtCard').style.display='none';
+            document.getElementById('sessionsCard').style.display='none';
+            document.getElementById('walletMgmtCard').style.display='none';
+        }
 
-        function doLogout(){fetch('/api/logout').finally(function(){localStorage.clear();window.location.href='/login';})}
         function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(function(){t.className='toast'},3000)}
         function authHeaders(){return{'Authorization':'Bearer '+token}}
 
@@ -321,8 +332,107 @@
             }catch(e){showToast('Error: '+e.message,'error');}
         }
 
+        // Shop Management
+        async function loadProducts(){
+            try{
+                var r=await fetch('/api/shop/products');
+                var d=await r.json();
+                var html='<div class="table-responsive"><table style="width:100%"><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Inventory</th><th>Category</th><th>Actions</th></tr></thead><tbody>';
+                if(d.products&&d.products.length>0){
+                    d.products.forEach(p=>{
+                        html+='<tr><td style="font-size:0.85em;font-family:monospace">'+p.id+'</td><td>'+p.name+'</td><td>'+p.price.toFixed(2)+' cr</td><td>'+p.inventory+'</td><td>'+p.category+'</td>';
+                        html+='<td><button class="btn btn-sm btn-outline" onclick="editProduct(\''+p.id+'\')">Edit</button> ';
+                        html+='<button class="btn btn-sm btn-danger" onclick="deleteProduct(\''+p.id+'\',\''+p.name+'\')">Delete</button></td></tr>';
+                    });
+                }else{html+='<tr><td colspan="6" class="empty-msg">No products found</td></tr>';}
+                html+='</tbody></table></div>';
+                document.getElementById('productsTable').innerHTML=html;
+            }catch(e){document.getElementById('productsTable').innerHTML='<div class="empty-msg">Error loading products</div>';}
+        }
+
+        async function loadOrderStats(){
+            try{
+                var r=await fetch('/api/admin/shop/order-stats',{headers:authHeaders()});
+                var d=await r.json();
+                var html='<div class="stats"><div class="stat-item"><h3>Total Revenue</h3><p>'+d.total_revenue.toFixed(2)+' credits</p></div>';
+                html+='<div class="stat-item"><h3>Total Orders</h3><p>'+d.order_count+'</p></div>';
+                html+='<div class="stat-item"><h3>Completed</h3><p>'+d.completed_orders+'</p></div>';
+                html+='<div class="stat-item"><h3>Pending</h3><p>'+d.pending_orders+'</p></div></div>';
+                document.getElementById('orderStatsSection').innerHTML=html;
+                loadAllOrders();
+            }catch(e){document.getElementById('orderStatsSection').innerHTML='<div class="empty-msg">Error loading stats</div>';}
+        }
+
+        async function loadAllOrders(){
+            try{
+                var r=await fetch('/api/admin/shop/orders',{headers:authHeaders()});
+                var d=await r.json();
+                var html='<div class="table-responsive"><table style="width:100%"><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+                if(d.orders&&d.orders.length>0){
+                    d.orders.slice(0,10).forEach(o=>{
+                        var date=new Date(o.timestamp).toLocaleDateString();
+                        var items=o.items.length+' item(s)';
+                        html+='<tr><td style="font-size:0.85em;font-family:monospace">'+o.order_id+'</td><td>'+o.username+'</td>';
+                        html+='<td>'+items+'</td><td>'+o.total_amount.toFixed(2)+' cr</td><td><span class="status-badge status-'+o.status+'">'+o.status+'</span></td><td>'+date+'</td></tr>';
+                    });
+                }else{html+='<tr><td colspan="6" class="empty-msg">No orders found</td></tr>';}
+                html+='</tbody></table></div>';
+                document.getElementById('recentOrdersTable').innerHTML=html;
+            }catch(e){document.getElementById('recentOrdersTable').innerHTML='<div class="empty-msg">Error loading orders</div>';}
+        }
+
+        function openAddProductModal(){
+            var name=prompt('Product Name:');
+            if(!name)return;
+            var desc=prompt('Description:');
+            var price=prompt('Price (credits):');
+            var inv=prompt('Inventory:');
+            var cat=prompt('Category (Hardware/Software):');
+            if(!price||!inv)return;
+            addProduct(name,desc,price,inv,cat||'General');
+        }
+
+        async function addProduct(name,desc,price,inv,cat){
+            try{
+                var fd=new FormData();
+                fd.append('name',name);fd.append('description',desc);fd.append('price',price);fd.append('inventory',inv);fd.append('category',cat);
+                var r=await fetch('/api/admin/shop/product/add',{method:'POST',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Product added: '+d.product_id,'success');loadProducts();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        async function editProduct(id){
+            var price=prompt('New price (leave empty to skip):');
+            var inv=prompt('New inventory (leave empty to skip):');
+            if(!price&&!inv)return;
+            try{
+                var fd=new FormData();
+                fd.append('product_id',id);
+                if(price)fd.append('price',price);
+                if(inv)fd.append('inventory',inv);
+                var r=await fetch('/api/admin/shop/product/update',{method:'PUT',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Product updated','success');loadProducts();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
+        async function deleteProduct(id,name){
+            if(!confirm('Delete product: '+name+'?'))return;
+            try{
+                var fd=new FormData();fd.append('product_id',id);
+                var r=await fetch('/api/admin/shop/product/delete',{method:'DELETE',headers:authHeaders(),body:fd});
+                var d=await r.json();
+                if(d.success){showToast('Product deleted','success');loadProducts();}
+                else{showToast(d.error||'Failed','error');}
+            }catch(e){showToast('Error: '+e.message,'error');}
+        }
+
         // Init
-        window.addEventListener('load',function(){loadSystemStats();loadUsers();loadSessions();loadWalletStats();setInterval(loadSystemStats,10000)});
+        window.addEventListener('load',function(){loadSystemStats();loadUsers();loadSessions();loadWalletStats();loadProducts();loadOrderStats();setInterval(loadSystemStats,10000)});
     </script>
+<script src="/js/navbar.js"></script>
 </body>
 </html>

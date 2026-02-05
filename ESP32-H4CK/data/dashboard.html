@@ -13,8 +13,9 @@
         <ul class="navbar-nav">
             <li><a href="/">Home</a></li>
             <li><a href="/dashboard" class="active">Dashboard</a></li>
-            <li><a href="/transactions">Transactions</a></li>
-            <li><a href="/transfer">Transfer</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
             <li><a href="/profile">Profile</a></li>
             <li><a href="/admin">Admin</a></li>
             <li><a href="/shell.html">Shell</a></li>
@@ -81,17 +82,6 @@
 
         function authHeaders(){return{'Authorization':'Bearer '+token}}
 
-        // Navbar
-        (function(){
-            var nav=document.getElementById('navUser');
-            var rc=role==='admin'?' admin':'';
-            nav.innerHTML='<div class="user-badge"><span>'+username+'</span><span class="role'+rc+'">'+role+'</span></div>'+
-                (role==='admin'?'<a href="/admin" class="btn-nav solid">Admin</a>':'')+
-                '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
-        })();
-
-        function doLogout(){fetch('/api/logout').finally(function(){localStorage.clear();window.location.href='/login';})}
-
         // Load balance
         async function loadBalance(){
             try{
@@ -99,12 +89,6 @@
                 var d=await r.json();
                 document.getElementById('balanceAmount').textContent=d.balance.toFixed(2)+' credits';
                 document.getElementById('balanceUser').textContent=d.username+' | '+d.role;
-                // Update navbar with balance
-                var nav=document.getElementById('navUser');
-                var rc=role==='admin'?' admin':'';
-                nav.innerHTML='<div class="user-badge"><span>'+username+'</span><span class="balance"> | '+d.balance.toFixed(0)+' credits</span><span class="role'+rc+'">'+role+'</span></div>'+
-                    (role==='admin'?'<a href="/admin" class="btn-nav solid">Admin</a>':'')+
-                    '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
             }catch(e){document.getElementById('balanceAmount').textContent='Error';}
         }
 
@@ -126,6 +110,7 @@
                 var r=await fetch('/api/info');
                 var d=await r.json();
                 document.getElementById('sysStats').innerHTML=
+                    '<div class="stat-item"><h3>Lab Version</h3><p>'+d.version+'</p></div>'+
                     '<div class="stat-item"><h3>Uptime</h3><p>'+d.uptime+'s</p></div>'+
                     '<div class="stat-item"><h3>Free Heap</h3><p>'+(d.free_heap/1024).toFixed(1)+' KB</p></div>'+
                     '<div class="stat-item"><h3>Requests</h3><p>'+d.server.total_requests+'</p></div>'+
@@ -160,5 +145,6 @@
 
         window.addEventListener('load',function(){loadBalance();loadProfile();loadSysStats();loadRecentTxns();});
     </script>
+    <script src="/js/navbar.js"></script>
 </body>
 </html>

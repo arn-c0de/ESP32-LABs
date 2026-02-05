@@ -241,6 +241,58 @@ void setupRoutes() {
     }
   });
 
+  // Shop page
+  server.on("/shop", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /shop from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/shop.html")) {
+      request->send(LittleFS, "/shop.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Cart page
+  server.on("/cart", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /cart from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/cart.html")) {
+      request->send(LittleFS, "/cart.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Checkout page
+  server.on("/checkout", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /checkout from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/checkout.html")) {
+      request->send(LittleFS, "/checkout.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
+  // Orders page
+  server.on("/orders", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) { request->send(403, "text/plain", "Access Denied"); return; }
+    Serial.printf("[HTTP] GET /orders from %s\n", clientIP.c_str());
+    totalRequests++;
+    if (fileExists("/orders.html")) {
+      request->send(LittleFS, "/orders.html", "text/html");
+    } else {
+      request->redirect("/login");
+    }
+  });
+
   // About page
   server.on("/about", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.printf("[HTTP] GET /about from %s\n", request->client()->remoteIP().toString().c_str());

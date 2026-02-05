@@ -29,6 +29,9 @@ void initDatabase() {
     Serial.println("[DATABASE] Transaction log created");
   }
 
+  // Initialize shop database (products, carts, orders)
+  initShopDatabase();
+
   // Seed test data
   seedTestData();
 
@@ -447,4 +450,524 @@ String selectQuery(String key) {
   }
 
   return getUserByUsername(key);
+}
+
+// ========================================
+// SHOP DATABASE FUNCTIONS
+// ========================================
+
+const char* PRODUCTS_FILE_PATH = "/db/products.json";
+const char* CARTS_FILE_PATH = "/db/carts.json";
+const char* ORDERS_FILE_PATH = "/db/orders.json";
+
+void initShopDatabase() {
+  // Initialize products
+  if (!fileExists(PRODUCTS_FILE_PATH)) {
+    DynamicJsonDocument doc(4096);
+    JsonArray products = doc.createNestedArray("products");
+    
+    // Default products
+    JsonObject p1 = products.createNestedObject();
+    p1["id"] = "PROD001";
+    p1["name"] = "IoT Gateway Pro";
+    p1["description"] = "Enterprise-grade IoT gateway with secure connectivity";
+    p1["price"] = 500.0;
+    p1["inventory"] = 50;
+    p1["category"] = "Hardware";
+    p1["created_date"] = millis();
+    
+    JsonObject p2 = products.createNestedObject();
+    p2["id"] = "PROD002";
+    p2["name"] = "Management Platform License";
+    p2["description"] = "1-year license for centralized device management";
+    p2["price"] = 1500.0;
+    p2["inventory"] = 100;
+    p2["category"] = "Software";
+    p2["created_date"] = millis();
+    
+    JsonObject p3 = products.createNestedObject();
+    p3["id"] = "PROD003";
+    p3["name"] = "Security Suite Enterprise";
+    p3["description"] = "Complete security solution with threat detection and prevention";
+    p3["price"] = 2000.0;
+    p3["inventory"] = 25;
+    p3["category"] = "Software";
+    p3["created_date"] = millis();
+    
+    String output;
+    serializeJson(doc, output);
+    writeFile(PRODUCTS_FILE_PATH, output);
+    Serial.println("[SHOP] Products database initialized");
+  }
+  
+  // Initialize carts
+  if (!fileExists(CARTS_FILE_PATH)) {
+    writeFile(CARTS_FILE_PATH, "{\"carts\":[]}");
+    Serial.println("[SHOP] Carts database initialized");
+  }
+  
+  // Initialize orders
+  if (!fileExists(ORDERS_FILE_PATH)) {
+    writeFile(ORDERS_FILE_PATH, "{\"orders\":[]}");
+    Serial.println("[SHOP] Orders database initialized");
+  }
+}
+
+// Product functions
+String getAllProducts() {
+  return readFile(PRODUCTS_FILE_PATH);
+}
+
+String getProduct(String productId) {
+  String content = readFile(PRODUCTS_FILE_PATH);
+  if (content == "") return "{}";
+  
+  DynamicJsonDocument doc(4096);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return "{}";
+  
+  JsonArray products = doc["products"];
+  for (JsonObject product : products) {
+    if (product["id"].as<String>() == productId) {
+      String result;
+      serializeJson(product, result);
+      return result;
+    }
+  }
+  return "{}";
+}
+
+bool addProduct(String id, String name, String description, float price, int inventory, String category) {
+  String content = readFile(PRODUCTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(4096);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray products = doc["products"];
+  JsonObject newProduct = products.createNestedObject();
+  newProduct["id"] = id;
+  newProduct["name"] = name;
+  newProduct["description"] = description;
+  newProduct["price"] = price;
+  newProduct["inventory"] = inventory;
+  newProduct["category"] = category;
+  newProduct["created_date"] = millis();
+  
+  String output;
+  serializeJson(doc, output);
+  writeFile(PRODUCTS_FILE_PATH, output);
+  return true;
+}
+
+bool updateProduct(String productId, String name, String description, float price, int inventory, String category) {
+  String content = readFile(PRODUCTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(4096);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray products = doc["products"];
+  bool found = false;
+  
+  for (JsonObject product : products) {
+    if (product["id"].as<String>() == productId) {
+      if (name != "") product["name"] = name;
+      if (description != "") product["description"] = description;
+      if (price >= 0) product["price"] = price;
+      if (inventory >= 0) product["inventory"] = inventory;
+      if (category != "") product["category"] = category;
+      found = true;
+      break;
+    }
+  }
+  
+  if (found) {
+    String output;
+    serializeJson(doc, output);
+    writeFile(PRODUCTS_FILE_PATH, output);
+  }
+  return found;
+}
+
+bool deleteProduct(String productId) {
+  String content = readFile(PRODUCTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(4096);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray products = doc["products"];
+  int index = -1;
+  
+  for (int i = 0; i < products.size(); i++) {
+    if (products[i]["id"].as<String>() == productId) {
+      index = i;
+      break;
+    }
+  }
+  
+  if (index >= 0) {
+    products.remove(index);
+    String output;
+    serializeJson(doc, output);
+    writeFile(PRODUCTS_FILE_PATH, output);
+    return true;
+  }
+  return false;
+}
+
+// Cart functions
+String getCart(String username) {
+  String content = readFile(CARTS_FILE_PATH);
+  if (content == "") return "{\"items\":[],\"total_items\":0,\"total_price\":0}";
+  
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return "{\"items\":[],\"total_items\":0,\"total_price\":0}";
+  
+  JsonArray carts = doc["carts"];
+  for (JsonObject cart : carts) {
+    if (cart["username"].as<String>() == username) {
+      String result;
+      serializeJson(cart, result);
+      return result;
+    }
+  }
+  return "{\"items\":[],\"total_items\":0,\"total_price\":0}";
+}
+
+bool addToCart(String username, String productId, int quantity) {
+  String content = readFile(CARTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray carts = doc["carts"];
+  JsonObject userCart;
+  
+  // Find existing cart
+  for (JsonObject cart : carts) {
+    if (cart["username"].as<String>() == username) {
+      userCart = cart;
+      break;
+    }
+  }
+  
+  // Create new cart if not exists
+  if (userCart.isNull()) {
+    userCart = carts.createNestedObject();
+    userCart["username"] = username;
+    userCart.createNestedArray("items");
+    userCart["created_at"] = millis();
+  }
+  
+  JsonArray items = userCart["items"];
+  bool found = false;
+  
+  // Update quantity if item exists
+  for (JsonObject item : items) {
+    if (item["product_id"].as<String>() == productId) {
+      item["qty"] = item["qty"].as<int>() + quantity;
+      found = true;
+      break;
+    }
+  }
+  
+  // Add new item
+  if (!found) {
+    JsonObject newItem = items.createNestedObject();
+    newItem["product_id"] = productId;
+    newItem["qty"] = quantity;
+  }
+  
+  userCart["last_modified"] = millis();
+  
+  String output;
+  serializeJson(doc, output);
+  writeFile(CARTS_FILE_PATH, output);
+  return true;
+}
+
+bool updateCartItem(String username, String productId, int quantity) {
+  String content = readFile(CARTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray carts = doc["carts"];
+  bool updated = false;
+  
+  for (JsonObject cart : carts) {
+    if (cart["username"].as<String>() == username) {
+      JsonArray items = cart["items"];
+      for (JsonObject item : items) {
+        if (item["product_id"].as<String>() == productId) {
+          item["qty"] = quantity;
+          cart["last_modified"] = millis();
+          updated = true;
+          break;
+        }
+      }
+      break;
+    }
+  }
+  
+  if (updated) {
+    String output;
+    serializeJson(doc, output);
+    writeFile(CARTS_FILE_PATH, output);
+  }
+  return updated;
+}
+
+bool removeFromCart(String username, String productId) {
+  String content = readFile(CARTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray carts = doc["carts"];
+  bool removed = false;
+  
+  for (JsonObject cart : carts) {
+    if (cart["username"].as<String>() == username) {
+      JsonArray items = cart["items"];
+      int index = -1;
+      for (int i = 0; i < items.size(); i++) {
+        if (items[i]["product_id"].as<String>() == productId) {
+          index = i;
+          break;
+        }
+      }
+      if (index >= 0) {
+        items.remove(index);
+        cart["last_modified"] = millis();
+        removed = true;
+      }
+      break;
+    }
+  }
+  
+  if (removed) {
+    String output;
+    serializeJson(doc, output);
+    writeFile(CARTS_FILE_PATH, output);
+  }
+  return removed;
+}
+
+bool clearCart(String username) {
+  String content = readFile(CARTS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray carts = doc["carts"];
+  int index = -1;
+  
+  for (int i = 0; i < carts.size(); i++) {
+    if (carts[i]["username"].as<String>() == username) {
+      index = i;
+      break;
+    }
+  }
+  
+  if (index >= 0) {
+    carts.remove(index);
+    String output;
+    serializeJson(doc, output);
+    writeFile(CARTS_FILE_PATH, output);
+    return true;
+  }
+  return false;
+}
+
+// Order functions
+String createOrder(String username, JsonArray items, float totalAmount, String shippingAddress, String shippingCity, String shippingZip) {
+  String content = readFile(ORDERS_FILE_PATH);
+  if (content == "") return "";
+  
+  DynamicJsonDocument doc(16384);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return "";
+  
+  JsonArray orders = doc["orders"];
+  
+  // Generate order ID
+  String orderId = generateRandomToken(8);
+  
+  JsonObject newOrder = orders.createNestedObject();
+  newOrder["order_id"] = orderId;
+  newOrder["username"] = username;
+  newOrder["total_amount"] = totalAmount;
+  newOrder["shipping_address"] = shippingAddress;
+  newOrder["shipping_city"] = shippingCity;
+  newOrder["shipping_zip"] = shippingZip;
+  newOrder["status"] = "completed";
+  newOrder["timestamp"] = millis();
+  
+  // Copy items array
+  JsonArray orderItems = newOrder.createNestedArray("items");
+  for (JsonVariant item : items) {
+    orderItems.add(item);
+  }
+  
+  // Limit to 500 orders
+  if (orders.size() > 500) {
+    orders.remove(0);
+  }
+  
+  String output;
+  serializeJson(doc, output);
+  writeFile(ORDERS_FILE_PATH, output);
+  
+  Serial.printf("[SHOP] Order created: %s for user %s, total: %.2f\n", orderId.c_str(), username.c_str(), totalAmount);
+  return orderId;
+}
+
+String getOrders(String username) {
+  String content = readFile(ORDERS_FILE_PATH);
+  if (content == "") return "{\"orders\":[]}";
+  
+  DynamicJsonDocument doc(16384);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return "{\"orders\":[]}";
+  
+  JsonArray allOrders = doc["orders"];
+  DynamicJsonDocument result(16384);
+  JsonArray userOrders = result.createNestedArray("orders");
+  
+  for (JsonObject order : allOrders) {
+    if (order["username"].as<String>() == username) {
+      userOrders.add(order);
+    }
+  }
+  
+  String output;
+  serializeJson(result, output);
+  return output;
+}
+
+String getAllOrders() {
+  return readFile(ORDERS_FILE_PATH);
+}
+
+String getOrder(String orderId) {
+  String content = readFile(ORDERS_FILE_PATH);
+  if (content == "") return "{}";
+  
+  DynamicJsonDocument doc(16384);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return "{}";
+  
+  JsonArray orders = doc["orders"];
+  for (JsonObject order : orders) {
+    if (order["order_id"].as<String>() == orderId) {
+      String result;
+      serializeJson(order, result);
+      return result;
+    }
+  }
+  return "{}";
+}
+
+bool updateOrder(String orderId, String shippingAddress, String shippingCity, String shippingZip, String status) {
+  String content = readFile(ORDERS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(16384);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray orders = doc["orders"];
+  bool updated = false;
+  
+  for (JsonObject order : orders) {
+    if (order["order_id"].as<String>() == orderId) {
+      if (shippingAddress != "") order["shipping_address"] = shippingAddress;
+      if (shippingCity != "") order["shipping_city"] = shippingCity;
+      if (shippingZip != "") order["shipping_zip"] = shippingZip;
+      if (status != "") order["status"] = status;
+      updated = true;
+      break;
+    }
+  }
+  
+  if (updated) {
+    String output;
+    serializeJson(doc, output);
+    writeFile(ORDERS_FILE_PATH, output);
+  }
+  return updated;
+}
+
+bool deleteOrder(String orderId) {
+  String content = readFile(ORDERS_FILE_PATH);
+  if (content == "") return false;
+  
+  DynamicJsonDocument doc(16384);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return false;
+  
+  JsonArray orders = doc["orders"];
+  int index = -1;
+  
+  for (int i = 0; i < orders.size(); i++) {
+    if (orders[i]["order_id"].as<String>() == orderId) {
+      index = i;
+      break;
+    }
+  }
+  
+  if (index >= 0) {
+    orders.remove(index);
+    String output;
+    serializeJson(doc, output);
+    writeFile(ORDERS_FILE_PATH, output);
+    return true;
+  }
+  return false;
+}
+
+String getOrderStats() {
+  String content = readFile(ORDERS_FILE_PATH);
+  if (content == "") return "{\"total_revenue\":0,\"order_count\":0,\"completed_orders\":0,\"pending_orders\":0}";
+  
+  DynamicJsonDocument doc(16384);
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) return "{\"total_revenue\":0,\"order_count\":0,\"completed_orders\":0,\"pending_orders\":0}";
+  
+  JsonArray orders = doc["orders"];
+  float totalRevenue = 0;
+  int completedOrders = 0;
+  int pendingOrders = 0;
+  
+  for (JsonObject order : orders) {
+    totalRevenue += order["total_amount"].as<float>();
+    String status = order["status"].as<String>();
+    if (status == "completed") completedOrders++;
+    if (status == "pending") pendingOrders++;
+  }
+  
+  DynamicJsonDocument result(512);
+  result["total_revenue"] = totalRevenue;
+  result["order_count"] = orders.size();
+  result["completed_orders"] = completedOrders;
+  result["pending_orders"] = pendingOrders;
+  
+  String output;
+  serializeJson(result, output);
+  return output;
 }
