@@ -340,9 +340,6 @@ http://<ip>/vuln/ping?host=127.0.0.1;ls
 
 ## 🎮 Defense System Quick Reference
 
-<details>
-  <summary><strong>⚠️ SPOILER: Contains Defense Game Commands & Resource Costs - Click to reveal</strong></summary>
-
 The defense system simulates application-level security measures with resource management:
 
 **Serial Commands (115200 baud)**
@@ -377,7 +374,6 @@ defense config set dp=100 ap=10 stability=100
 - Learn realistic system administration commands
 - Experience side-effects of aggressive defensive measures
 
-</details>
 
 ## 🤝 Support
 
