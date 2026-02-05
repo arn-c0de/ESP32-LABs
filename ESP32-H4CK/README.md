@@ -1,10 +1,12 @@
 # ESP32-H4CK - "SecureNet Solutions" Vulnerable Lab
 
-![ESP32-LAB - SecureNet Solutions](images/ESP32-LAB-SecureNet%20Solutions.png)
+![ESP32-LAB - SecureNet Solutions](images/sns-productshop.png)
 
-Version: **1.0.1** (English) — **Quick Start:** see [QUICKSTART.md](QUICKSTART.md) for a step-by-step guide.
+**Version:** 1.0.3 | **Platform:** ESP32 | **Framework:** Arduino  
+**Quick Start:** See [QUICKSTART.md](QUICKSTART.md) for step-by-step setup guide.
 
-Repository governance: see [CONTRIBUTING.md](../CONTRIBUTING.md), [SECURITY.md](../SECURITY.md), and `LICENSE` for contribution, disclosure, and licensing information. For security reports or questions, contact: arn-c0de@protonmail.com
+**Repository Governance:** [CONTRIBUTING.md](../CONTRIBUTING.md) | [SECURITY.md](../SECURITY.md) | `LICENSE`  
+**Security Contact:** arn-c0de@protonmail.com
 
 ## Project Overview
 
@@ -14,47 +16,81 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 
 ---
 
-## What's New in 1.0.1 ✅
-- Added **version endpoint**: `/api/version` returning firmware metadata.
-- New **Advanced Vulnerability Module** with: unrestricted file upload (`/api/upload`), SSRF (`/api/fetch`), XXE (`/api/xml-parse`), race-condition wallet (`/api/wallet/withdraw`), session fixation (`/api/auth/session-fixation`), HTTP Parameter Pollution (`/api/user/email`), open redirect, clickjacking test, and IDOR-enhanced document access (`/api/documents`).
-- **Privilege Escalation training** integrated in Telnet (SUID discovery, `sudo`/`su` bypasses, `LD_PRELOAD`/`PATH` hijacking hints, cron job injection simulation).
-- **🎮 NEW: Red/Blue Team Gameplay Module** - Application-level defense simulation with resource management:
-  - `iptables`-like IP blocking (simulated at application layer)
-  - `tc`-like rate limiting with configurable thresholds
-  - Session reset capabilities for incident response practice
-  - Defense Points (DP), Action Points (AP), and Stability Score (SS) resource system
-  - Cooldown mechanics and side-effects modeling
-  - Serial command interface for manual control and automation
-  - Multi-device orchestration ready (serial/UDP/MQTT)
-- Recon endpoints for learning: `/.git/config`, `/.env`, `/backup/*`, and an endpoint discovery API `/api/endpoints`.
-- Improved lab UX: serial monitor helper (`monitor.sh`), `build.sh` and `upload.sh` enhancements, `STATION_MODE` support to run AP-only.
+## What's New in 1.0.3 ✅
+
+### LAB_MODE System
+- **Three operational modes**: `testing` (educational hints visible), `pentest` (realistic assessment), `realism` (maximum security)
+- Dynamic mode switching via API: `POST /api/config/lab-mode`
+- Persistent configuration stored in ESP32 preferences
+- Frontend visibility controls hide/show vulnerable endpoints based on mode
+
+### Wallet & Shop Systems
+- **Wallet Banking**: Per-user credit balances, transaction history, P2P transfers
+- **E-Commerce Shop**: Product catalog, shopping cart, checkout with intentional IDOR vulnerabilities
+- **Admin Dashboard**: User management, product CRUD, order monitoring
+- See [WALLET_AND_SHOP_IMPLEMENTATION.md](WALLET_AND_SHOP_IMPLEMENTATION.md) for details
+
+![SecureNet Banking System](images/sn-banking.png)
+
+### UI/UX Improvements
+- Unified navbar with dropdown across all pages (Dashboard, Profile, Transactions, Shop, Cart, Orders, Admin)
+- English translations throughout interface
+- Cookie-to-localStorage authentication sync fixes dropdown navigation
+- Mode-based visibility: endpoints/services hidden in pentest/realism modes
+- Admin-only elements hidden for non-admin users
+
+### Technical Updates
+- Expanded LittleFS partition from 192KB to 1.2MB
+- Shop cart API uses JSON format (not FormData)
+- Enhanced upload script with automatic dependency management
+- Persistent LAB_MODE configuration across reboots
 
 ---
 
 ## Key Features & Services 🔧
-- HTTP/HTTPS Web Server (Port 80/443)
-  - Realistic company pages (home, about, products, support) and hidden vulnerable endpoints
-  - Admin and Guest roles, session management, file serving
 
-- RESTful API (`/api/*`)
-  - System info, authentication, endpoint discovery, administrative actions
+### Web Services
+- **HTTP/HTTPS Server** (Port 80/443)
+  - Realistic company website (home, about, products, support)
+  - Hidden vulnerable endpoints for penetration testing
+  - Admin and guest roles with session management
 
-- WebSocket Shell (`/shell.html`, `ws://<device>/shell`)
-  - Interactive commands, simulated command execution
+- **RESTful API** (`/api/*`)
+  - System info, authentication, endpoint discovery
+  - Wallet operations (balance, transfer, deposit, withdraw)
+  - Shop operations (products, cart, orders, checkout)
+  - Administrative actions and configuration
 
-- Telnet Service (Port 23)
-  - Multiple concurrent clients, weak auth options, **privilege escalation lessons**
+- **WebSocket Shell** (`/shell.html`, `ws://<device>/shell`)
+  - Interactive command execution
+  - Simulated privilege escalation scenarios
 
-- **🎮 Defense & Gameplay System (NEW)**
-  - Application-level IP blocking (iptables-like syntax)
-  - Rate limiting with configurable thresholds (tc-like syntax)
-  - Session management and reset capabilities
-  - Resource management: Defense Points (DP), Action Points (AP), Stability Score (SS)
-  - Cooldown mechanics and cost/benefit trade-offs
+- **Telnet Service** (Port 23)
+  - Multiple concurrent client connections
+  - Weak authentication options
+  - Privilege escalation training exercises
+
+### Defense & Lab Controls
+- **🎮 Defense System** - Application-level security simulation
+  - IP blocking (iptables-like syntax)
+  - Rate limiting (tc-like syntax)
+  - Session management and reset
+  - Resource management: DP/AP/SS system
   - Serial command interface for Red/Blue Team exercises
 
-- Filesystem (LittleFS)
-  - Web assets, uploads, backups and deliberate sensitive file exposure
+- **LAB_MODE Configuration** - Progressive difficulty levels
+  - `testing`: Educational mode with hints visible
+  - `pentest`: Realistic assessment with hidden endpoints
+  - `realism`: Maximum security, minimal disclosure
+
+![Admin Panel](images/sns-adminpanel.png)
+
+### Data Storage
+- **LittleFS Filesystem** (1.2MB partition)
+  - Web assets (HTML/CSS/JS)
+  - User uploads and backups
+  - JSON-based databases (users, products, orders, transactions)
+  - Intentionally exposed sensitive files
 
 ---
 
@@ -64,14 +100,11 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
   <summary><strong>Show full vulnerability categories and implemented routes (click to reveal)</strong></summary>
 
 - **A01: Broken Access Control / Privilege Escalation**
-  - `/api/admin/users-export` — Exports all users (CSV) **NO AUTH** in vulnerable mode
-  - `/api/admin/logs` — Exposes system logs **NO AUTH**
-  - `/api/admin/sessions` — Lists active sessions (IDs, usernames, IPs)
-  - `/api/admin/config-update` — POST to change WiFi/JWT config (weak access control)
-  - `/api/system/reboot` — Reboot endpoint (DOS vector)
-  - `/vuln/user` — IDOR: access arbitrary user by id
-  - `/vuln/user-profile` — IDOR: returns SSN, API key for arbitrary user
-  - `/api/documents` — IDOR: access documents without auth
+  - `/api/wallet/balance?user_id=X` — IDOR: Access any user's wallet balance
+  - `/api/shop/order?order_id=X` — IDOR: View/modify any order without authorization
+  - `/api/admin/users-export` — Export all users (CSV) **NO AUTH** in vulnerable mode
+  - `/api/admin/sessions` — List active sessions (IDs, usernames, IPs)
+  - `/vuln/user?id=X` — IDOR: Access arbitrary user profile data
 
 - **A02: Cryptographic Failures & Secret Exposure**
   - `/api/jwt-debug` — Exposes `JWT_SECRET_STR`, accepts weak algs, exploitation hints
@@ -104,12 +137,13 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
   - `/api/admin/logs` — Logs available without auth
   - Telnet/WebSocket/HTTP requests are logged verbosely for forensic practice
 
-- **A10: File Upload / SSRF / Race / Others**
+- **A10: File Upload / SSRF / Race Conditions / Financial**
   - `/api/upload` — Unrestricted file upload (no extension/type checks)
-  - `/api/fetch` — SSRF: fetch arbitrary URLs (including file://, localhost)
-  - `/api/wallet/withdraw` — Race condition withdrawal (no locking)
-  - `/api/user/email` — HTTP Parameter Pollution (HPP) practice
-  - `/api/redirect` — Open redirect endpoint
+  - `/api/fetch?url=` — SSRF: Fetch arbitrary URLs (including file://, localhost)
+  - `/api/wallet/transfer` — Race condition: Multiple simultaneous transfers bypass balance checks
+  - `/api/shop/checkout` — Race condition: Double-spend vulnerability
+  - `/api/shop/order/delete` — Delete orders without refund (financial loss)
+  - `/api/redirect?url=` — Open redirect endpoint
   - `/api/frame-test` — Clickjacking test (no X-Frame-Options)
 
 
@@ -121,17 +155,32 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 
 ## Quick Start (Hardware & Software)
 
-> Detailed quick start: see [QUICKSTART.md](QUICKSTART.md)
+**Detailed Guide:** See [QUICKSTART.md](QUICKSTART.md) for complete setup instructions.
 
-- Hardware: ESP32 board (4MB+ flash recommended)
-- Tools: Arduino IDE (1.8+/2.x), `arduino-cli`, `picocom` or similar for serial
-- Libraries: `ESPAsyncWebServer`, `AsyncTCP`, `ArduinoJson`, `LittleFS`
+**Hardware Requirements:**
+- ESP32 board (4MB+ flash, PSRAM recommended)
+- USB cable for programming
+- Isolated WiFi network or dedicated VLAN
 
-1. Copy `data/` to the board filesystem (ESP32 Sketch Data Upload plugin).
-2. Edit `01_Config.ino` or `.env` to set `WIFI_SSID`, `WIFI_PASSWORD`, and `STATION_MODE`.
-3. Build: `./build.sh` (injects `.env` into build defines)
-4. Upload: `./upload.sh` (prompts for port and handles picocom conflicts)
-5. Monitor: `./monitor.sh` to open serial at 115200 baud
+**Software Requirements:**
+- Arduino IDE (1.8+/2.x) or `arduino-cli`
+- Serial monitor tool (`picocom`, Arduino Serial Monitor)
+- Python 3.x (for upload scripts)
+
+**Required Libraries:**
+- ESPAsyncWebServer (Me-No-Dev)
+- AsyncTCP (Me-No-Dev)
+- ArduinoJson (Benoit Blanchon)
+- LittleFS (built-in)
+
+**Quick Setup:**
+1. Clone repository and navigate to `ESP32-H4CK/`
+2. Copy `.env.example` to `.env` and configure WiFi credentials
+3. Install required libraries via Arduino Library Manager
+4. Build firmware: `./build.sh`
+5. Upload to device: `./upload.sh` (handles firmware + filesystem)
+6. Monitor serial output: `./monitor.sh` (115200 baud)
+7. Access web interface at IP shown in serial output
 
 ---
 
@@ -140,12 +189,15 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 <details>
   <summary><strong>Show all implemented endpoints and short descriptions (click to reveal)</strong></summary>
 
-### Public & UI
-- `/` — Home page (SecureNet Solutions front page)
-- `/about`, `/products`, `/support`, `/privacy`, `/terms` — Company pages
-- `/login` — Web login page
-- `/admin` — Admin UI (requires auth in normal mode)
-- `/shell.html` — WebSocket shell UI
+### Public & UI Pages
+- `/` — SecureNet Solutions homepage
+- `/dashboard` — User wallet dashboard (balance, transactions)
+- `/shop` — E-commerce product catalog
+- `/cart` — Shopping cart management
+- `/orders` — Order history with IDOR testing panel
+- `/login` — Authentication page
+- `/admin` — Admin panel (user/product/order management)
+- `/shell.html` — WebSocket shell interface
 
 ### Recon & Exposed Files
 - `/.git/config` — Exposed git config (repo info)
@@ -166,15 +218,17 @@ ESP32-H4CK is an intentionally vulnerable IoT web application built for cybersec
 - `/vuln/session` — Create predictable sessions for hijacking tests
 - `/vuln/profile` (POST) — Mass-assignment vulnerability
 
-### REST API & Admin Practice (examples)
+### REST API & Admin Practice
 - `/api/login` (POST) — Authenticate (weak by default)
-- `/api/logout` — End session
-- `/api/info` — System information
-- `/api/users` — User CRUD operations (GET/POST/DELETE/PUT)
-- `/api/config` — Exposes configuration (WiFi/JWT) in lab mode
-- `/api/jwt-debug` — JWT weakness analysis & example token
-- `/api/endpoints` — Endpoint discovery API (returns list of routes)
-- `/api/version` — Firmware/version metadata
+- `/api/info` — System information including LAB_MODE
+- `/api/config/lab-mode` (POST) — Change lab mode: `{"mode":"testing|pentest|realism"}`
+- `/api/wallet/balance?user_id=X` — Get balance (IDOR vulnerability)
+- `/api/wallet/transfer` (POST) — P2P credit transfer (race condition)
+- `/api/shop/products` — Get product catalog
+- `/api/shop/cart/add` (POST) — Add to cart: `{"product_id":"PROD001","quantity":1}`
+- `/api/shop/checkout` (POST) — Place order (race condition)
+- `/api/shop/order?order_id=X` — Get order details (IDOR)
+- `/api/endpoints` — Endpoint discovery API
 
 ### Advanced / Admin / Exploitable APIs
 - `/api/upload` (POST) — Unrestricted file upload (upload a webshell)
@@ -234,25 +288,79 @@ All defense commands are available via serial monitor (115200 baud) and simulate
 ---
 
 ## Safety & Lab Deployment Guidelines 🛡️
-- Use a dedicated VLAN or isolated WiFi SSID
-- Firewall devices to prevent internet exposure
-- Lock physical access and label devices clearly
-- Obtain signed participant agreements for courses using the lab
-- Keep logs and monitor participant activity — intentional vulnerabilities do not replace responsible oversight
+
+⚠️ **CRITICAL**: This system contains intentional vulnerabilities. Use ONLY in isolated environments.
+
+**Network Isolation:**
+- Use dedicated VLAN or isolated WiFi SSID
+- Implement firewall rules blocking internet access
+- No connection to production networks
+- Air-gap from sensitive systems
+
+**Physical Security:**
+- Lock physical access to lab
+- Label all devices clearly as "VULNERABLE LAB"
+- Control who has physical access
+
+**Documentation & Oversight:**
+- Obtain signed participant agreements
+- Document all lab activities and exercises
+- Monitor participant activity logs
+- Have incident response plan ready
+
+**LAB_MODE Best Practices:**
+- Start students in `testing` mode with hints visible
+- Progress to `pentest` mode for realistic assessment
+- Use `realism` mode only for advanced students
+- Switch modes via: `POST /api/config/lab-mode` with `{"mode":"testing|pentest|realism"}`
 
 ---
 
 ## Development & Contributing
-- Add a new vulnerability flag in `01_Config.ino`
-- Implement endpoints in `09_Vulnerabilities.ino` or `14_AdvancedVulns.ino`
-- Add UI hints in `data/*.html` and document in this README
-- Open PRs for new lessons, improvements or fixes
+
+**Adding New Vulnerabilities:**
+1. Add vulnerability flag in `01_Config.ino` (e.g., `VULN_NEW_ATTACK`)
+2. Implement endpoint in appropriate module (`09_Vulnerabilities.ino`, `14_AdvancedVulns.ino`)
+3. Add UI hints in `data/*.html` pages (use `.testing-only` class for LAB_MODE control)
+4. Document in README.md and create test cases
+5. Update QUICKSTART.md with testing examples
+
+**Frontend Development:**
+- Use unified navbar via `navbar.js` dropdown system
+- Add pages to `data/` directory
+- Include `auth-sync.js` in `<head>` for authentication
+- Use `mode.js` for LAB_MODE visibility controls
+- Follow CSS classes: `.testing-only`, `.admin-only`, `.shell-link`
+
+**Contributing Guidelines:**
+- Follow existing code structure and naming conventions
+- Test thoroughly in all three LAB_MODEs
+- Include clear documentation in commit messages
+- Open PRs for review before merging
+- See [CONTRIBUTING.md](../CONTRIBUTING.md) for details
 
 ---
 
 ## Changelog
-- 1.0.1 — Added advanced vulnerability modules, `/api/version`, privilege escalation Telnet lessons, unrestricted upload, SSRF/XXE, race conditions, session fixation, HPP, open redirect, clickjacking tests, and several recon endpoints.
-- 1.0.0 — Initial public release (baseline lab)
+
+### Version 1.0.3 (February 2026)
+- **LAB_MODE System**: Three operational modes (testing/pentest/realism) with dynamic switching
+- **Wallet Banking**: Complete credit system with IDOR and race condition vulnerabilities
+- **E-Commerce Shop**: Product catalog, cart, checkout with order hijacking scenarios
+- **UI Overhaul**: Unified navbar dropdown, English translations, cookie-to-localStorage sync
+- **Partition Expansion**: LittleFS increased from 192KB to 1.2MB
+- **API Improvements**: JSON format for cart operations, persistent mode configuration
+- **Documentation**: Comprehensive WALLET_AND_SHOP_IMPLEMENTATION.md added
+
+### Version 1.0.1 (2026)
+- Advanced vulnerability modules (file upload, SSRF, XXE, session fixation)
+- Privilege escalation training in Telnet
+- Red/Blue Team defense game with resource management
+- Recon endpoints (`.git/config`, `.env`, `/backup/*`)
+- Enhanced build/upload scripts
+
+### Version 1.0.0 (2026)
+- Initial public release with baseline lab features
 
 ---
 

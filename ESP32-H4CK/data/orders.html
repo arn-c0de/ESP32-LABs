@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders - SecureNet Solutions</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .orders-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        .orders-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow-x: auto;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .orders-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .orders-table th {
+            background: #f8f9fa;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+        .orders-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .orders-table tr:last-child td {
+            border-bottom: none;
+        }
+        .orders-table tr:hover {
+            background: #f8f9fa;
+        }
+        .order-id {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-cancelled { background: #f8d7da; color: #721c24; }
+        .order-items-summary {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .vuln-panel {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .vuln-panel h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .vuln-form {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .vuln-form input {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .order-detail-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        .modal-content {
+            background: white;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 2rem;
+            border-radius: 8px;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
+        .modal-close:hover {
+            color: #333;
+        }
+        .order-items-detail {
+            margin: 1rem 0;
+        }
+        .order-item-row {
+            padding: 0.75rem;
+            border-bottom: 1px solid #eee;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+        .order-item-row:first-child {
+            font-weight: 600;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders" class="active">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container">
+        <div class="orders-header">
+            <h1>📦 Order History</h1>
+            <p id="ordersSubtitle">Loading...</p>
+        </div>
+
+        <div id="ordersContent">
+            <div class="empty-msg">Loading orders...</div>
+        </div>
+
+        <!-- IDOR Vulnerability Test Panel -->
+        <div class="vuln-panel testing-only">
+            <h3>🔓 IDOR Vulnerability Test</h3>
+            <p>This lab intentionally allows accessing other users' orders without authorization checks. Try changing the username or order_id to access orders from other accounts!</p>
+            
+            <h4 style="margin-top:1.5rem;">Test 1: Access Orders by Username</h4>
+            <div class="vuln-form">
+                <input type="text" id="idorUsername" placeholder="Try: admin, guest, operator">
+                <button class="btn btn-primary" onclick="testIDOR_Username()">Load Orders</button>
+            </div>
+            
+            <h4 style="margin-top:1.5rem;">Test 2: Access Specific Order by ID</h4>
+            <div class="vuln-form">
+                <input type="text" id="idorOrderId" placeholder="Enter order ID (e.g., ABC12345)">
+                <button class="btn btn-primary" onclick="testIDOR_OrderId()">View Order</button>
+            </div>
+            
+            <h4 style="margin-top:1.5rem;">Test 3: Modify Order Address (POST IDOR)</h4>
+            <div class="vuln-form">
+                <input type="text" id="modifyOrderId" placeholder="Order ID">
+                <input type="text" id="modifyAddress" placeholder="New shipping address">
+                <button class="btn btn-primary" onclick="testModifyOrder()">Modify Order</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div class="order-detail-modal" id="orderModal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div id="modalContent">Loading...</div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        // Update navbar user
+        var navUser=document.getElementById('navUser');
+        if(navUser){
+            navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+'</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';
+            fetch('/api/wallet/balance',{headers:{'Authorization':'Bearer '+token}})
+            .then(r=>r.json())
+            .then(d=>{navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+' | '+d.balance.toFixed(2)+' credits</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';})
+            .catch(e=>{});
+        }
+
+        // Load orders
+        function loadOrders(targetUsername) {
+            var url = '/api/shop/orders';
+            if (targetUsername && targetUsername !== username) {
+                url += '?username=' + encodeURIComponent(targetUsername);
+            }
+            
+            fetch(url, {
+                headers: {'Authorization': 'Bearer ' + token}
+            })
+            .then(r => r.json())
+            .then(data => {
+                displayOrders(data, targetUsername || username);
+            })
+            .catch(e => {
+                console.error('Failed to load orders', e);
+                document.getElementById('ordersContent').innerHTML = '<div class="empty-msg">Failed to load orders</div>';
+            });
+        }
+
+        function displayOrders(data, targetUser) {
+            var subtitle = document.getElementById('ordersSubtitle');
+            var content = document.getElementById('ordersContent');
+            
+            var orders = data.orders || [];
+            
+            if (targetUser !== username) {
+                subtitle.textContent = 'Viewing orders for: ' + targetUser + ' (IDOR Test)';
+            } else {
+                subtitle.textContent = 'Your order history (' + orders.length + ' orders)';
+            }
+            
+            if (orders.length === 0) {
+                content.innerHTML = '<div class="card"><div class="empty-msg">No orders found<br><br><a href="/shop" class="btn btn-primary">Start Shopping</a></div></div>';
+                return;
+            }
+            
+            var html = '<div class="orders-table"><table>';
+            html += '<thead><tr>';
+            html += '<th>Order ID</th>';
+            html += '<th>Date</th>';
+            html += '<th>Items</th>';
+            html += '<th>Total</th>';
+            html += '<th>Status</th>';
+            html += '<th>Shipping</th>';
+            html += '<th>Action</th>';
+            html += '</tr></thead><tbody>';
+            
+            orders.forEach(order => {
+                var date = new Date(order.timestamp);
+                var items = order.items || [];
+                var itemsSummary = items.length + ' item(s)';
+                if (items.length > 0) {
+                    itemsSummary = items[0].name + (items.length > 1 ? ' +' + (items.length - 1) + ' more' : '');
+                }
+                
+                html += '<tr>';
+                html += '<td><span class="order-id">' + order.order_id + '</span></td>';
+                html += '<td>' + date.toLocaleDateString() + '</td>';
+                html += '<td class="order-items-summary">' + itemsSummary + '</td>';
+                html += '<td><strong>' + order.total_amount.toFixed(2) + ' credits</strong></td>';
+                html += '<td><span class="status-badge status-' + order.status + '">' + order.status + '</span></td>';
+                html += '<td>' + (order.shipping_address || 'N/A') + '</td>';
+                html += '<td><button class="btn btn-sm btn-outline" onclick="viewOrderDetail(\'' + order.order_id + '\')">View</button></td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            content.innerHTML = html;
+        }
+
+        function viewOrderDetail(orderId) {
+            fetch('/api/shop/order?order_id=' + orderId, {
+                headers: {'Authorization': 'Bearer ' + token}
+            })
+            .then(r => r.json())
+            .then(order => {
+                if (order.error) {
+                    showToast('❌ ' + order.error, 'error');
+                    return;
+                }
+                displayOrderModal(order);
+            })
+            .catch(e => {
+                showToast('❌ Failed to load order details', 'error');
+            });
+        }
+
+        function displayOrderModal(order) {
+            var date = new Date(order.timestamp);
+            var html = '<h2>Order Details</h2>';
+            html += '<div style="margin:1.5rem 0;">';
+            html += '<div><strong>Order ID:</strong> <span class="order-id">' + order.order_id + '</span></div>';
+            html += '<div><strong>Customer:</strong> ' + order.username + '</div>';
+            html += '<div><strong>Date:</strong> ' + date.toLocaleString() + '</div>';
+            html += '<div><strong>Status:</strong> <span class="status-badge status-' + order.status + '">' + order.status + '</span></div>';
+            html += '<div><strong>Total:</strong> ' + order.total_amount.toFixed(2) + ' credits</div>';
+            html += '</div>';
+            
+            html += '<h3>Shipping Address</h3>';
+            html += '<div style="background:#f8f9fa;padding:1rem;border-radius:4px;margin-bottom:1.5rem;">';
+            html += order.shipping_address + '<br>';
+            if (order.shipping_city) html += order.shipping_city + ', ';
+            if (order.shipping_zip) html += order.shipping_zip;
+            html += '</div>';
+            
+            html += '<h3>Items Ordered</h3>';
+            html += '<div class="order-items-detail">';
+            html += '<div class="order-item-row"><div>Product</div><div>Qty</div><div>Price</div><div>Subtotal</div></div>';
+            order.items.forEach(item => {
+                html += '<div class="order-item-row">';
+                html += '<div>' + item.name + '</div>';
+                html += '<div>' + item.qty + '</div>';
+                html += '<div>' + item.price_at_order.toFixed(2) + ' cr</div>';
+                html += '<div><strong>' + item.subtotal.toFixed(2) + ' cr</strong></div>';
+                html += '</div>';
+            });
+            html += '</div>';
+            
+            document.getElementById('modalContent').innerHTML = html;
+            document.getElementById('orderModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('orderModal').style.display = 'none';
+        }
+
+        // IDOR Testing Functions
+        function testIDOR_Username() {
+            var testUsername = document.getElementById('idorUsername').value.trim();
+            if (!testUsername) {
+                showToast('❌ Enter a username to test', 'error');
+                return;
+            }
+            showToast('🔓 Testing IDOR with username: ' + testUsername, 'success');
+            loadOrders(testUsername);
+        }
+
+        function testIDOR_OrderId() {
+            var orderId = document.getElementById('idorOrderId').value.trim();
+            if (!orderId) {
+                showToast('❌ Enter an order ID to test', 'error');
+                return;
+            }
+            showToast('🔓 Testing IDOR with order ID: ' + orderId, 'success');
+            viewOrderDetail(orderId);
+        }
+
+        function testModifyOrder() {
+            var orderId = document.getElementById('modifyOrderId').value.trim();
+            var newAddress = document.getElementById('modifyAddress').value.trim();
+            
+            if (!orderId || !newAddress) {
+                showToast('❌ Enter both order ID and new address', 'error');
+                return;
+            }
+            
+            if (!confirm('Attempt to modify order ' + orderId + '? (IDOR test)')) return;
+            
+            var formData = new FormData();
+            formData.append('order_id', orderId);
+            formData.append('shipping_address', newAddress);
+            
+            fetch('/api/shop/order/update', {
+                method: 'PUT',
+                headers: {'Authorization': 'Bearer ' + token},
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('🔓 IDOR Success! Order address modified!', 'success');
+                    loadOrders();
+                } else {
+                    showToast('❌ Modification failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(e => {
+                showToast('❌ Request failed', 'error');
+            });
+        }
+
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+
+        // Close modal on click outside
+        window.onclick = function(event) {
+            var modal = document.getElementById('orderModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        };
+
+        // Load orders on page load
+        loadOrders();
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

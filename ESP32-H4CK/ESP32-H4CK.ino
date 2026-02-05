@@ -17,12 +17,20 @@
  * 
  * Author: ESP32-H4CK Lab Project
  * License: Educational Use Only
- * Version: 1.0.1 
  */
 
-#define FIRMWARE_VERSION "2.5.1"
+#define LAB_VERSION "1.0.3"
 #define BUILD_DATE "2026-02-01"
 #define CODENAME "VulnLab-Extended"
+
+// Lab Mode Configuration
+// "testing"  - Show vulnerability hints and info on pages
+// "pentest"  - Hide all hints, minimal info, realistic pentest environment
+// "realism"  - Maximum security, most vulnerabilities disabled
+#ifndef LAB_MODE
+#define LAB_MODE "pentest"
+#endif
+String LAB_MODE_STR = LAB_MODE;
 
 // ===== LIBRARY INCLUDES =====
 #include <WiFi.h>
@@ -115,8 +123,10 @@ String TELNET_ROOT_PASSWORD_STR = TELNET_ROOT_PASSWORD;
 
 // Database Configuration
 #define DB_FILE_PATH "/db/users.json"
+#define TX_FILE_PATH "/db/transactions.json"
 #define LOG_FILE_PATH "/logs/access.log"
 #define MAX_LOG_SIZE 102400
+#define MAX_TRANSACTIONS 1000
 
 // Global Server Objects
 AsyncWebServer server(HTTP_PORT);
@@ -148,14 +158,18 @@ struct DefaultUser {
   String username;
   String password;
   String role;
+  float balance;
+  String email;
+  String first_name;
+  String last_name;
 };
 
 DefaultUser defaultUsers[] = {
-  {"admin", "admin", "admin"},
-  {"root", "root", "admin"},
-  {"guest", "guest", "guest"},
-  {"test", "test", "guest"},
-  {"operator", "operator123", "guest"}
+  {"admin", "admin", "admin", 5000.0, "admin@securenet-solutions.local", "Sarah", "Chen"},
+  {"root", "root", "admin", 5000.0, "root@securenet-solutions.local", "System", "Root"},
+  {"guest", "guest", "guest", 1000.0, "guest@securenet-solutions.local", "Guest", "User"},
+  {"test", "test", "guest", 1000.0, "test@securenet-solutions.local", "Test", "Account"},
+  {"operator", "operator123", "guest", 2000.0, "operator@securenet-solutions.local", "John", "Smith"}
 };
 
 const int DEFAULT_USERS_COUNT = 5;
@@ -169,6 +183,7 @@ bool VULN_CSRF = true;
 bool VULN_WEAK_AUTH = true;
 bool VULN_INFO_DISCLOSURE = true;
 bool VULN_INSECURE_DESERIALIZATION = true;
+bool VULN_IDOR = true;
 
 // Allowed Commands
 String allowedCommands[] = {
@@ -233,6 +248,18 @@ void createUserTable();
 bool insertUser(String username, String password, String role);
 String getUserByUsername(String username);
 void seedTestData();
+void migrateUserSchema();
+float getUserBalance(String username);
+bool updateBalance(String username, float newBalance);
+bool logTransaction(String fromUser, String toUser, float amount, String type);
+String getTransactionHistory(String username, int limit = 50);
+bool transferFunds(String fromUser, String toUser, float amount);
+
+// Wallet Module
+void setupWalletEndpoints();
+
+// Shop Module
+void setupShopRoutes();
 
 // REST API Module
 void setupRESTRoutes();
@@ -313,7 +340,7 @@ void setup() {
   
   Serial.println("\n\n");
   Serial.println("========================================");
-  Serial.printf("  ESP32-H4CK v%s\n", FIRMWARE_VERSION);
+  Serial.printf("  ESP32-H4CK v%s\n", LAB_VERSION);
   Serial.printf("  %s Edition\n", CODENAME);
   Serial.printf("  Build: %s\n", BUILD_DATE);
   Serial.println("  ** Intentionally Vulnerable **");
@@ -357,6 +384,12 @@ void setup() {
   setupRESTRoutes();
   logInfo("REST API configured");
   
+  setupWalletEndpoints();
+  logInfo("Wallet endpoints configured");
+
+  setupShopRoutes();
+  logInfo("Shop endpoints configured");
+
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();
     setupAdvancedVulnerabilityEndpoints();

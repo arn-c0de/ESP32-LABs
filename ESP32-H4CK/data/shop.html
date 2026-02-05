@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/js/auth-sync.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop - SecureNet Solutions</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .shop-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        .shop-header h1 { margin: 0 0 0.5rem 0; }
+        .shop-header p { margin: 0; opacity: 0.9; }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .product-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .product-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .product-image {
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            color: white;
+        }
+        .product-body {
+            padding: 1.5rem;
+        }
+        .product-category {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+            color: #666;
+        }
+        .product-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0.5rem 0;
+            color: #333;
+        }
+        .product-description {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin: 0.5rem 0 1rem 0;
+            min-height: 3em;
+        }
+        .product-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+        .product-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        .product-stock {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        .cart-counter {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #e74c3c;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .cart-icon-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .filter-bar {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-bar label {
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        .filter-bar select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">SecureNet Banking</a>
+        <button class="hamburger" onclick="document.querySelector('.navbar-nav').classList.toggle('open')">&#9776;</button>
+        <ul class="navbar-nav">
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/shop" class="active">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
+            <li><a href="/profile">Profile</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
+        </ul>
+        <div class="navbar-user" id="navUser"></div>
+    </nav>
+
+    <div class="container">
+        <div class="shop-header">
+            <h1>🛒 Product Catalog</h1>
+            <p>Secure IoT Solutions & Enterprise Software</p>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div>
+                <label>Category:</label>
+                <select id="categoryFilter" onchange="filterProducts()">
+                    <option value="all">All Products</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Software">Software</option>
+                </select>
+            </div>
+            <div>
+                <label>Sort:</label>
+                <select id="sortBy" onchange="filterProducts()">
+                    <option value="name">Name</option>
+                    <option value="price-asc">Price: Low to High</option>
+                    <option value="price-desc">Price: High to Low</option>
+                </select>
+            </div>
+            <div style="margin-left:auto">
+                <a href="/cart" class="btn btn-primary">
+                    <span class="cart-icon-wrapper">
+                        🛒 View Cart <span id="cartCountBadge" class="cart-counter" style="display:none">0</span>
+                    </span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Product Grid -->
+        <div id="productGrid" class="product-grid">
+            <div class="empty-msg" style="grid-column: 1/-1;">Loading products...</div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function getCookie(n){var m=document.cookie.match('(^|;)\\s*'+n+'=([^;]*)');return m?decodeURIComponent(m[2]):null}
+        (function(){var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}})();
+
+        var token=localStorage.getItem('token'),username=localStorage.getItem('username'),role=localStorage.getItem('role');
+        if(!token||!username){window.location.href='/login';}
+
+        var allProducts = [];
+        var cartCount = 0;
+
+        // Update navbar user
+        var navUser=document.getElementById('navUser');
+        if(navUser){
+            navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+'</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';
+            fetch('/api/wallet/balance',{headers:{'Authorization':'Bearer '+token}})
+            .then(r=>r.json())
+            .then(d=>{navUser.innerHTML='<span class="user-badge role-'+role+'">'+username+' | '+d.balance.toFixed(2)+' credits</span> <a href="/login" onclick="localStorage.clear();sessionStorage.clear();">Logout</a>';})
+            .catch(e=>{});
+        }
+
+        // Load cart count
+        function updateCartCount() {
+            fetch('/api/shop/cart', {
+                headers: {'Authorization': 'Bearer ' + token}
+            })
+            .then(r => r.json())
+            .then(data => {
+                cartCount = data.total_items || 0;
+                var badge = document.getElementById('cartCountBadge');
+                if (cartCount > 0) {
+                    badge.textContent = cartCount;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(e => console.error('Failed to load cart count', e));
+        }
+
+        // Load products
+        function loadProducts() {
+            fetch('/api/shop/products')
+            .then(r => r.json())
+            .then(data => {
+                allProducts = data.products || [];
+                filterProducts();
+            })
+            .catch(e => {
+                console.error('Failed to load products', e);
+                document.getElementById('productGrid').innerHTML = '<div class="empty-msg" style="grid-column:1/-1;">Failed to load products</div>';
+            });
+        }
+
+        // Filter and display products
+        function filterProducts() {
+            var category = document.getElementById('categoryFilter').value;
+            var sortBy = document.getElementById('sortBy').value;
+            
+            var filtered = allProducts.filter(p => category === 'all' || p.category === category);
+            
+            // Sort
+            if (sortBy === 'price-asc') {
+                filtered.sort((a, b) => a.price - b.price);
+            } else if (sortBy === 'price-desc') {
+                filtered.sort((a, b) => b.price - a.price);
+            } else {
+                filtered.sort((a, b) => a.name.localeCompare(b.name));
+            }
+            
+            displayProducts(filtered);
+        }
+
+        // Display products
+        function displayProducts(products) {
+            var grid = document.getElementById('productGrid');
+            
+            if (products.length === 0) {
+                grid.innerHTML = '<div class="empty-msg" style="grid-column:1/-1;">No products found</div>';
+                return;
+            }
+            
+            grid.innerHTML = products.map(p => `
+                <div class="product-card">
+                    <div class="product-image">${getProductIcon(p.category)}</div>
+                    <div class="product-body">
+                        <span class="product-category">${p.category}</span>
+                        <div class="product-name">${p.name}</div>
+                        <div class="product-description">${p.description}</div>
+                        <div class="product-footer">
+                            <div>
+                                <div class="product-price">${p.price.toFixed(0)} cr</div>
+                                <div class="product-stock">${p.inventory} in stock</div>
+                            </div>
+                            <button class="btn btn-primary" onclick="addToCart('${p.id}', '${p.name}', ${p.price})">
+                                Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getProductIcon(category) {
+            if (category === 'Hardware') return '🔧';
+            if (category === 'Software') return '💻';
+            return '📦';
+        }
+
+        // Add to cart
+        function addToCart(productId, productName, price) {
+            fetch('/api/shop/cart/add', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: 1
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('✅ ' + productName + ' added to cart!', 'success');
+                    updateCartCount();
+                } else {
+                    showToast('❌ Failed to add to cart: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(e => {
+                console.error('Add to cart failed', e);
+                showToast('❌ Failed to add to cart', 'error');
+            });
+        }
+
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+
+        // Load on page load
+        loadProducts();
+        updateCartCount();
+    </script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+</html>

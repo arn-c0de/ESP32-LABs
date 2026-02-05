@@ -42,10 +42,47 @@ void setupRESTRoutes() {
     doc["jwt_secret"] = JWT_SECRET_STR;  // Intentional exposure
     doc["enable_vulnerabilities"] = ENABLE_VULNERABILITIES;
     doc["debug_mode"] = DEBUG_MODE;
+    doc["lab_mode"] = LAB_MODE_STR;
     
     String output;
     serializeJson(doc, output);
     request->send(200, "application/json", output);
+  });
+  
+  // Lab mode control endpoint
+  server.on("/api/config/lab-mode", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      String clientIP = request->client()->remoteIP().toString();
+      Serial.printf("[API] POST /api/config/lab-mode from %s\n", clientIP.c_str());
+      
+      // Parse JSON body
+      DynamicJsonDocument doc(256);
+      DeserializationError error = deserializeJson(doc, (char*)data);
+      
+      if (error) {
+        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        return;
+      }
+      
+      String newMode = doc["mode"].as<String>();
+      if (newMode != "testing" && newMode != "pentest" && newMode != "realism") {
+        request->send(400, "application/json", "{\"error\":\"Invalid mode. Use: testing, pentest, or realism\"}");
+        return;
+      }
+      
+      LAB_MODE_STR = newMode;
+      saveConfigToFS();
+      
+      Serial.printf("[API] Lab mode changed to: %s\n", LAB_MODE_STR.c_str());
+      
+      DynamicJsonDocument response(256);
+      response["success"] = true;
+      response["lab_mode"] = LAB_MODE_STR;
+      response["message"] = "Lab mode updated to " + LAB_MODE_STR;
+      
+      String output;
+      serializeJson(response, output);
+      request->send(200, "application/json", output);
   });
 
   // JWT Debug endpoint - exposes token weaknesses
@@ -86,10 +123,19 @@ void setupRESTRoutes() {
     DynamicJsonDocument doc(2048);
     JsonArray public_endpoints = doc.createNestedArray("public");
     public_endpoints.add("/");
+    public_endpoints.add("/login");
+    public_endpoints.add("/dashboard");
+    public_endpoints.add("/transactions");
+    public_endpoints.add("/transfer");
+    public_endpoints.add("/shop");
+    public_endpoints.add("/cart");
+    public_endpoints.add("/checkout");
+    public_endpoints.add("/orders");
+    public_endpoints.add("/profile");
+    public_endpoints.add("/admin");
     public_endpoints.add("/about");
     public_endpoints.add("/products");
     public_endpoints.add("/support");
-    public_endpoints.add("/login");
     
     JsonArray api = doc.createNestedArray("api");
     api.add("/api/info");
@@ -104,6 +150,35 @@ void setupRESTRoutes() {
     api.add("/api/admin/sessions");
     api.add("/api/admin/config-update");
     api.add("/api/system/reboot");
+
+    JsonArray wallet = doc.createNestedArray("wallet");
+    wallet.add("/api/wallet/balance");
+    wallet.add("/api/wallet/transactions");
+    wallet.add("/api/wallet/transfer");
+    wallet.add("/api/wallet/withdraw");
+    wallet.add("/api/wallet/deposit");
+    wallet.add("/api/wallet/export");
+    wallet.add("/api/admin/wallet/reset");
+    wallet.add("/api/admin/wallet/stats");
+    
+    JsonArray shop = doc.createNestedArray("shop");
+    shop.add("/api/shop/products");
+    shop.add("/api/shop/product");
+    shop.add("/api/shop/cart");
+    shop.add("/api/shop/cart/add");
+    shop.add("/api/shop/cart/update");
+    shop.add("/api/shop/cart/remove");
+    shop.add("/api/shop/cart/clear");
+    shop.add("/api/shop/checkout");
+    shop.add("/api/shop/orders");
+    shop.add("/api/shop/order");
+    shop.add("/api/shop/order/update");
+    shop.add("/api/shop/order/delete");
+    shop.add("/api/admin/shop/product/add");
+    shop.add("/api/admin/shop/product/update");
+    shop.add("/api/admin/shop/product/delete");
+    shop.add("/api/admin/shop/orders");
+    shop.add("/api/admin/shop/order-stats");
     
     JsonArray vulns = doc.createNestedArray("vulnerabilities");
     vulns.add("/vuln/search");
@@ -300,7 +375,8 @@ void handleGetSystemInfo(AsyncWebServerRequest *request) {
   addCORSHeaders(request);
   
   DynamicJsonDocument doc(1024);
-  doc["version"] = "1.0.0";
+  doc["version"] = LAB_VERSION;
+  doc["lab_mode"] = LAB_MODE_STR;
   doc["uptime"] = millis() / 1000;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["chip_model"] = ESP.getChipModel();
