@@ -15,6 +15,9 @@
             <li><a href="/dashboard">Dashboard</a></li>
             <li><a href="/transactions">Transactions</a></li>
             <li><a href="/transfer">Transfer</a></li>
+            <li><a href="/shop">Shop</a></li>
+            <li><a href="/cart">Cart</a></li>
+            <li><a href="/orders">Orders</a></li>
             <li><a href="/profile" class="active">Profile</a></li>
             <li><a href="/admin">Admin</a></li>
             <li><a href="/shell.html">Shell</a></li>
@@ -92,16 +95,6 @@
         function authHeaders(){return{'Authorization':'Bearer '+token}}
         function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type+' show';setTimeout(function(){t.className='toast'},3000)}
 
-        // Navbar
-        (function(){
-            var nav=document.getElementById('navUser');
-            var rc=role==='admin'?' admin':'';
-            nav.innerHTML='<div class="user-badge"><span>'+username+'</span><span class="role'+rc+'">'+role+'</span></div>'+
-                (role==='admin'?'<a href="/admin" class="btn-nav solid">Admin</a>':'')+
-                '<button class="btn-nav danger" onclick="doLogout()">Logout</button>';
-        })();
-        function doLogout(){fetch('/api/logout').finally(function(){localStorage.clear();window.location.href='/login';})}
-
         async function loadProfile(){
             try{
                 var r=await fetch('/api/profile',{headers:authHeaders()});
@@ -165,5 +158,6 @@
 
         window.addEventListener('load',loadProfile);
     </script>
+<script src="/js/navbar.js"></script>
 </body>
 </html>

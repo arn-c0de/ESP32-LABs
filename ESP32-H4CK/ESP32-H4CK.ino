@@ -17,10 +17,10 @@
  * 
  * Author: ESP32-H4CK Lab Project
  * License: Educational Use Only
- * Version: 1.0.1 
  */
 
 #define FIRMWARE_VERSION "2.5.1"
+#define LAB_VERSION "1.0.3"
 #define BUILD_DATE "2026-02-01"
 #define CODENAME "VulnLab-Extended"
 
@@ -175,6 +175,7 @@ bool VULN_CSRF = true;
 bool VULN_WEAK_AUTH = true;
 bool VULN_INFO_DISCLOSURE = true;
 bool VULN_INSECURE_DESERIALIZATION = true;
+bool VULN_IDOR = true;
 
 // Allowed Commands
 String allowedCommands[] = {
@@ -248,6 +249,9 @@ bool transferFunds(String fromUser, String toUser, float amount);
 
 // Wallet Module
 void setupWalletEndpoints();
+
+// Shop Module
+void setupShopRoutes();
 
 // REST API Module
 void setupRESTRoutes();
@@ -374,6 +378,9 @@ void setup() {
   
   setupWalletEndpoints();
   logInfo("Wallet endpoints configured");
+
+  setupShopRoutes();
+  logInfo("Shop endpoints configured");
 
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();

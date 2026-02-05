@@ -28,6 +28,8 @@
 data/*.bin
 data/*.img
 data/.cache/
+littlefs.bin
+*.img
 
 # Arduino Sketch Data Upload plugin
 /.data/
@@ -60,6 +62,6 @@ desktop.ini
 
 # Misc
 .env
-
+.venv
 
 # End of file
