@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/js/auth-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - SecureNet Banking</title>
@@ -20,7 +21,7 @@
             <li><a href="/orders">Orders</a></li>
             <li><a href="/profile">Profile</a></li>
             <li><a href="/admin" class="active">Admin</a></li>
-            <li><a href="/shell.html">Shell</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
         </ul>
         <div class="navbar-user" id="navUser"></div>
     </nav>
@@ -433,6 +434,7 @@
         // Init
         window.addEventListener('load',function(){loadSystemStats();loadUsers();loadSessions();loadWalletStats();loadProducts();loadOrderStats();setInterval(loadSystemStats,10000)});
     </script>
-<script src="/js/navbar.js"></script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
 </body>
 </html>

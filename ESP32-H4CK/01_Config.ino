@@ -24,6 +24,7 @@ void initConfig() {
   pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
   
   Serial.println("[CONFIG] Configuration initialized");
+  Serial.printf("[CONFIG] Lab Mode: %s\n", LAB_MODE_STR.c_str());
   Serial.printf("[CONFIG] Station Mode: %s\n", STATION_MODE ? "YES" : "NO");
   Serial.printf("[CONFIG] Vulnerabilities: %s\n", ENABLE_VULNERABILITIES ? "ENABLED" : "DISABLED");
   Serial.printf("[CONFIG] Debug Mode: %s\n", DEBUG_MODE ? "ENABLED" : "DISABLED");
@@ -43,11 +44,15 @@ void loadConfigFromFS() {
   if (preferences.isKey("enable_vulns")) {
     ENABLE_VULNERABILITIES = preferences.getBool("enable_vulns", ENABLE_VULNERABILITIES);
   }
+  if (preferences.isKey("lab_mode")) {
+    LAB_MODE_STR = preferences.getString("lab_mode", LAB_MODE_STR);
+  }
 }
 
 void saveConfigToFS() {
   preferences.putString("wifi_ssid", WIFI_SSID_STR);
   preferences.putString("wifi_pass", WIFI_PASSWORD_STR);
+  preferences.putString("lab_mode", LAB_MODE_STR);
   preferences.putBool("debug_mode", DEBUG_MODE);
   preferences.putBool("enable_vulns", ENABLE_VULNERABILITIES);
   Serial.println("[CONFIG] Configuration saved to flash");

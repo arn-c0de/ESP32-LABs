@@ -23,7 +23,7 @@ Always obtain permission before performing security testing on systems you do no
 
 ## LABs
 - **ESP32-H4CK — SecureNet Lab**: A vulnerable "SecureNet Solutions" lab designed for hands-on penetration testing exercises and learning. See the lab documentation and exercises in [ESP32-H4CK/README.md](ESP32-H4CK/README.md) and the quick start guide: [ESP32-H4CK/QUICKSTART.md](ESP32-H4CK/QUICKSTART.md).
-<img src="ESP32-H4CK/images/ESP32-LAB-SecureNet%20Solutions.png" alt="ESP32-LAB - SecureNet Solutions" width="50%">
+<img src="ESP32-H4CK/images/sns-productshop.png" alt="ESP32-LAB - SecureNet Solutions" width="50%">
 
 
 - More labs will be added over time — check each subfolder for its README or QUICKSTART.

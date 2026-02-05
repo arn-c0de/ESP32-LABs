@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/js/auth-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop - SecureNet Solutions</title>
@@ -136,8 +137,8 @@
             <li><a href="/cart">Cart</a></li>
             <li><a href="/orders">Orders</a></li>
             <li><a href="/profile">Profile</a></li>
-            <li><a href="/admin">Admin</a></li>
-            <li><a href="/shell.html">Shell</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
         </ul>
         <div class="navbar-user" id="navUser"></div>
     </nav>
@@ -293,14 +294,16 @@
 
         // Add to cart
         function addToCart(productId, productName, price) {
-            var formData = new FormData();
-            formData.append('product_id', productId);
-            formData.append('quantity', '1');
-            
             fetch('/api/shop/cart/add', {
                 method: 'POST',
-                headers: {'Authorization': 'Bearer ' + token},
-                body: formData
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: 1
+                })
             })
             .then(r => r.json())
             .then(data => {
@@ -328,6 +331,7 @@
         loadProducts();
         updateCartCount();
     </script>
-<script src="/js/navbar.js"></script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/js/auth-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureNet Banking - ESP32-H4CK</title>
@@ -17,8 +18,8 @@
             <li><a href="/cart">Cart</a></li>
             <li><a href="/orders">Orders</a></li>
             <li><a href="/profile">Profile</a></li>
-            <li><a href="/admin">Admin</a></li>
-            <li><a href="/shell.html">Shell</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
         </ul>
         <div class="navbar-user" id="navUser">
             <a href="/login" class="btn-nav solid">Login</a>
@@ -43,8 +44,8 @@
                 <a href="/transactions" class="btn btn-lg btn-outline">Transactions</a>
             </div>
 
-            <h2>Available Endpoints</h2>
-            <ul class="endpoint-list">
+            <h2 class="testing-only">Available Endpoints</h2>
+            <ul class="endpoint-list testing-only">
                 <li class="endpoint-item">
                     <span class="method get">GET</span>
                     <a href="/login">/login</a>
@@ -99,13 +100,13 @@
 
             <div class="btn-group" style="text-align:center;margin:24px 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
                 <a href="/login" class="btn" id="btnLogin">Login</a>
-                <a href="/shell.html" class="btn">Web Shell</a>
-                <a href="/api/info" class="btn btn-outline">System Info</a>
+                <a href="/shell.html" class="btn testing-only shell-link">Web Shell</a>
+                <a href="/api/info" class="btn btn-outline testing-only">System Info</a>
                 <a href="/admin" class="btn btn-outline" id="btnAdmin" style="display:none;">Admin Panel</a>
             </div>
 
-            <h2>Other Services</h2>
-            <ul class="endpoint-list">
+            <h2 class="testing-only">Other Services</h2>
+            <ul class="endpoint-list testing-only">
                 <li class="endpoint-item">
                     <strong>Telnet Service:</strong> Port 23
                     <p>Connect with: <code>telnet &lt;device-ip&gt; 23</code></p>
@@ -128,7 +129,15 @@
             var ct=getCookie('auth_token'),cu=getCookie('auth_user'),cr=getCookie('auth_role');
             if(ct&&cu){localStorage.setItem('token',ct);localStorage.setItem('username',cu);localStorage.setItem('role',cr||'guest')}
         })();
+        
+        // Show admin button only for admin users
+        var role = localStorage.getItem('role');
+        if (role === 'admin') {
+            var adminBtn = document.getElementById('btnAdmin');
+            if (adminBtn) adminBtn.style.display = 'inline-block';
+        }
     </script>
+    <script src="/js/mode.js"></script>
     <script src="/js/navbar.js"></script>
 </body>
 </html>

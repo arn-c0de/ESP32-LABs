@@ -42,10 +42,47 @@ void setupRESTRoutes() {
     doc["jwt_secret"] = JWT_SECRET_STR;  // Intentional exposure
     doc["enable_vulnerabilities"] = ENABLE_VULNERABILITIES;
     doc["debug_mode"] = DEBUG_MODE;
+    doc["lab_mode"] = LAB_MODE_STR;
     
     String output;
     serializeJson(doc, output);
     request->send(200, "application/json", output);
+  });
+  
+  // Lab mode control endpoint
+  server.on("/api/config/lab-mode", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      String clientIP = request->client()->remoteIP().toString();
+      Serial.printf("[API] POST /api/config/lab-mode from %s\n", clientIP.c_str());
+      
+      // Parse JSON body
+      DynamicJsonDocument doc(256);
+      DeserializationError error = deserializeJson(doc, (char*)data);
+      
+      if (error) {
+        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        return;
+      }
+      
+      String newMode = doc["mode"].as<String>();
+      if (newMode != "testing" && newMode != "pentest" && newMode != "realism") {
+        request->send(400, "application/json", "{\"error\":\"Invalid mode. Use: testing, pentest, or realism\"}");
+        return;
+      }
+      
+      LAB_MODE_STR = newMode;
+      saveConfigToFS();
+      
+      Serial.printf("[API] Lab mode changed to: %s\n", LAB_MODE_STR.c_str());
+      
+      DynamicJsonDocument response(256);
+      response["success"] = true;
+      response["lab_mode"] = LAB_MODE_STR;
+      response["message"] = "Lab mode updated to " + LAB_MODE_STR;
+      
+      String output;
+      serializeJson(response, output);
+      request->send(200, "application/json", output);
   });
 
   // JWT Debug endpoint - exposes token weaknesses
@@ -339,6 +376,7 @@ void handleGetSystemInfo(AsyncWebServerRequest *request) {
   
   DynamicJsonDocument doc(1024);
   doc["version"] = LAB_VERSION;
+  doc["lab_mode"] = LAB_MODE_STR;
   doc["uptime"] = millis() / 1000;
   doc["free_heap"] = ESP.getFreeHeap();
   doc["chip_model"] = ESP.getChipModel();

@@ -183,8 +183,8 @@ echo ""
 echo "🚀 Uploading filesystem (LittleFS)..."
 
 LITTLEFS_IMAGE="littlefs.bin"
-PARTITION_OFFSET="0x3D0000"
-PARTITION_SIZE_DEC=196608
+PARTITION_OFFSET="0x2D0000"
+PARTITION_SIZE_DEC=1245184
 
 echo "  Creating LittleFS image..."
 "$MKLITTLEFS" -c data -b 4096 -p 256 -s $PARTITION_SIZE_DEC "$LITTLEFS_IMAGE" 2>/dev/null
