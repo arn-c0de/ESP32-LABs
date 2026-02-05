@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Leaderboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/scada.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+    <nav class="sidebar">
+      <div class="sidebar-header"><div class="sidebar-logo">ESP32-SCADA</div><div class="sidebar-subtitle">Industrial Security Lab</div></div>
+      <div class="sidebar-nav">
+        <a href="/dashboard" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
+        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
+        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
+        <a href="/alarms" class="nav-item"><span class="nav-icon">!</span> Alarms</a>
+        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
+        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
+        <a href="/defense" class="nav-item"><span class="nav-icon">D</span> Defense</a>
+        <a href="/leaderboard" class="nav-item active"><span class="nav-icon">L</span> Leaderboard</a>
+      </div>
+      <div style="padding:16px;border-top:1px solid var(--border-color)"><button class="btn btn-sm" onclick="API.logout()" style="width:100%">Logout</button></div>
+    </nav>
+
+    <main class="main-content">
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
+      <div class="topbar">
+        <h1 class="topbar-title">Leaderboard</h1>
+        <div class="topbar-actions">
+          <select id="sort-select" class="form-select" style="width:auto" onchange="loadLeaderboard()">
+            <option value="score">Sort by Score</option>
+            <option value="paths">Sort by Exploits</option>
+            <option value="time">Sort by Time</option>
+          </select>
+          <button class="btn btn-sm mode-toggle">Light</button>
+        </div>
+      </div>
+
+      <div id="leaderboard-content">
+        <div class="card"><p class="text-muted text-center">Loading leaderboard...</p></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script src="/js/leaderboard.js"></script>
+  <script>
+    Auth.requireAuth(); Auth.updateUI();
+    async function loadLeaderboard() {
+      const sort = document.getElementById('sort-select').value;
+      const data = await Leaderboard.load(sort, 20);
+      Leaderboard.render(document.getElementById('leaderboard-content'), data);
+    }
+    loadLeaderboard();
+    setInterval(loadLeaderboard, 15000);
+  </script>
+</body>
+</html>

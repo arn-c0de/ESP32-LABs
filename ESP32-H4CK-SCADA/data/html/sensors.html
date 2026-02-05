@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Sensors</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/scada.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+    <nav class="sidebar">
+      <div class="sidebar-header"><div class="sidebar-logo">ESP32-SCADA</div><div class="sidebar-subtitle">Industrial Security Lab</div></div>
+      <div class="sidebar-nav">
+        <a href="/dashboard" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
+        <a href="/sensors" class="nav-item active"><span class="nav-icon">S</span> Sensors</a>
+        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
+        <a href="/alarms" class="nav-item"><span class="nav-icon">!</span> Alarms</a>
+        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
+        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
+        <a href="/defense" class="nav-item"><span class="nav-icon">D</span> Defense</a>
+        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
+        <a href="/admin" class="nav-item admin-only"><span class="nav-icon">*</span> Admin</a>
+      </div>
+      <div style="padding:16px;border-top:1px solid var(--border-color)">
+        <div class="text-sm"><span class="user-name"></span></div>
+        <button class="btn btn-sm mt-md" onclick="API.logout()" style="width:100%">Logout</button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
+      <div class="topbar">
+        <h1 class="topbar-title">Sensors</h1>
+        <div class="topbar-actions">
+          <select id="line-filter" class="form-select" style="width:auto" onchange="loadSensors()">
+            <option value="all">All Lines</option>
+            <option value="1">Line 1</option><option value="2">Line 2</option>
+            <option value="3">Line 3</option><option value="4">Line 4</option>
+          </select>
+          <button class="btn btn-sm mode-toggle">Light</button>
+        </div>
+      </div>
+
+      <div class="grid grid-2" id="sensor-grid">
+        <div class="card"><p class="text-muted">Loading sensors...</p></div>
+      </div>
+
+      <!-- Sensor Detail Modal -->
+      <div class="modal-overlay" id="modal-overlay" onclick="this.classList.remove('active');document.getElementById('sensor-modal').classList.remove('active')"></div>
+      <div class="modal" id="sensor-modal">
+        <div class="modal-header">
+          <h3 id="sensor-modal-title">Sensor Detail</h3>
+          <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('active');document.getElementById('sensor-modal').classList.remove('active')">x</button>
+        </div>
+        <div class="modal-body" id="sensor-modal-body"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script>
+    Auth.requireAuth(); Auth.updateUI();
+
+    async function loadSensors() {
+      try {
+        const data = await API.get('/api/sensors/list');
+        const sensors = data.sensors || [];
+        const filter = document.getElementById('line-filter').value;
+        const filtered = filter === 'all' ? sensors : sensors.filter(s => s.line == filter);
+
+        document.getElementById('sensor-grid').innerHTML = filtered.map(s => `
+          <div class="card" style="cursor:pointer" onclick="showSensor('${s.id}')">
+            <div class="flex-between">
+              <div>
+                <div class="text-mono text-sm">${s.id}</div>
+                <div class="card-title">${s.type}</div>
+              </div>
+              <span class="badge badge-${s.status==='normal'?'green':s.status==='critical'?'red':s.status==='fault'?'purple':'yellow'}">
+                ${s.status}
+              </span>
+            </div>
+            <div class="metric mt-md">
+              <div class="metric-value">${(typeof s.value === 'number') ? s.value.toFixed(1) : s.value}<span class="metric-unit">${s.unit}</span></div>
+            </div>
+            <div class="text-xs text-muted mt-md">Line ${s.line} | Thresholds: ${s.thresholds.high}/${s.thresholds.critical}</div>
+          </div>
+        `).join('') || '<p class="text-muted">No sensors found</p>';
+      } catch (err) {
+        Notify.error('Failed to load sensors');
+      }
+    }
+
+    async function showSensor(id) {
+      try {
+        const data = await API.get(`/api/sensor/reading?sensor_id=${id}&limit=20`);
+        document.getElementById('sensor-modal-title').textContent = id + ' — ' + (data.type || '');
+        document.getElementById('sensor-modal-body').innerHTML = `
+          <div class="grid-2">
+            <div class="metric"><div class="metric-value">${data.current ? data.current.value : '—'}</div><div class="metric-label">Current (${data.unit || ''})</div></div>
+            <div class="metric"><div class="metric-value badge badge-${data.status==='normal'?'green':'red'}">${data.status}</div><div class="metric-label">Status</div></div>
+          </div>
+          <div class="mt-md">
+            <strong>Thresholds:</strong> Low ${data.thresholds?.low} | High ${data.thresholds?.high} | Critical ${data.thresholds?.critical}
+          </div>
+          <div class="mt-md"><strong>Recent History:</strong></div>
+          <div class="table-wrapper mt-md">
+            <table><tr><th>Value</th><th>Status</th><th>Time</th></tr>
+            ${(data.history||[]).map(h => `<tr><td class="text-mono">${h.value}</td><td>${h.status}</td><td class="text-xs">${h.timestamp}</td></tr>`).join('')}
+            </table>
+          </div>
+          ${data._metadata ? '<div class="mt-md text-mono text-sm text-green">' + data._metadata + '</div>' : ''}
+        `;
+        document.getElementById('modal-overlay').classList.add('active');
+        document.getElementById('sensor-modal').classList.add('active');
+      } catch (err) { Notify.error('Failed to load sensor data'); }
+    }
+
+    loadSensors();
+    setInterval(loadSensors, 5000);
+  </script>
+</body>
+</html>

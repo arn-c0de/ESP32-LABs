@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Actuators</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/scada.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+    <nav class="sidebar">
+      <div class="sidebar-header"><div class="sidebar-logo">ESP32-SCADA</div><div class="sidebar-subtitle">Industrial Security Lab</div></div>
+      <div class="sidebar-nav">
+        <a href="/dashboard" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
+        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
+        <a href="/actuators" class="nav-item active"><span class="nav-icon">A</span> Actuators</a>
+        <a href="/alarms" class="nav-item"><span class="nav-icon">!</span> Alarms</a>
+        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
+        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
+        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
+      </div>
+      <div style="padding:16px;border-top:1px solid var(--border-color)">
+        <button class="btn btn-sm" onclick="API.logout()" style="width:100%">Logout</button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
+      <div class="topbar">
+        <h1 class="topbar-title">Actuator Control</h1>
+        <div class="topbar-actions"><button class="btn btn-sm mode-toggle">Light</button></div>
+      </div>
+
+      <div id="actuator-list">
+        <div class="card"><p class="text-muted">Loading actuators...</p></div>
+      </div>
+
+      <div class="card mt-md" id="command-result" style="display:none">
+        <div class="card-title">Command Result</div>
+        <pre class="text-mono text-sm mt-md" id="result-json" style="white-space:pre-wrap;max-height:300px;overflow:auto"></pre>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script>
+    Auth.requireAuth(); Auth.updateUI();
+
+    async function loadActuators() {
+      try {
+        const data = await API.get('/api/actuators/list');
+        const acts = data.actuators || [];
+        document.getElementById('actuator-list').innerHTML = acts.map(a => `
+          <div class="control-group">
+            <label>${a.id} <span class="badge badge-${a.status==='running'||a.state==='open'?'green':a.status==='stuck'?'red':'gray'}">${a.status||a.state}</span></label>
+            <div class="text-xs text-muted">Line ${a.line} | Type: ${a.type} | Commands: ${a.commands}</div>
+            ${a.type === 'motor' ? `
+              <div class="slider-control mt-md">
+                <input type="range" min="0" max="100" value="${a.speed||0}" class="speed-slider" id="speed-${a.id}"
+                  oninput="document.getElementById('val-${a.id}').textContent=this.value+'%'">
+                <span class="slider-value" id="val-${a.id}">${a.speed||0}%</span>
+              </div>
+              <div class="control-buttons">
+                <button class="btn btn-success btn-sm" onclick="sendCmd('${a.id}','start',{speed:document.getElementById('speed-${a.id}').value})">Start</button>
+                <button class="btn btn-sm" onclick="sendCmd('${a.id}','stop')">Stop</button>
+                <button class="btn btn-danger btn-sm" onclick="sendCmd('${a.id}','emergency_stop')">E-Stop</button>
+                <button class="btn btn-sm" onclick="sendCmd('${a.id}','set',{speed:document.getElementById('speed-${a.id}').value})">Set Speed</button>
+              </div>
+            ` : a.type === 'valve' ? `
+              <div class="toggle-control mt-md">
+                <button class="toggle-btn ${a.state==='open'?'active':''}" onclick="sendCmd('${a.id}','set',{position:'open'})">Open</button>
+                <button class="toggle-btn ${a.state==='closed'?'active':''}" onclick="sendCmd('${a.id}','set',{position:'closed'})">Closed</button>
+              </div>
+            ` : `
+              <div class="control-buttons mt-md">
+                <button class="btn btn-success btn-sm" onclick="sendCmd('${a.id}','start')">Start</button>
+                <button class="btn btn-sm" onclick="sendCmd('${a.id}','stop')">Stop</button>
+              </div>
+            `}
+          </div>
+        `).join('');
+      } catch (err) { Notify.error('Failed to load actuators'); }
+    }
+
+    async function sendCmd(id, cmd, params) {
+      try {
+        const body = { id, cmd };
+        if (params) body.params = params;
+        const result = await API.post('/api/actuators/control', body);
+        document.getElementById('command-result').style.display = 'block';
+        document.getElementById('result-json').textContent = JSON.stringify(result, null, 2);
+        if (result.vulnerability) Notify.success('Vulnerability detected: ' + result.vulnerability);
+        loadActuators();
+      } catch (err) { Notify.error('Command failed: ' + err.message); }
+    }
+
+    loadActuators();
+    setInterval(loadActuators, 10000);
+  </script>
+</body>
+</html>

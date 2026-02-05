@@ -1,0 +1,533 @@
+{
+  "system": {
+    "version": "2.0.0",
+    "build_date": "2026-02-05",
+    "lab_mode": true,
+    "enable_vulnerabilities": true,
+    "enable_defense": true,
+    "enable_gamification": true,
+    "enable_campaigns": true,
+    "language": "de"
+  },
+
+  "difficulty": {
+    "preset": "intermediate",
+    "allow_custom": true,
+    "custom": {
+      "vulnerability_exposure": 0.6,
+      "defense_dp_regen": 3,
+      "alert_sensitivity": 0.7,
+      "time_acceleration": 2,
+      "meter_noise": 0.15,
+      "attacker_skill": 0.5
+    }
+  },
+
+  "simulation": {
+    "meters": {
+      "count": 25,
+      "types": ["electricity", "water", "gas"],
+      "distribution": {
+        "electricity": 15,
+        "water": 6,
+        "gas": 4
+      },
+      "simulation_type": "sine_wave_with_noise",
+      "base_consumption": {
+        "electricity_kwh_per_hour": 1.5,
+        "water_liters_per_day": 100,
+        "gas_cubic_meters_per_month": 50
+      },
+      "noise_amplitude": 0.15,
+      "peak_hours": "06:00-22:00",
+      "peak_consumption_multiplier": 1.8
+    },
+
+    "billing": {
+      "enable_race_condition": true,
+      "race_window_milliseconds": 500,
+      "tariff_types": ["fixed", "dynamic", "time_of_use"],
+      "default_tariff": {
+        "name": "Standard Tarifplan",
+        "peak_price_per_kwh": 0.35,
+        "off_peak_price_per_kwh": 0.15,
+        "base_fee_per_month": 15.0,
+        "peak_hours": "06:00-22:00"
+      },
+      "billing_cycle_days": 30,
+      "grace_period_days": 5
+    },
+
+    "time": {
+      "acceleration_factor": 2,
+      "allow_manual_advance": true,
+      "allow_manual_rewind": true,
+      "allow_speed_control": true,
+      "start_date": "2026-01-01",
+      "start_time": "00:00",
+      "timezone": "UTC"
+    }
+  },
+
+  "vulnerabilities": {
+    "enabled": true,
+    "default_state": "partial_hidden",
+    "VULN_IDOR_CONSUMPTION": {
+      "enabled": true,
+      "visibility": "partially_hidden",
+      "difficulty_multiplier": 0.6,
+      "hints_in_easy_mode": true,
+      "description": "Unzureichende Zugriffskontrolle auf Verbrauchsdaten anderer Kunden"
+    },
+    "VULN_IDOR_BILLING": {
+      "enabled": true,
+      "visibility": "partially_hidden",
+      "difficulty_multiplier": 0.7,
+      "hints_in_easy_mode": true,
+      "description": "Rechnungsdaten können mit bekannten bill_ids aufgerufen werden"
+    },
+    "VULN_METER_TAMPER": {
+      "enabled": true,
+      "visibility": "hidden",
+      "endpoint": "/vuln/meter-tamper",
+      "method": "POST",
+      "difficulty_multiplier": 0.75,
+      "hints_in_hard_mode": true,
+      "description": "Manipuliert Meter-Readings auf dem Server"
+    },
+    "VULN_RACE_BILLING": {
+      "enabled": true,
+      "visibility": "hidden",
+      "race_window_ms": 500,
+      "difficulty_multiplier": 0.8,
+      "description": "Race Condition beim Billing ermöglicht Double-Charges"
+    },
+    "VULN_AUTH_BYPASS": {
+      "enabled": true,
+      "visibility": "hidden",
+      "type": "jwt_weak_secret",
+      "jwt_secret_easy": "weak_secret_key_123",
+      "difficulty_multiplier": 0.65,
+      "description": "JWT Token können mit schwachem Secret gefälscht werden"
+    },
+    "VULN_ADMIN_ENDPOINT_EXPOSURE": {
+      "enabled": true,
+      "visibility": "hidden",
+      "difficulty_multiplier": 0.55,
+      "description": "Admin-Endpoints sind ohne Authentifizierung erreichbar (Lab-Mode)"
+    }
+  },
+
+  "defense": {
+    "enabled": true,
+    "resources": {
+      "dp_max": 100,
+      "dp_initial": 100,
+      "dp_regen_per_interval": 3,
+      "dp_regen_interval_seconds": 5,
+      "ap_max": 10,
+      "ap_initial": 10,
+      "ap_regen_per_interval": 1,
+      "ap_regen_interval_seconds": 5,
+      "stability_max": 100,
+      "stability_initial": 100,
+      "stability_regen_per_interval": 1,
+      "stability_regen_interval_seconds": 5
+    },
+    "rules": {
+      "ip_block": {
+        "cost_dp": 15,
+        "cost_ap": 1,
+        "stability_impact": -5,
+        "default_duration_seconds": 30,
+        "max_duration_seconds": 3600,
+        "cooldown_seconds": 60,
+        "description": "IP-Adresse blocken"
+      },
+      "rate_limit": {
+        "cost_dp": 10,
+        "cost_ap": 1,
+        "stability_impact": -3,
+        "default_duration_seconds": 60,
+        "max_duration_seconds": 7200,
+        "requests_per_window": 10,
+        "cooldown_seconds": 30,
+        "description": "Request-Rate limitieren"
+      },
+      "session_reset": {
+        "cost_dp": 25,
+        "cost_ap": 1,
+        "stability_impact": -10,
+        "cooldown_seconds": 90,
+        "description": "Sessions von IP forciert disconnecten"
+      },
+      "mistrust_mode": {
+        "cost_dp": 40,
+        "cost_ap": 2,
+        "stability_impact": -20,
+        "default_duration_seconds": 300,
+        "cooldown_seconds": 600,
+        "effect": "Alle Requests müssen extra-verified werden",
+        "description": "Erhöhte Sicherheitsverifizierungen erzwingen"
+      }
+    },
+    "auto_defense_rules": [
+      {
+        "id": "AUTO_RULE_01",
+        "name": "High Rate Detection",
+        "enabled": true,
+        "condition": "requests_per_minute > 60",
+        "action": "rate_limit",
+        "action_target": "src_ip",
+        "action_duration_seconds": 120,
+        "priority": 1
+      },
+      {
+        "id": "AUTO_RULE_02",
+        "name": "IDOR Detection",
+        "enabled": false,
+        "condition": "sequential_meter_id_queries > 5",
+        "action": "ip_block",
+        "action_target": "src_ip",
+        "action_duration_seconds": 300,
+        "priority": 2
+      },
+      {
+        "id": "AUTO_RULE_03",
+        "name": "Auth Failure Threshold",
+        "enabled": true,
+        "condition": "failed_logins > 3 in 1minute",
+        "action": "ip_block",
+        "action_target": "src_ip",
+        "action_duration_seconds": 600,
+        "priority": 1
+      }
+    ]
+  },
+
+  "campaigns": {
+    "enabled": true,
+    "auto_load": ["CAMPAIGN_GRID_AWAKENS"],
+    "allow_custom_campaigns": true,
+    "max_concurrent_campaigns": 1,
+    "campaigns_available": [
+      "CAMPAIGN_GRID_AWAKENS",
+      "CAMPAIGN_RED_TAPE",
+      "CAMPAIGN_BLUE_SHIELD",
+      "CAMPAIGN_ADMIN_OPS",
+      "CAMPAIGN_ARCHITECT_DESIGN"
+    ]
+  },
+
+  "gamification": {
+    "enabled": true,
+    "xp_system": {
+      "xp_per_mission": {
+        "easy": 10,
+        "intermediate": 25,
+        "hard": 50,
+        "expert": 100
+      },
+      "xp_per_exploit": 15,
+      "xp_per_defense": 20,
+      "xp_per_admin_task": 15,
+      "bonus_xp_speed_completion": 25,
+      "bonus_xp_perfect_score": 50,
+      "hint_penalty_xp": 0
+    },
+    "leveling": {
+      "formula": "xp_total / 1000",
+      "max_level": 50,
+      "level_1_xp": 0,
+      "level_2_xp": 1000,
+      "level_10_xp": 10000,
+      "level_50_xp": 50000
+    },
+    "hints": {
+      "show_hints": true,
+      "hints_per_mission": 3,
+      "hint_levels": ["brief", "detailed", "step_by_step"],
+      "hint_penalty": 0,
+      "reveal_speed": 30
+    },
+    "leaderboard": {
+      "enabled": true,
+      "public": false,
+      "show_global": true,
+      "show_by_campaign": true,
+      "show_by_skill": true,
+      "update_frequency_seconds": 60,
+      "retention_days": 90
+    },
+    "achievements": {
+      "enabled": true,
+      "total_achievements": 25,
+      "show_progress": true,
+      "notify_on_unlock": true
+    }
+  },
+
+  "api": {
+    "port": 80,
+    "port_https": 443,
+    "enable_http": true,
+    "enable_https": false,
+    "endpoints": {
+      "meter_status": {
+        "path": "/api/meter/status",
+        "method": "GET",
+        "enabled": true,
+        "requires_auth": true,
+        "vulnerable_to": []
+      },
+      "consumption_history": {
+        "path": "/api/consumption/history",
+        "method": "GET",
+        "enabled": true,
+        "requires_auth": true,
+        "vulnerable_to": ["VULN_IDOR_CONSUMPTION"]
+      },
+      "billing_invoice": {
+        "path": "/api/billing/invoice",
+        "method": "GET",
+        "enabled": true,
+        "requires_auth": true,
+        "vulnerable_to": ["VULN_IDOR_BILLING"]
+      },
+      "billing_generate": {
+        "path": "/api/billing/generate",
+        "method": "POST",
+        "enabled": true,
+        "requires_auth": true,
+        "vulnerable_to": ["VULN_RACE_BILLING"]
+      },
+      "meter_tamper": {
+        "path": "/vuln/meter-tamper",
+        "method": "POST",
+        "enabled": true,
+        "requires_auth": false,
+        "vulnerable_to": ["VULN_METER_TAMPER"],
+        "lab_only": true
+      },
+      "admin_tariff": {
+        "path": "/api/admin/tariff",
+        "method": ["GET", "POST", "PUT"],
+        "enabled": true,
+        "requires_auth": true,
+        "requires_role": "admin",
+        "vulnerable_to": []
+      },
+      "admin_config": {
+        "path": "/api/admin/config",
+        "method": ["GET", "POST"],
+        "enabled": true,
+        "requires_auth": true,
+        "requires_role": "admin",
+        "vulnerable_to": []
+      }
+    },
+    "rate_limiting": {
+      "global": {
+        "enabled": true,
+        "requests_per_second": 100
+      },
+      "per_endpoint": {
+        "consumption_history": 10,
+        "billing_invoice": 20,
+        "meter_status": 50,
+        "meter_tamper": 5
+      }
+    },
+    "cors": {
+      "allow_origins": ["*"],
+      "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "allow_headers": ["Content-Type", "Authorization"]
+    }
+  },
+
+  "auth": {
+    "jwt_secret": "${JWT_SECRET:weak_secret_key_123}",
+    "jwt_algorithm": "HS256",
+    "jwt_expiry_minutes": 1440,
+    "jwt_refresh_enabled": true,
+    "session_timeout_minutes": 60,
+    "password_min_length": 6,
+    "password_require_special_chars": false,
+    "default_users": [
+      {
+        "id": 1,
+        "username": "admin",
+        "password": "${ADMIN_PASSWORD:admin}",
+        "role": "admin",
+        "email": "admin@smartgrid.local",
+        "created_at": "2026-01-01T00:00:00Z"
+      },
+      {
+        "id": 2,
+        "username": "customer1",
+        "password": "password123",
+        "role": "customer",
+        "email": "customer1@example.com",
+        "meters": [1, 2],
+        "created_at": "2026-01-01T00:00:00Z"
+      },
+      {
+        "id": 3,
+        "username": "customer2",
+        "password": "password123",
+        "role": "customer",
+        "email": "customer2@example.com",
+        "meters": [3, 4, 5],
+        "created_at": "2026-01-01T00:00:00Z"
+      },
+      {
+        "id": 4,
+        "username": "utility",
+        "password": "utility123",
+        "role": "utility",
+        "email": "ops@utility.local",
+        "permissions": ["read_all_meters", "generate_billing"],
+        "created_at": "2026-01-01T00:00:00Z"
+      }
+    ]
+  },
+
+  "ui": {
+    "theme": "dark",
+    "theme_options": ["dark", "light", "auto"],
+    "language": "de",
+    "language_options": ["de", "en"],
+    "enable_mobile_responsive": true,
+    "enable_accessibility": true,
+    "accessibility_features": [
+      "high_contrast_mode",
+      "screen_reader_support",
+      "keyboard_navigation",
+      "readable_fonts"
+    ],
+    "show_debug_info": true,
+    "show_lab_mode_hints": true,
+    "nav_widgets": {
+      "show_skill_progress": true,
+      "show_leaderboard_widget": true,
+      "show_notifications": true,
+      "show_mission_panel": true,
+      "show_achievement_progress": true
+    },
+    "pages": {
+      "dashboard": { "enabled": true },
+      "missions": { "enabled": true },
+      "meters": { "enabled": true },
+      "consumption": { "enabled": true },
+      "billing": { "enabled": true },
+      "admin": { "enabled": true, "requires_role": "admin" },
+      "defense": { "enabled": true, "requires_role": "admin" },
+      "leaderboard": { "enabled": true },
+      "achievements": { "enabled": true },
+      "shell": { "enabled": true, "requires_role": "admin" }
+    }
+  },
+
+  "logging": {
+    "level": "DEBUG",
+    "level_options": ["DEBUG", "INFO", "WARN", "ERROR"],
+    "output": ["serial", "file"],
+    "audit_trail": {
+      "enabled": true,
+      "track_logins": true,
+      "track_api_calls": true,
+      "track_exploits": true,
+      "track_defense_actions": true,
+      "retention_days": 90
+    },
+    "alerts": {
+      "enable_attack_alerts": true,
+      "enable_defense_alerts": true,
+      "enable_anomaly_alerts": true,
+      "alert_threshold_requests_per_minute": 50,
+      "alert_threshold_sequential_queries": 5
+    }
+  },
+
+  "features": {
+    "snapshots": {
+      "enabled": true,
+      "auto_snapshot": true,
+      "auto_snapshot_interval_minutes": 30,
+      "max_snapshots_stored": 10,
+      "snapshot_compression": true
+    },
+    "export_import": {
+      "enable_json_export": true,
+      "enable_csv_export": true,
+      "enable_forensics_dump": true,
+      "enable_audit_export": true,
+      "max_file_size_bytes": 1048576
+    },
+    "time_control": {
+      "allow_time_advance": true,
+      "allow_time_rewind": true,
+      "allow_speed_control": true,
+      "speed_limits": [0.1, 0.5, 1, 2, 4, 8, 16],
+      "default_speed": 2
+    },
+    "guided_mode": {
+      "enable_tutorials": true,
+      "enable_contextual_help": true,
+      "enable_checklists": true,
+      "enable_walkthrough_mode": true,
+      "auto_play_first_tutorial": true
+    },
+    "multi_user": {
+      "enabled": true,
+      "allow_concurrent_users": 5,
+      "session_sharing": false
+    },
+    "team_mode": {
+      "enabled": false,
+      "allow_shared_campaigns": false,
+      "allow_team_leaderboard": false
+    }
+  },
+
+  "database": {
+    "type": "json_littlefs",
+    "location": "/db",
+    "files": {
+      "customers": "customers.json",
+      "meters": "meters.json",
+      "consumption": "consumption.json",
+      "bills": "bills.json",
+      "tariffs": "tariffs.json",
+      "audit_logs": "audit-logs.json",
+      "campaigns": "campaigns.json",
+      "achievements": "achievements.json"
+    },
+    "auto_backup": true,
+    "backup_interval_hours": 24,
+    "max_backup_files": 5
+  },
+
+  "network": {
+    "wifi_mode": "ap",
+    "wifi_mode_options": ["ap", "station", "dual"],
+    "ap_ssid": "${AP_SSID:ESP32-H4CK-GRD}",
+    "ap_password": "${AP_PASSWORD:vulnerable}",
+    "ap_channel": 6,
+    "station_ssid": "${STATION_SSID}",
+    "station_password": "${STATION_PASSWORD}",
+    "dns_enabled": true,
+    "dns_redirect_all": true,
+    "mdns_enabled": true,
+    "mdns_hostname": "smartgrid"
+  },
+
+  "performance": {
+    "memory_optimization": true,
+    "json_streaming": true,
+    "response_compression": true,
+    "cache_enabled": true,
+    "cache_ttl_seconds": 300,
+    "max_concurrent_connections": 10
+  }
+}

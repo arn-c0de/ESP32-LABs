@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-SCADA | Admin</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/scada.css">
+  <link rel="stylesheet" href="/css/mobile.css">
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+    <nav class="sidebar">
+      <div class="sidebar-header"><div class="sidebar-logo">ESP32-SCADA</div><div class="sidebar-subtitle">Industrial Security Lab</div></div>
+      <div class="sidebar-nav">
+        <a href="/dashboard" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
+        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
+        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
+        <a href="/alarms" class="nav-item"><span class="nav-icon">!</span> Alarms</a>
+        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
+        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
+        <a href="/defense" class="nav-item"><span class="nav-icon">D</span> Defense</a>
+        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
+        <a href="/admin" class="nav-item active"><span class="nav-icon">*</span> Admin</a>
+      </div>
+      <div style="padding:16px;border-top:1px solid var(--border-color)"><button class="btn btn-sm" onclick="API.logout()" style="width:100%">Logout</button></div>
+    </nav>
+
+    <main class="main-content">
+      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
+      <div class="topbar">
+        <h1 class="topbar-title">Admin Panel</h1>
+        <div class="topbar-actions"><button class="btn btn-sm mode-toggle">Light</button></div>
+      </div>
+
+      <!-- System Info -->
+      <div class="grid grid-3">
+        <div class="card text-center">
+          <div class="metric-value text-green" id="heap-free">--</div>
+          <div class="metric-label">Free Heap</div>
+        </div>
+        <div class="card text-center">
+          <div class="metric-value text-blue" id="sys-uptime">--</div>
+          <div class="metric-label">Uptime</div>
+        </div>
+        <div class="card text-center">
+          <div class="metric-value" id="wifi-clients">--</div>
+          <div class="metric-label">WiFi Clients</div>
+        </div>
+      </div>
+
+      <!-- Config -->
+      <div class="card mt-md">
+        <div class="card-title">Configuration</div>
+        <pre class="text-mono text-sm mt-md" id="config-json" style="white-space:pre-wrap;max-height:300px;overflow:auto">Loading...</pre>
+        <div class="mt-md flex gap-md">
+          <select id="diff-select" class="form-select" style="width:auto">
+            <option value="EASY">EASY</option>
+            <option value="NORMAL" selected>NORMAL</option>
+            <option value="HARD">HARD</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="updateConfig()">Apply</button>
+        </div>
+      </div>
+
+      <!-- Create Incident -->
+      <div class="card mt-md">
+        <div class="card-title">Create Incident</div>
+        <div class="flex gap-md mt-md">
+          <select id="inc-type" class="form-select" style="width:auto">
+            <option>STUCK_VALVE</option><option>SENSOR_FAULT</option>
+            <option>MOTOR_OVERLOAD</option><option>TEMPERATURE_SPIKE</option>
+            <option>PRESSURE_LOSS</option><option>LOSS_OF_SIGNAL</option>
+          </select>
+          <select id="inc-line" class="form-select" style="width:auto">
+            <option value="1">Line 1</option><option value="2">Line 2</option>
+            <option value="3">Line 3</option><option value="4">Line 4</option>
+          </select>
+          <button class="btn btn-warning btn-sm" onclick="createIncident()">Create</button>
+        </div>
+      </div>
+
+      <!-- Active Sessions -->
+      <div class="card mt-md">
+        <div class="card-title">Active Sessions</div>
+        <div class="table-wrapper mt-md" id="sessions-table">Loading...</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/notifications.js"></script>
+  <script>
+    Auth.requireAuth(); Auth.updateUI();
+
+    async function loadAdmin() {
+      try {
+        const [config, sysInfo, sessions] = await Promise.all([
+          API.get('/api/admin/config'),
+          API.get('/api/system/info'),
+          API.get('/api/admin/sessions')
+        ]);
+
+        document.getElementById('config-json').textContent = JSON.stringify(config, null, 2);
+        document.getElementById('heap-free').textContent = Math.round(sysInfo.heap_free/1024) + 'KB';
+        document.getElementById('sys-uptime').textContent = Math.floor(sysInfo.uptime_sec/60) + 'm';
+
+        if (sessions.sessions) {
+          document.getElementById('sessions-table').innerHTML = `
+            <table>
+              <tr><th>User</th><th>Role</th><th>IP</th><th>Age</th></tr>
+              ${sessions.sessions.map(s => `
+                <tr><td>${s.user}</td><td><span class="badge badge-blue">${s.role}</span></td>
+                <td class="text-mono">${s.ip}</td><td>${s.age_sec}s</td></tr>
+              `).join('')}
+            </table>`;
+        }
+      } catch (err) { Notify.error('Admin data load failed'); }
+    }
+
+    async function updateConfig() {
+      const diff = document.getElementById('diff-select').value;
+      try {
+        await API.post('/api/admin/config', { difficulty: diff });
+        Notify.success('Configuration updated');
+        loadAdmin();
+      } catch (err) { Notify.error('Update failed'); }
+    }
+
+    async function createIncident() {
+      const type = document.getElementById('inc-type').value;
+      const line = parseInt(document.getElementById('inc-line').value);
+      try {
+        const result = await API.post('/api/admin/incidents/create', { type, line });
+        Notify.success(result.message || 'Incident created');
+      } catch (err) { Notify.error('Failed to create incident'); }
+    }
+
+    loadAdmin();
+    setInterval(loadAdmin, 10000);
+  </script>
+</body>
+</html>

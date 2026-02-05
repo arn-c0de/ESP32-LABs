@@ -1,0 +1,447 @@
+/* ============================================================
+   ESP32-SCADA — Global Styles + Dark/Light Mode
+   Professional Industrial SCADA Aesthetic
+   ============================================================ */
+
+:root {
+  /* Dark Mode (Primary) */
+  --bg-primary: #0a0e14;
+  --bg-secondary: #141921;
+  --bg-surface: #1e242e;
+  --bg-elevated: #262d3a;
+  --text-primary: #e6e8eb;
+  --text-secondary: #8b95a5;
+  --text-muted: #5a6577;
+  --border-color: #2a3140;
+  --border-hover: #3a4555;
+
+  /* Industrial Colors */
+  --scada-red: #ff4757;
+  --scada-green: #26de81;
+  --scada-yellow: #fed330;
+  --scada-blue: #45aaf2;
+  --scada-purple: #a55eea;
+  --scada-orange: #fd9644;
+  --scada-cyan: #2bcbba;
+
+  /* Status */
+  --status-running: var(--scada-green);
+  --status-stopped: #636e72;
+  --status-warning: var(--scada-yellow);
+  --status-alarm: var(--scada-red);
+  --status-maintenance: var(--scada-orange);
+
+  /* Sensor thresholds */
+  --sensor-normal: var(--scada-green);
+  --sensor-high: var(--scada-yellow);
+  --sensor-critical: var(--scada-red);
+  --sensor-fault: var(--scada-purple);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Typography */
+  --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* Light mode overrides */
+[data-theme="light"] {
+  --bg-primary: #f0f2f5;
+  --bg-secondary: #ffffff;
+  --bg-surface: #f8f9fa;
+  --bg-elevated: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --border-color: #e2e8f0;
+  --border-hover: #cbd5e0;
+}
+
+/* ===== Reset ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+a { color: var(--scada-blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ===== Layout ===== */
+.app { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 240px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  transition: transform 0.3s;
+}
+
+.sidebar-header {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-logo {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--scada-cyan);
+}
+
+.sidebar-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.sidebar-nav { flex: 1; padding: var(--space-md) 0; overflow-y: auto; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.nav-item.active {
+  color: var(--scada-cyan);
+  border-left-color: var(--scada-cyan);
+  background: rgba(43, 203, 186, 0.08);
+}
+
+.nav-icon { width: 18px; text-align: center; font-size: 1rem; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--scada-red);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 240px;
+  padding: var(--space-lg);
+  min-height: 100vh;
+}
+
+/* ===== Top Bar ===== */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) 0;
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.topbar-title { font-size: 1.3rem; font-weight: 600; }
+
+.topbar-actions { display: flex; align-items: center; gap: var(--space-md); }
+
+.topbar-time {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ===== Cards ===== */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.card-title { font-size: 1rem; font-weight: 600; }
+
+/* ===== Grid ===== */
+.grid { display: grid; gap: var(--space-md); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* ===== Badges ===== */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-green  { background: rgba(38,222,129,0.15); color: var(--scada-green); }
+.badge-red    { background: rgba(255,71,87,0.15); color: var(--scada-red); }
+.badge-yellow { background: rgba(254,211,48,0.15); color: var(--scada-yellow); }
+.badge-blue   { background: rgba(69,170,242,0.15); color: var(--scada-blue); }
+.badge-orange { background: rgba(253,150,68,0.15); color: var(--scada-orange); }
+.badge-purple { background: rgba(165,94,234,0.15); color: var(--scada-purple); }
+.badge-gray   { background: rgba(99,110,114,0.15); color: #636e72; }
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover { background: var(--bg-elevated); border-color: var(--border-hover); }
+
+.btn-primary { background: var(--scada-blue); border-color: var(--scada-blue); color: #fff; }
+.btn-primary:hover { background: #3a9ae0; }
+
+.btn-success { background: var(--scada-green); border-color: var(--scada-green); color: #000; }
+.btn-danger  { background: var(--scada-red); border-color: var(--scada-red); color: #fff; }
+.btn-warning { background: var(--scada-yellow); border-color: var(--scada-yellow); color: #000; }
+
+.btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+
+/* ===== Forms ===== */
+.form-group { margin-bottom: var(--space-md); }
+.form-label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: var(--font-sans);
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none;
+  border-color: var(--scada-blue);
+  box-shadow: 0 0 0 2px rgba(69,170,242,0.2);
+}
+
+.form-textarea { resize: vertical; min-height: 80px; }
+
+/* ===== Tables ===== */
+.table-wrapper { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+th, td {
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+tr:hover td { background: var(--bg-surface); }
+
+/* ===== Metrics ===== */
+.metric { text-align: center; }
+.metric-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+.metric-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.metric-unit { font-size: 0.9rem; font-weight: 400; color: var(--text-muted); }
+
+/* ===== Status indicator ===== */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-dot.running  { background: var(--status-running); box-shadow: 0 0 6px var(--status-running); }
+.status-dot.stopped  { background: var(--status-stopped); }
+.status-dot.warning  { background: var(--status-warning); box-shadow: 0 0 6px var(--status-warning); }
+.status-dot.alarm    { background: var(--status-alarm); box-shadow: 0 0 6px var(--status-alarm); animation: pulse 1s infinite; }
+.status-dot.fault    { background: var(--sensor-fault); box-shadow: 0 0 6px var(--sensor-fault); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===== Toast notifications ===== */
+.toast-container {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.toast {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  min-width: 300px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  animation: slideIn 0.3s ease;
+}
+
+.toast-error   { border-left: 4px solid var(--scada-red); }
+.toast-success { border-left: 4px solid var(--scada-green); }
+.toast-warning { border-left: 4px solid var(--scada-yellow); }
+.toast-info    { border-left: 4px solid var(--scada-blue); }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  display: none;
+}
+
+.modal-overlay.active { display: block; }
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  z-index: 201;
+  display: none;
+}
+
+.modal.active { display: block; }
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-body { padding: var(--space-lg); }
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+/* ===== Progress bar ===== */
+.progress { background: var(--bg-surface); border-radius: 4px; height: 8px; overflow: hidden; }
+.progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.progress-bar.green  { background: var(--scada-green); }
+.progress-bar.yellow { background: var(--scada-yellow); }
+.progress-bar.red    { background: var(--scada-red); }
+.progress-bar.blue   { background: var(--scada-blue); }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* ===== Utility ===== */
+.text-green  { color: var(--scada-green); }
+.text-red    { color: var(--scada-red); }
+.text-yellow { color: var(--scada-yellow); }
+.text-blue   { color: var(--scada-blue); }
+.text-muted  { color: var(--text-muted); }
+.text-mono   { font-family: var(--font-mono); }
+.text-sm     { font-size: 0.85rem; }
+.text-xs     { font-size: 0.75rem; }
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+.mt-md { margin-top: var(--space-md); }
+.mb-md { margin-bottom: var(--space-md); }
+.flex  { display: flex; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.hidden { display: none !important; }

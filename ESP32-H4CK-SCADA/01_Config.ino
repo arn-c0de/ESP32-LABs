@@ -1,0 +1,308 @@
+// ============================================================
+// 01_Config.ino — MASTER CONFIGURATION
+// All behavioral toggles centralized here.
+// ============================================================
+
+// ===== DIFFICULTY & GAMEPLAY =====
+enum DifficultyLevel { EASY, NORMAL, HARD };
+DifficultyLevel DIFFICULTY = NORMAL;
+
+enum GameMode { EXPLORATION, CTF };
+GameMode GAME_MODE = EXPLORATION;
+
+// Hint System (0=off, 1=minimal, 2=detailed, 3=step-by-step)
+int HINTS_LEVEL = 2;
+bool PROGRESSIVE_DISCLOSURE = true;
+
+// Exploit Path Enablement (all 6 independent)
+bool ENABLE_EXPLOIT_IDOR       = true;
+bool ENABLE_EXPLOIT_INJECTION  = true;
+bool ENABLE_EXPLOIT_RACE       = true;
+bool ENABLE_EXPLOIT_PHYSICS    = true;
+bool ENABLE_EXPLOIT_FORENSICS  = true;
+bool ENABLE_EXPLOIT_WEAK_AUTH  = true;
+int  EXPLOITS_REQUIRED_TO_WIN  = 3;
+
+// ===== NETWORK =====
+const char* WIFI_SSID     = "SCADA-LAB";
+const char* WIFI_PASSWORD = "scada-lab-2026";
+const char* AP_SSID       = "ESP32-SCADA";
+const char* AP_PASSWORD   = "scada1234";
+bool        WIFI_AP_MODE  = true;
+bool        WIFI_STA_MODE = false;
+IPAddress   AP_IP(192, 168, 4, 1);
+IPAddress   AP_GATEWAY(192, 168, 4, 1);
+IPAddress   AP_SUBNET(255, 255, 255, 0);
+int         WEB_PORT = 80;
+int         WS_PORT  = 80;  // WebSocket on same port
+
+// ===== VULNERABILITY TOGGLES =====
+bool VULN_IDOR_SENSORS              = true;
+bool VULN_IDOR_ALARMS               = true;
+bool VULN_COMMAND_INJECT            = true;
+bool VULN_RACE_ACTUATORS            = true;
+bool VULN_WEAK_AUTH                 = true;  // recalculated in configInit
+bool VULN_HARDCODED_SECRETS         = true;  // recalculated in configInit
+bool VULN_INSECURE_DESERIALIZATION  = true;
+bool VULN_LOGIC_FLAWS              = true;
+
+// ===== SENSOR PHYSICS =====
+float SENSOR_DRIFT_RATE        = 0.01f;
+float SENSOR_NOISE_AMPLITUDE   = 2.5f;
+float SENSOR_CALIBRATION_ERROR = 1.5f;
+bool  ENABLE_SENSOR_FAULTS     = true;
+int   FAULT_PROBABILITY_PERCENT = 5;
+bool  ENABLE_CROSS_CORRELATION = true;
+float LATENCY_SIMULATION_MS    = 50.0f;
+
+// ===== INCIDENT GENERATION =====
+bool AUTO_INCIDENTS_ENABLED       = true;
+int  INCIDENT_SPAWN_INTERVAL_SEC  = 300;
+int  NUM_CONCURRENT_INCIDENTS     = 1;
+int  INCIDENT_CASCADE_DEPTH       = 1;
+
+bool INCIDENT_TYPE_STUCK_VALVE           = true;
+bool INCIDENT_TYPE_SENSOR_FAULT          = true;
+bool INCIDENT_TYPE_MOTOR_OVERLOAD        = true;
+bool INCIDENT_TYPE_TEMPERATURE_SPIKE     = true;
+bool INCIDENT_TYPE_PRESSURE_LOSS         = true;
+bool INCIDENT_TYPE_LOSS_OF_SIGNAL        = true;
+bool INCIDENT_TYPE_SAFETY_BYPASS_DETECTED = true;
+
+// ===== DEFENSE SYSTEM =====
+bool DEFENSE_ENABLED       = false;  // recalculated in configInit
+int  DEFENSE_POINTS_INITIAL = 100;
+int  DEFENSE_ARMOR_POINTS  = 50;
+int  DEFENSE_SHIELD_STRENGTH = 30;
+int  DEFENSE_AGGRESSIVENESS = 1;
+
+bool IDS_ACTIVE            = false;
+bool WAF_ACTIVE            = false;
+bool RATE_LIMIT_ACTIVE     = false;
+int  RATE_LIMIT_PER_MINUTE = 60;
+
+bool HONEYPOT_ENDPOINTS_ENABLED = false;
+bool DECEPTION_ALERTS_ENABLED   = false;
+bool AUTO_LOCKDOWN_ON_BREACH    = false;
+
+bool IP_BLOCKING_ENABLED = false;
+int  MAX_BLOCKED_IPS     = 10;
+int  BLOCK_DURATION_SEC  = 300;
+
+// ===== SECRETS & CREDENTIALS =====
+const char* SECRET_KEY              = "SCADA-SECRET-WEAK-FOR-TESTING";
+const char* ADMIN_PASSWORD          = "admin123";
+const char* JWT_SECRET              = "jwt-secret-key-weak";
+const char* WEAK_OPERATOR_CREDS     = "operator:changeme";
+const char* WEAK_MAINTENANCE_CREDS  = "maintenance:m4int3n@nc3";
+bool CREDENTIALS_IN_LOGS   = true;
+bool CREDENTIALS_IN_SOURCE = true;
+
+// ===== LEADERBOARD & STATS =====
+bool LEADERBOARD_ENABLED          = true;
+bool TRACK_TIME_TO_FLAG           = true;
+bool TRACK_EXPLOITS_USED          = true;
+bool TRACK_DEFENSE_EFFECTIVENESS  = false;
+
+enum ScoringSystem { SIMPLE, WEIGHTED, TIERED };
+ScoringSystem SCORING_MODE = WEIGHTED;
+
+int BASE_SCORE              = 1000;
+int TIME_PENALTY_PER_MINUTE = 10;
+int EXPLOIT_BONUS_PER_PATH  = 100;
+int DEFENSE_SAVE_BONUS      = 200;
+
+// ===== HINTS CONFIGURATION =====
+bool HINTS_AVAILABLE           = true;
+int  HINTS_UNLOCK_AFTER_MINUTES = 5;
+int  HINTS_MAX_PER_ENDPOINT    = 3;
+bool SHOW_ENDPOINT_HINTS       = true;
+bool SHOW_STRATEGY_HINTS       = true;
+bool SHOW_TOOL_HINTS           = true;
+bool SHOW_WALKTHROUGH          = false;
+bool SHOW_FLAG_FORMAT          = false;
+
+// ===== STORAGE & MEMORY =====
+int  RINGBUFFER_SENSOR_MAX_ENTRIES   = 1000;
+int  RINGBUFFER_ALARM_MAX_ENTRIES    = 500;
+int  RINGBUFFER_LOG_MAX_ENTRIES      = 2000;
+int  RINGBUFFER_INCIDENT_MAX_ENTRIES = 100;
+bool SAVE_TO_LITTLEFS     = true;
+int  AUTO_SAVE_INTERVAL_SEC = 60;
+int  CLEANUP_INTERVAL_SEC   = 3600;
+
+// ===== DEBUG & LOGGING =====
+bool SERIAL_DEBUG          = true;
+int  SERIAL_BAUD           = 115200;
+bool LOG_API_REQUESTS      = true;
+bool LOG_DEFENSE_ACTIONS   = true;
+bool EXPOSE_DEBUG_ENDPOINTS = false;
+bool SHOW_ERROR_DETAILS     = false;
+
+// ===== PRODUCTION LINES =====
+const int NUM_LINES = 4;
+const char* LINE_NAMES[] = {"Production Line 1", "Production Line 2",
+                            "Production Line 3", "Production Line 4"};
+
+// ===== SENSOR TYPES =====
+const int SENSORS_PER_LINE = 5;
+const char* SENSOR_TYPES[] = {"temperature", "pressure", "vibration", "flow", "current"};
+const char* SENSOR_UNITS[] = {"C", "bar", "mm/s", "L/min", "A"};
+float SENSOR_NOMINAL[]     = {72.0, 5.5, 0.5, 120.0, 12.0};
+float SENSOR_HIGH_THRESH[] = {80.0, 7.0, 0.8, 150.0, 15.0};
+float SENSOR_CRIT_THRESH[] = {90.0, 8.5, 1.2, 180.0, 20.0};
+float SENSOR_LOW_THRESH[]  = {50.0, 3.0, 0.0, 60.0,  5.0};
+
+// ============================================================
+// configInit — Apply difficulty-dependent settings
+// ============================================================
+void configInit() {
+  Serial.println("[CONFIG] Initializing configuration...");
+
+  // Difficulty-dependent recalculation
+  switch (DIFFICULTY) {
+    case EASY:
+      VULN_WEAK_AUTH        = true;
+      VULN_HARDCODED_SECRETS = true;
+      DEFENSE_ENABLED       = false;
+      IDS_ACTIVE            = false;
+      WAF_ACTIVE            = false;
+      RATE_LIMIT_ACTIVE     = false;
+      IP_BLOCKING_ENABLED   = false;
+      HINTS_LEVEL           = 3;
+      LOG_API_REQUESTS      = true;
+      EXPOSE_DEBUG_ENDPOINTS = true;
+      SHOW_ERROR_DETAILS    = true;
+      AUTO_INCIDENTS_ENABLED = false;
+      NUM_CONCURRENT_INCIDENTS = 0;
+      INCIDENT_CASCADE_DEPTH = 0;
+      break;
+
+    case NORMAL:
+      VULN_WEAK_AUTH        = false;
+      VULN_HARDCODED_SECRETS = true;
+      DEFENSE_ENABLED       = true;
+      IDS_ACTIVE            = true;
+      WAF_ACTIVE            = false;
+      RATE_LIMIT_ACTIVE     = true;
+      IP_BLOCKING_ENABLED   = true;
+      HINTS_LEVEL           = 2;
+      LOG_API_REQUESTS      = true;
+      EXPOSE_DEBUG_ENDPOINTS = false;
+      SHOW_ERROR_DETAILS    = false;
+      NUM_CONCURRENT_INCIDENTS = 1;
+      INCIDENT_CASCADE_DEPTH = 1;
+      DEFENSE_AGGRESSIVENESS = 1;
+      break;
+
+    case HARD:
+      VULN_WEAK_AUTH        = false;
+      VULN_HARDCODED_SECRETS = false;
+      DEFENSE_ENABLED       = true;
+      IDS_ACTIVE            = true;
+      WAF_ACTIVE            = true;
+      RATE_LIMIT_ACTIVE     = true;
+      IP_BLOCKING_ENABLED   = true;
+      HINTS_LEVEL           = 0;
+      LOG_API_REQUESTS      = false;
+      EXPOSE_DEBUG_ENDPOINTS = false;
+      SHOW_ERROR_DETAILS    = false;
+      NUM_CONCURRENT_INCIDENTS = 3;
+      INCIDENT_CASCADE_DEPTH = 3;
+      DEFENSE_AGGRESSIVENESS = 3;
+      AUTO_LOCKDOWN_ON_BREACH = true;
+      break;
+  }
+
+  // Hint-dependent settings
+  HINTS_AVAILABLE      = (HINTS_LEVEL > 0);
+  SHOW_ENDPOINT_HINTS  = (HINTS_LEVEL >= 1);
+  SHOW_STRATEGY_HINTS  = (HINTS_LEVEL >= 2);
+  SHOW_TOOL_HINTS      = (HINTS_LEVEL >= 2);
+  SHOW_WALKTHROUGH     = (HINTS_LEVEL >= 3);
+  SHOW_FLAG_FORMAT     = (HINTS_LEVEL >= 3 && DIFFICULTY == EASY);
+
+  // Defense-dependent settings
+  HONEYPOT_ENDPOINTS_ENABLED = DEFENSE_ENABLED;
+  DECEPTION_ALERTS_ENABLED   = DEFENSE_ENABLED;
+  TRACK_DEFENSE_EFFECTIVENESS = DEFENSE_ENABLED;
+  CREDENTIALS_IN_LOGS   = VULN_HARDCODED_SECRETS;
+  CREDENTIALS_IN_SOURCE = VULN_HARDCODED_SECRETS;
+
+  Serial.printf("[CONFIG] Difficulty: %s\n",
+    DIFFICULTY == EASY ? "EASY" : DIFFICULTY == NORMAL ? "NORMAL" : "HARD");
+  Serial.printf("[CONFIG] Game Mode: %s\n",
+    GAME_MODE == EXPLORATION ? "EXPLORATION" : "CTF");
+  Serial.printf("[CONFIG] Defense: %s | IDS: %s | WAF: %s\n",
+    DEFENSE_ENABLED ? "ON" : "OFF",
+    IDS_ACTIVE ? "ON" : "OFF",
+    WAF_ACTIVE ? "ON" : "OFF");
+  Serial.printf("[CONFIG] Hints Level: %d | Exploits to Win: %d\n",
+    HINTS_LEVEL, EXPLOITS_REQUIRED_TO_WIN);
+}
+
+// ============================================================
+// configGetJson — Export current config as JSON
+// ============================================================
+String configGetJson() {
+  JsonDocument doc;
+  doc["difficulty"] = DIFFICULTY == EASY ? "EASY" : DIFFICULTY == NORMAL ? "NORMAL" : "HARD";
+  doc["game_mode"]  = GAME_MODE == EXPLORATION ? "EXPLORATION" : "CTF";
+  doc["hints_level"] = HINTS_LEVEL;
+  doc["exploits_required"] = EXPLOITS_REQUIRED_TO_WIN;
+
+  JsonObject vulns = doc["vulnerabilities"].to<JsonObject>();
+  vulns["idor_sensors"]    = VULN_IDOR_SENSORS;
+  vulns["idor_alarms"]     = VULN_IDOR_ALARMS;
+  vulns["command_inject"]  = VULN_COMMAND_INJECT;
+  vulns["race_actuators"]  = VULN_RACE_ACTUATORS;
+  vulns["weak_auth"]       = VULN_WEAK_AUTH;
+  vulns["hardcoded_secrets"] = VULN_HARDCODED_SECRETS;
+  vulns["insecure_deser"]  = VULN_INSECURE_DESERIALIZATION;
+  vulns["logic_flaws"]     = VULN_LOGIC_FLAWS;
+
+  JsonObject def = doc["defense"].to<JsonObject>();
+  def["enabled"]     = DEFENSE_ENABLED;
+  def["ids_active"]  = IDS_ACTIVE;
+  def["waf_active"]  = WAF_ACTIVE;
+  def["rate_limit"]  = RATE_LIMIT_ACTIVE;
+  def["ip_blocking"] = IP_BLOCKING_ENABLED;
+
+  JsonObject net = doc["network"].to<JsonObject>();
+  net["ap_mode"]  = WIFI_AP_MODE;
+  net["sta_mode"] = WIFI_STA_MODE;
+  net["ap_ssid"]  = AP_SSID;
+
+  String output;
+  serializeJson(doc, output);
+  return output;
+}
+
+// ============================================================
+// configUpdateFromJson — Update config from JSON payload
+// ============================================================
+bool configUpdateFromJson(const String& json) {
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, json);
+  if (err) return false;
+
+  if (doc.containsKey("difficulty")) {
+    String d = doc["difficulty"].as<String>();
+    if (d == "EASY") DIFFICULTY = EASY;
+    else if (d == "NORMAL") DIFFICULTY = NORMAL;
+    else if (d == "HARD") DIFFICULTY = HARD;
+  }
+  if (doc.containsKey("game_mode")) {
+    String m = doc["game_mode"].as<String>();
+    if (m == "CTF") GAME_MODE = CTF;
+    else GAME_MODE = EXPLORATION;
+  }
+  if (doc.containsKey("hints_level"))
+    HINTS_LEVEL = doc["hints_level"].as<int>();
+  if (doc.containsKey("exploits_required"))
+    EXPLOITS_REQUIRED_TO_WIN = doc["exploits_required"].as<int>();
+
+  // Re-apply difficulty-dependent settings
+  configInit();
+  return true;
+}

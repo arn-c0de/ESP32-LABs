@@ -22,8 +22,8 @@ Always obtain permission before performing security testing on systems you do no
 - Common utilities and helper scripts may be available at the repository root for convenience (e.g., build/upload helpers, environment templates).
 
 ## LABs
-- **ESP32-H4CK — SecureNet Lab**: A vulnerable "SecureNet Solutions" lab designed for hands-on penetration testing exercises and learning. See the lab documentation and exercises in [ESP32-H4CK/README.md](ESP32-H4CK/README.md) and the quick start guide: [ESP32-H4CK/QUICKSTART.md](ESP32-H4CK/QUICKSTART.md).
-<img src="ESP32-H4CK/images/sns-productshop.png" alt="ESP32-LAB - SecureNet Solutions" width="50%">
+- **ESP32-H4CK — SecureNet Lab**: A vulnerable "SecureNet Solutions" lab designed for hands-on penetration testing exercises and learning. See the lab documentation and exercises in [ESP32-H4CK-SNS/README.md](ESP32-H4CK/README.md) and the quick start guide: [ESP32-H4CK-SNS/QUICKSTART.md](ESP32-H4CK/QUICKSTART.md).
+<img src="ESP32-H4CK-SNS/images/sns-productshop.png" alt="ESP32-LAB - SecureNet Solutions" width="50%">
 
 
 - More labs will be added over time — check each subfolder for its README or QUICKSTART.
@@ -35,5 +35,13 @@ Contributions are encouraged:
 - Label any submissions that include potentially dangerous actions and include mitigation guidance for safe lab use.
 
 ## License & Contact
-Check the project-level `LICENSE` or repository metadata for licensing details. If a license is not present, contact the maintainers before reusing or redistributing content.
+This repository is distributed under the "Educational Use License (EUL) 2026" — see the project `LICENSE` for the full terms.
+
+Short summary (English):
+- Permitted: use and hosting for **non-commercial educational purposes** (e.g., making the software available to students and pupils).
+- Prohibited without permission: **redistribution, sale, sublicensing, or public distribution** of the code (source or binary).
+- Modifications are allowed for internal or educational use only; **publishing modified versions requires prior written permission**.
+- **Attribution required**: retain copyright and license notices and include visible credit when hosting.
+
+For permission requests (redistribution, commercial use, or publishing modified versions), contact the copyright holder: arn-c0de@protonmail.com.
 
