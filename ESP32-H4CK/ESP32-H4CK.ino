@@ -19,10 +19,18 @@
  * License: Educational Use Only
  */
 
-#define FIRMWARE_VERSION "2.5.1"
 #define LAB_VERSION "1.0.3"
 #define BUILD_DATE "2026-02-01"
 #define CODENAME "VulnLab-Extended"
+
+// Lab Mode Configuration
+// "testing"  - Show vulnerability hints and info on pages
+// "pentest"  - Hide all hints, minimal info, realistic pentest environment
+// "realism"  - Maximum security, most vulnerabilities disabled
+#ifndef LAB_MODE
+#define LAB_MODE "pentest"
+#endif
+String LAB_MODE_STR = LAB_MODE;
 
 // ===== LIBRARY INCLUDES =====
 #include <WiFi.h>
@@ -332,7 +340,7 @@ void setup() {
   
   Serial.println("\n\n");
   Serial.println("========================================");
-  Serial.printf("  ESP32-H4CK v%s\n", FIRMWARE_VERSION);
+  Serial.printf("  ESP32-H4CK v%s\n", LAB_VERSION);
   Serial.printf("  %s Edition\n", CODENAME);
   Serial.printf("  Build: %s\n", BUILD_DATE);
   Serial.println("  ** Intentionally Vulnerable **");

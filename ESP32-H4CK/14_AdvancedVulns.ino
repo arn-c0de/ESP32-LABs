@@ -12,7 +12,7 @@ void setupAdvancedVulnerabilityEndpoints() {
     Serial.printf("[API] Version check from %s\n", request->client()->remoteIP().toString().c_str());
     
     DynamicJsonDocument doc(512);
-    doc["firmware_version"] = FIRMWARE_VERSION;
+    doc["firmware_version"] = LAB_VERSION;
     doc["build_date"] = BUILD_DATE;
     doc["codename"] = CODENAME;
     doc["device"] = "ESP32-D0WD-V3";

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="/js/auth-sync.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orders - SecureNet Solutions</title>
@@ -143,8 +144,8 @@
             <li><a href="/cart">Cart</a></li>
             <li><a href="/orders" class="active">Orders</a></li>
             <li><a href="/profile">Profile</a></li>
-            <li><a href="/admin">Admin</a></li>
-            <li><a href="/shell.html">Shell</a></li>
+            <li><a href="/admin" class="admin-only">Admin</a></li>
+            <li><a href="/shell.html" class="shell-link">Shell</a></li>
         </ul>
         <div class="navbar-user" id="navUser"></div>
     </nav>
@@ -160,7 +161,7 @@
         </div>
 
         <!-- IDOR Vulnerability Test Panel -->
-        <div class="vuln-panel">
+        <div class="vuln-panel testing-only">
             <h3>🔓 IDOR Vulnerability Test</h3>
             <p>This lab intentionally allows accessing other users' orders without authorization checks. Try changing the username or order_id to access orders from other accounts!</p>
             
@@ -412,6 +413,7 @@
         // Load orders on page load
         loadOrders();
     </script>
-<script src="/js/navbar.js"></script>
+<script src="/js/mode.js"></script>
+    <script src="/js/navbar.js"></script>
 </body>
 </html>

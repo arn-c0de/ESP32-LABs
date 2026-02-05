@@ -323,7 +323,7 @@ void printAllServicesStatus() {
   
   // System Information
   Serial.println("\n┌─── SYSTEM ───────────────────────────────────────────────┐");
-  Serial.printf("│ Firmware:       v%s (%s)\n", FIRMWARE_VERSION, CODENAME);
+  Serial.printf("│ Firmware:       v%s (%s)\n", LAB_VERSION, CODENAME);
   Serial.printf("│ Uptime:         %lu seconds\n", millis() / 1000);
   Serial.printf("│ Free Heap:      %d bytes (%d%%)\n", ESP.getFreeHeap(), getFreeHeapPercentage());
   Serial.printf("│ Total Requests: %d\n", totalRequests);
