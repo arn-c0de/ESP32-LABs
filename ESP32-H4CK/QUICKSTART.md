@@ -56,7 +56,16 @@ You can configure the device at build time (using `.env` + `./build.sh`), by edi
 - `WIFI_SSID` / `WIFI_PASSWORD` — Station (client) WiFi credentials. Set in `.env` or `ESP32-H4CK.ino` defaults.
 - `AP_SSID` / `AP_PASSWORD` — Access Point SSID/password when running in AP mode.
 - `STATION_MODE` — `true` to connect to an existing WiFi network (station), `false` to run AP-only. Default: `false`.
-- `LAB_MODE` — Controls vulnerability visibility: `testing` (show hints), `pentest` (hide hints), `realism` (maximum security). Default: `testing`.
+- `LAB_MODE` — Controls vulnerability visibility: `testing` (show hints), `pentest` (hide hints), `realism` (maximum security). Default: `pentest`.
+
+> **⚠️ Want to see hints/spoilers live in the web app?** Set `LAB_MODE=testing`.
+>
+> How to enable:
+>
+> - Edit `.env` and set `LAB_MODE=testing`, then run `./build.sh`/`./upload.sh` to apply changes (persistent).
+> - Or switch at runtime using the API: `POST /api/config/lab-mode` with `{"mode":"testing"}` (e.g. `curl -X POST -H "Content-Type: application/json" -d '{"mode":"testing"}' http://<device-ip>/api/config/lab-mode`).
+>
+> **Note:** In `testing` mode pages show hints and UI elements with `.testing-only` — use only in an isolated lab environment.
 - `JWT_SECRET` — JWT signing secret (weak by default for lab). Set in `.env` or via compile-time define.
 - `ENABLE_VULNERABILITIES` — `true` or `false` to enable/disable vulnerable endpoints. Default: `true` (lab mode).
 - `DEBUG_MODE` — Enables verbose logging (default: `true`).
@@ -141,12 +150,20 @@ Open browser to: `http://192.168.1.xxx/`
 
 ## 🔑 Default Credentials
 
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Default Credentials - Click to reveal</strong></summary>
+
 - **admin** / **admin** (admin role)
 - **root** / **root** (admin role)
 - **guest** / **guest** (guest role)
 - **test** / **test** (guest role)
 
+</details>
+
 ## 🌐 Available Services
+
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Available Services & Endpoints - Click to reveal</strong></summary>
 
 | Service | Endpoint | Description |
 |---------|----------|-------------|
@@ -159,7 +176,12 @@ Open browser to: `http://192.168.1.xxx/`
 | WebSocket | `ws://<ip>/shell` | Interactive shell |
 | Telnet | `telnet <ip> 23` | Remote shell |
 
+</details>
+
 ## 🐛 Vulnerable Endpoints (for Testing)
+
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Vulnerable Endpoints & OWASP Mappings - Click to reveal</strong></summary>
 
 | Endpoint | Vulnerability Type | OWASP |
 |----------|-------------------|-------|
@@ -172,6 +194,8 @@ Open browser to: `http://192.168.1.xxx/`
 | `/api/wallet/transfer` | Race Condition | A04 |
 | `/api/shop/checkout` | Race Condition | A04 |
 | `/api/config` | Sensitive Data Exposure | A02 |
+
+</details>
 
 ## 🛠️ Troubleshooting
 
@@ -253,6 +277,9 @@ Open browser to: `http://192.168.1.xxx/`
 
 ## 📚 Testing Examples
 
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Working Exploit Examples - Lab Solutions - Click to reveal</strong></summary>
+
 ### SQL Injection Test
 ```
 http://<ip>/vuln/search?q=' OR '1'='1
@@ -272,6 +299,8 @@ http://<ip>/vuln/download?file=../../passwords.txt
 ```
 http://<ip>/vuln/ping?host=127.0.0.1;ls
 ```
+
+</details>
 
 ## 🎓 Learning Path
 
@@ -311,6 +340,9 @@ http://<ip>/vuln/ping?host=127.0.0.1;ls
 
 ## 🎮 Defense System Quick Reference
 
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Defense Game Commands & Resource Costs - Click to reveal</strong></summary>
+
 The defense system simulates application-level security measures with resource management:
 
 **Serial Commands (115200 baud)**
@@ -344,6 +376,8 @@ defense config set dp=100 ap=10 stability=100
 - Practice resource-constrained decision making
 - Learn realistic system administration commands
 - Experience side-effects of aggressive defensive measures
+
+</details>
 
 ## 🤝 Support
 
