@@ -50,13 +50,13 @@ bool VULN_LOGIC_FLAWS              = true;
 float SENSOR_DRIFT_RATE        = 0.01f;
 float SENSOR_NOISE_AMPLITUDE   = 2.5f;
 float SENSOR_CALIBRATION_ERROR = 1.5f;
-bool  ENABLE_SENSOR_FAULTS     = true;
-int   FAULT_PROBABILITY_PERCENT = 5;
+bool  ENABLE_SENSOR_FAULTS     = false;  // Disabled to prevent crashes
+int   FAULT_PROBABILITY_PERCENT = 1;     // Reduced from 5 to 1
 bool  ENABLE_CROSS_CORRELATION = true;
 float LATENCY_SIMULATION_MS    = 50.0f;
 
 // ===== INCIDENT GENERATION =====
-bool AUTO_INCIDENTS_ENABLED       = true;
+bool AUTO_INCIDENTS_ENABLED       = false;  // Disabled for stability
 int  INCIDENT_SPAWN_INTERVAL_SEC  = 300;
 int  NUM_CONCURRENT_INCIDENTS     = 1;
 int  INCIDENT_CASCADE_DEPTH       = 1;
