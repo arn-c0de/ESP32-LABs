@@ -2,18 +2,9 @@
 // 04_Auth.ino — JWT/Session + Role-Based Access Control
 // ============================================================
 
-// Roles: admin, operator, maintenance, viewer
-enum UserRole { ROLE_ADMIN, ROLE_OPERATOR, ROLE_MAINTENANCE, ROLE_VIEWER, ROLE_NONE };
+#include "include/common.h"
 
-struct Session {
-  String    sessionId;
-  String    username;
-  UserRole  role;
-  String    ip;
-  unsigned long createdAt;
-  unsigned long lastActivity;
-  bool      active;
-};
+// Roles & Session are defined in include/common.h
 
 #define MAX_SESSIONS 16
 Session sessions[MAX_SESSIONS];

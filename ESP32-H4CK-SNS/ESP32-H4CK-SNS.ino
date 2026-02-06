@@ -142,6 +142,8 @@ int activeConnections = 0;
 int totalRequests = 0;
 int failedLoginAttempts = 0;
 unsigned long lastFailedLogin = 0;
+bool setupComplete = false;  // Flag for deferred initialization
+unsigned long setupStartTime = 0;
 
 // Session Storage
 struct Session {
@@ -373,45 +375,79 @@ void setup() {
   
   initWiFi();
   logInfo("WiFi initialized");
+  yield();
   
   initWebServer();
   logInfo("Web server started");
-  
-  initWebSocket();
-  logInfo("WebSocket handler ready");
-  
-  initTelnet();
-  logInfo("Telnet service started");
+  yield();
   
   initDefense();
   logInfo("Defense system initialized");
+  yield();
   
+  // Defer heavy initialization to loop()
   setupRESTRoutes();
   logInfo("REST API configured");
+  yield();
   
-  setupWalletEndpoints();
-  logInfo("Wallet endpoints configured");
-
-  setupShopRoutes();
-  logInfo("Shop endpoints configured");
-
   if (ENABLE_VULNERABILITIES) {
     setupVulnerableEndpoints();
     setupAdvancedVulnerabilityEndpoints();
     logInfo("Vulnerable endpoints enabled (LAB MODE)");
   }
+  yield();
   
-  Serial.println();
-  Serial.println("========================================");
-  Serial.println("  System Ready!");
-  Serial.println("========================================");
-  printSystemInfo();
-  printWiFiInfo();
-  printMemoryUsage();
-  Serial.println("========================================");
+  Serial.println("[SETUP] Core initialization complete. Deferring WebSocket, Telnet, and Shop initialization to loop...");
 }
 
 void loop() {
+  // Deferred initialization - run once after setup() completes
+  static bool deferredInitDone = false;
+  if (!deferredInitDone) {
+    // This runs on first loop iteration, after setup() completes
+    delay(1000); // Give system time to settle
+    
+    Serial.println("\n[DEFERRED INIT] Starting deferred initialization...");
+    
+    // Initialize WebSocket
+    initWebSocket();
+    logInfo("WebSocket handler ready");
+    yield();
+    delay(100);
+    
+    // Initialize Telnet
+    if (ENABLE_TELNET) {
+      initTelnet();
+      logInfo("Telnet service started");
+    }
+    yield();
+    delay(100);
+    
+    // Setup Wallet endpoints
+    setupWalletEndpoints();
+    logInfo("Wallet endpoints configured");
+    yield();
+    delay(100);
+    
+    // Setup Shop routes
+    setupShopRoutes();
+    logInfo("Shop endpoints configured");
+    yield();
+    
+    Serial.println();
+    Serial.println("========================================");
+    Serial.println("  System Ready!");
+    Serial.println("========================================");
+    printSystemInfo();
+    printWiFiInfo();
+    printMemoryUsage();
+    Serial.println("========================================");
+    
+    deferredInitDone = true;
+    setupComplete = true;
+    return;  // Skip normal loop processing on first iteration
+  }
+  
   // Handle serial commands
   handleSerialCommands();
   

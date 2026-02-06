@@ -3,22 +3,7 @@
 // Motors, Valves, Pumps across 4 production lines
 // ============================================================
 
-enum ActuatorType { ACT_MOTOR, ACT_VALVE, ACT_PUMP };
-enum ActuatorState { STATE_STOPPED, STATE_RUNNING, STATE_OPEN, STATE_CLOSED, STATE_STUCK, STATE_ERROR };
-
-struct Actuator {
-  char         id[20];
-  int          line;
-  ActuatorType type;
-  ActuatorState state;
-  float        speed;     // motors: 0-100%, pumps: 0-100%
-  float        rpm;       // motors only
-  float        flow;      // pumps only
-  int          commandCount;
-  unsigned long lastCommand;
-  String       lastCommandResult;
-  bool         locked;
-};
+#include "include/common.h"
 
 #define MAX_ACTUATORS 20  // 4 lines × (2 motors + 2 valves + 1 pump)
 Actuator actuators[MAX_ACTUATORS];

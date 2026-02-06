@@ -38,6 +38,8 @@ void wifiInit() {
     }
   }
 
+  delay(100);
+  
   Serial.printf("[WIFI] Access: http://%s\n", wifiLocalIP.c_str());
 }
 

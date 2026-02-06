@@ -3,6 +3,14 @@
 // IDOR, Injection, Race, Physics, Forensics, Weak Auth
 // ============================================================
 
+void vulnerabilitiesInit() {
+  Serial.println("[VULNERABILITIES] Initializing vulnerability endpoints...");
+  Serial.printf("[VULNERABILITIES] IDOR: %s | Injection: %s | Race: %s\n",
+    VULN_IDOR_SENSORS ? "ON" : "OFF",
+    VULN_COMMAND_INJECT ? "ON" : "OFF",
+    VULN_RACE_ACTUATORS ? "ON" : "OFF");
+}
+
 // Vulnerability-specific routes (called from setupAPIRoutes)
 void setupVulnRoutes() {
   // ===== VULN: Sensor Tamper (IDOR helper) =====

@@ -2,16 +2,14 @@
 // 14_Gameplay.ino — Multi-Path Flag Logic + HMAC Storage
 // ============================================================
 
-enum ExploitPath {
-  PATH_IDOR, PATH_INJECTION, PATH_RACE,
-  PATH_PHYSICS, PATH_FORENSICS, PATH_WEAK_AUTH,
-  PATH_COUNT  // = 6
-};
+#include "include/common.h"
 
+// Path names (definition)
 const char* pathNames[] = {
   "IDOR", "INJECTION", "RACE", "PHYSICS", "FORENSICS", "WEAK_AUTH"
 };
 
+// PlayerState full definition (depends on PATH_COUNT)
 struct PlayerState {
   String    sessionId;
   String    username;

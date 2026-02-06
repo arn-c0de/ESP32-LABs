@@ -3,15 +3,7 @@
 // 20 sensors across 4 production lines (5 per line)
 // ============================================================
 
-struct SensorData {
-  char   id[20];
-  int    line;
-  int    typeIdx;     // index into SENSOR_TYPES[]
-  float  value;
-  float  prevValue;
-  String status;      // normal, high, critical, fault
-  unsigned long lastUpdate;
-};
+#include "include/common.h"
 
 SensorData sensorArray[NUM_LINES * SENSORS_PER_LINE];
 
