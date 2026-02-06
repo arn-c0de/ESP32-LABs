@@ -70,8 +70,23 @@ echo "📚 Checking Arduino libraries..."
 declare -A LIBS=(
     ["ESPAsyncWebServer"]="https://github.com/mathieucarbou/ESPAsyncWebServer.git"
     ["AsyncTCP"]="https://github.com/mathieucarbou/AsyncTCP.git"
-    ["ArduinoJson"]="https://github.com/bblanchon/ArduinoJson.git"
 )
+
+# Special handling for ArduinoJson - require v7+ for JsonDocument support
+echo "  Checking ArduinoJson..."
+ARDUINOJSON_VERSION=$(arduino-cli lib list | grep "^ArduinoJson" | awk '{print $2}' || echo "")
+if [ -z "$ARDUINOJSON_VERSION" ]; then
+    echo "    📥 Installing ArduinoJson v7..."
+    arduino-cli lib install "ArduinoJson@7.2.0" 2>/dev/null || arduino-cli lib install "ArduinoJson" 2>/dev/null
+    echo "    ✅ ArduinoJson installed"
+elif [[ "$ARDUINOJSON_VERSION" =~ ^6\. ]]; then
+    echo "    ⚠️  ArduinoJson v$ARDUINOJSON_VERSION detected (v7+ required)"
+    echo "    📥 Upgrading to v7..."
+    arduino-cli lib upgrade ArduinoJson 2>/dev/null || arduino-cli lib install "ArduinoJson@7.2.0" 2>/dev/null
+    echo "    ✅ ArduinoJson upgraded"
+else
+    echo "    ✅ ArduinoJson $ARDUINOJSON_VERSION already installed"
+fi
 
 for lib_name in "${!LIBS[@]}"; do
     echo "  Checking $lib_name..."
@@ -211,6 +226,45 @@ fi
 PORT="${PORTS_ARRAY[$((CHOICE-1))]}"
 echo "✅ Selected port: $PORT"
 echo ""
+
+# Inject .env values into 01_Config.ino before building
+echo "🔧 Injecting .env configuration into 01_Config.ino..."
+
+CONFIG_FILE="01_Config.ino"
+CONFIG_BACKUP="01_Config.ino.bak"
+
+# Create backup
+cp "$CONFIG_FILE" "$CONFIG_BACKUP"
+
+# Use sed to replace the hardcoded values with .env values
+sed -i "s|^const char\* WIFI_SSID     = \".*\";|const char* WIFI_SSID     = \"${WIFI_SSID}\";|" "$CONFIG_FILE"
+sed -i "s|^const char\* WIFI_PASSWORD = \".*\";|const char* WIFI_PASSWORD = \"${WIFI_PASSWORD}\";|" "$CONFIG_FILE"
+sed -i "s|^const char\* AP_SSID       = \".*\";|const char* AP_SSID       = \"${AP_SSID}\";|" "$CONFIG_FILE"
+sed -i "s|^const char\* AP_PASSWORD   = \".*\";|const char* AP_PASSWORD   = \"${AP_PASSWORD}\";|" "$CONFIG_FILE"
+
+# Update JWT_SECRET if defined in .env
+if [ -n "$JWT_SECRET" ]; then
+  sed -i "s|^const char\* JWT_SECRET              = \".*\";|const char* JWT_SECRET              = \"${JWT_SECRET}\";|" "$CONFIG_FILE"
+fi
+
+# Update WIFI_STA_MODE based on STATION_MODE from .env
+if [ "$STATION_MODE" = "true" ]; then
+  sed -i "s|^bool        WIFI_STA_MODE  = .*;|bool        WIFI_STA_MODE  = true;|" "$CONFIG_FILE"
+else
+  sed -i "s|^bool        WIFI_STA_MODE  = .*;|bool        WIFI_STA_MODE  = false;|" "$CONFIG_FILE"
+fi
+
+echo "✅ Configuration injected from .env"
+echo ""
+
+# Cleanup function to restore backup on exit
+cleanup() {
+  if [ -f "$CONFIG_BACKUP" ]; then
+    echo "🔄 Restoring original 01_Config.ino..."
+    mv "$CONFIG_BACKUP" "$CONFIG_FILE"
+  fi
+}
+trap cleanup EXIT
 
 # Build
 echo "🔨 Building..."

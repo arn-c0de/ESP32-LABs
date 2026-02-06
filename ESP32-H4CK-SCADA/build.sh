@@ -20,7 +20,7 @@ echo ""
 # Quick library check
 echo "[0/2] Checking libraries..."
 MISSING_LIBS=()
-for lib in "ESP Async WebServer" "Async TCP" "ArduinoJson"; do
+for lib in "ESPAsyncWebServer" "AsyncTCP" "ArduinoJson"; do
     if ! arduino-cli lib list | grep -q "^$lib"; then
         MISSING_LIBS+=("$lib")
     fi
