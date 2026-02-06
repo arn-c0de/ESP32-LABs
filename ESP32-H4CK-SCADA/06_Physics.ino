@@ -64,6 +64,9 @@ float applyNoise(int sensorType) {
 
 // ===== Apply sensor fault =====
 float applyFault(int idx, float normalValue) {
+  // DISABLED FOR STABILITY - Faults cause crashes
+  return normalValue;
+  
   PhysicsState& ps = physicsStates[idx];
 
   // Check if fault has expired

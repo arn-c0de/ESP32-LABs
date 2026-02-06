@@ -115,6 +115,7 @@ void serialCommandHandler() {
     Serial.println("=== ESP32-SCADA Serial Commands ===");
     Serial.println("help                          - Show this help");
     Serial.println("status                        - System status");
+    Serial.println("wifi                          - WiFi status & config");
     Serial.println("defense status                - Defense module status");
     Serial.println("iptables -A INPUT -s <IP> -j DROP --duration <sec>");
     Serial.println("                              - Block IP");
@@ -139,14 +140,84 @@ void serialCommandHandler() {
 
   // ===== System status =====
   if (input == "status") {
-    Serial.printf("\n[STATUS] Uptime: %lu sec\n", millis() / 1000);
-    Serial.printf("[STATUS] Free Heap: %u bytes\n", ESP.getFreeHeap());
-    Serial.printf("[STATUS] WiFi Clients: %d\n", wifiGetClients());
-    Serial.printf("[STATUS] Active Alarms: %d\n", getActiveAlarmCount());
-    Serial.printf("[STATUS] Active Incidents: %d\n", getActiveIncidentCount());
-    Serial.printf("[STATUS] Active Players: %d\n", playerCount);
-    Serial.printf("[STATUS] Difficulty: %s\n",
-      DIFFICULTY == EASY ? "EASY" : DIFFICULTY == NORMAL ? "NORMAL" : "HARD");
+    Serial.println();
+    Serial.println("[STATUS] System Info:");
+    Serial.print("  Uptime: "); Serial.print(millis() / 1000); Serial.println(" sec");
+    Serial.print("  Free Heap: "); Serial.print(ESP.getFreeHeap()); Serial.println(" bytes");
+    
+    Serial.println("[STATUS] Network:");
+    if (WiFi.getMode() & WIFI_MODE_AP) {
+      Serial.print("  AP: "); Serial.print(AP_SSID); 
+      Serial.print(" @ "); Serial.println(WiFi.softAPIP());
+      Serial.print("  Clients: "); Serial.println(WiFi.softAPgetStationNum());
+    }
+    if (WiFi.getMode() & WIFI_MODE_STA) {
+      if (WiFi.status() == WL_CONNECTED) {
+        Serial.print("  STA: Connected to "); Serial.println(WiFi.SSID());
+        Serial.print("  IP: "); Serial.println(WiFi.localIP());
+      } else {
+        Serial.println("  STA: Not connected");
+      }
+    }
+    
+    Serial.println("[STATUS] SCADA:");
+    Serial.print("  Active Alarms: "); Serial.println(getActiveAlarmCount());
+    Serial.print("  Active Incidents: "); Serial.println(getActiveIncidentCount());
+    Serial.print("  Active Players: "); Serial.println(playerCount);
+    
+    const char* diffStr = DIFFICULTY == EASY ? "EASY" : 
+                          DIFFICULTY == NORMAL ? "NORMAL" : "HARD";
+    Serial.print("  Difficulty: "); Serial.println(diffStr);
+    Serial.println();
+    return;
+  }
+
+  // ===== WiFi status =====
+  if (input == "wifi") {
+    Serial.println();
+    Serial.println("[WIFI] Configuration:");
+    Serial.print("  Mode: ");
+    if (WIFI_AP_MODE && WIFI_STA_MODE) Serial.println("AP + STA");
+    else if (WIFI_AP_MODE) Serial.println("AP only");
+    else if (WIFI_STA_MODE) Serial.println("STA only");
+    else Serial.println("None");
+    
+    if (WIFI_AP_MODE) {
+      Serial.println("[WIFI] Access Point:");
+      Serial.print("  SSID: "); Serial.println(AP_SSID);
+      Serial.print("  Password: "); Serial.println(AP_PASSWORD);
+      IPAddress apIP = WiFi.softAPIP();
+      Serial.print("  IP: "); Serial.println(apIP.toString());
+      Serial.print("  Connected Clients: "); Serial.println(WiFi.softAPgetStationNum());
+    }
+    
+    if (WIFI_STA_MODE) {
+      Serial.println("[WIFI] Station Mode:");
+      Serial.print("  Target SSID: "); Serial.println(WIFI_SSID);
+      Serial.print("  Status: ");
+      wl_status_t status = WiFi.status();
+      if (status == WL_CONNECTED) {
+        Serial.println("Connected");
+        IPAddress localIP = WiFi.localIP();
+        IPAddress gwIP = WiFi.gatewayIP();
+        Serial.print("  IP: "); Serial.println(localIP.toString());
+        Serial.print("  Gateway: "); Serial.println(gwIP.toString());
+        int rssi = WiFi.RSSI();
+        Serial.print("  RSSI: "); Serial.print(rssi); Serial.println(" dBm");
+      } else {
+        Serial.println("Not connected");
+      }
+    }
+    
+    Serial.println("[WIFI] Web Interface:");
+    if (WIFI_STA_MODE && WiFi.status() == WL_CONNECTED) {
+      IPAddress ip = WiFi.localIP();
+      Serial.print("  http://"); Serial.println(ip.toString());
+    } else if (WIFI_AP_MODE) {
+      IPAddress apIP = WiFi.softAPIP();
+      Serial.print("  http://"); Serial.println(apIP.toString());
+      Serial.print("  (Connect to AP: "); Serial.print(AP_SSID); Serial.println(")");
+    }
     Serial.println();
     return;
   }

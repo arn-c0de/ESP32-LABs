@@ -445,8 +445,31 @@ void setupAPIRoutes() {
 // Static file serving
 // ============================================================
 void setupStaticFiles() {
+  // Debug endpoint to check LittleFS
+  server.on("/debug/fs", HTTP_GET, [](AsyncWebServerRequest* request) {
+    String html = "<html><body><h1>LittleFS Debug</h1><ul>";
+    File root = LittleFS.open("/");
+    File file = root.openNextFile();
+    while (file) {
+      html += "<li>" + String(file.name()) + " (" + String(file.size()) + " bytes)</li>";
+      file = root.openNextFile();
+    }
+    html += "</ul></body></html>";
+    request->send(200, "text/html", html);
+  });
+
+  // Root redirect
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+    if (!LittleFS.exists("/html/index.html")) {
+      String msg = "{\"error\":\"LittleFS not mounted or empty\"}";
+      request->send(500, "application/json", msg);
+      return;
+    }
+    request->send(LittleFS, "/html/index.html", "text/html");
+  });
+
   // Serve HTML pages
-  server.serveStatic("/", LittleFS, "/html/").setDefaultFile("index.html");
+  server.serveStatic("/html/", LittleFS, "/html/");
   server.serveStatic("/css/", LittleFS, "/css/");
   server.serveStatic("/js/", LittleFS, "/js/");
 

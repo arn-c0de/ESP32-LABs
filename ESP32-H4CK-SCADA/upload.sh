@@ -39,7 +39,7 @@ $VENV_PY -m pip install -q -r requirements.txt || true
 echo "🔍 Checking dependencies..."
 
 MKLITTLEFS=""
-ESPTOOL="esptool.py"
+ESPTOOL="python3 -m esptool"
 
 # Find mklittlefs in Arduino tools (comes with esp32 core)
 MKLITTLEFS=$(find "$HOME/.arduino15/packages/esp32/tools/mklittlefs" -name "mklittlefs" -type f -executable 2>/dev/null | head -n 1)
@@ -283,22 +283,36 @@ echo ""
 echo "✅ Firmware upload successful!"
 echo ""
 
-# Upload filesystem
+# Upload filesystem with better error handling
 echo "🚀 Uploading filesystem (LittleFS)..."
 
 LITTLEFS_IMAGE="littlefs.bin"
 PARTITION_OFFSET="0x1F0000"
 PARTITION_SIZE_DEC=2162688
+BAUD_FLASH=921600
 
 echo "  Creating LittleFS image..."
-"$MKLITTLEFS" -c data -b 4096 -p 256 -s $PARTITION_SIZE_DEC "$LITTLEFS_IMAGE" 2>/dev/null
+if ! "$MKLITTLEFS" -c data -b 4096 -p 256 -s $PARTITION_SIZE_DEC "$LITTLEFS_IMAGE" 2>/dev/null; then
+  echo "❌ Failed to create LittleFS image"
+  exit 1
+fi
 
-echo "  Flashing filesystem..."
-"$ESPTOOL" --chip esp32 --port "$PORT" --baud 921600 \
-    write_flash -z $PARTITION_OFFSET "$LITTLEFS_IMAGE" 2>/dev/null
+echo "  Image created: $(ls -lh $LITTLEFS_IMAGE | awk '{print $5}')"
+
+# Wait for port to reset and be ready
+sleep 2
+
+echo "  Flashing filesystem to $PORT at offset $PARTITION_OFFSET..."
+if python3 -m esptool --chip esp32 --port "$PORT" --baud $BAUD_FLASH \
+    --before default_reset --after hard_reset \
+    write_flash -z -fs 4MB -fm dio -ff 40m $PARTITION_OFFSET "$LITTLEFS_IMAGE" 2>&1 | tee /tmp/flash.log; then
+  echo "✅ Filesystem upload successful!"
+else
+  echo "⚠️  Filesystem upload may have failed. Check logs:"
+  tail -20 /tmp/flash.log
+fi
 
 rm -f "$LITTLEFS_IMAGE"
-echo "✅ Filesystem upload successful!"
 
 echo ""
 echo "✅ All uploads complete!"
