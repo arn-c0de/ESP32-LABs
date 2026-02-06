@@ -103,9 +103,6 @@ void setupAdvancedVulnerabilityEndpoints() {
     }
   });
   
-  // RACE CONDITION - Now handled by 16_Wallet.ino with persistent balance
-  // The /api/wallet/withdraw endpoint uses real user balances from LittleFS
-
   // SESSION FIXATION
   server.on("/api/auth/session-fixation", HTTP_GET, [](AsyncWebServerRequest *request) {
     String sessionId = "";

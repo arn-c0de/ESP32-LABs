@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sensors - ESP32-H4CK-SCADA</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body>
   <nav class="navbar">
@@ -16,6 +17,8 @@
       <a href="/sensors" class="active">Sensors</a>
       <a href="/actuators">Actuators</a>
       <a href="/alarms">Alarms</a>
+      <a href="/vulnerabilities">Vulnerabilities</a>
+      <a href="/incidents">Incidents</a>
       <span class="nav-user" id="nav-user"></span>
       <a href="#" onclick="logout()">Logout</a>
     </div>
@@ -33,6 +36,15 @@
           <option value="3">Line 3</option>
           <option value="4">Line 4</option>
         </select>
+        <label>Type:</label>
+        <select id="type-filter" onchange="filterSensors()">
+          <option value="all">All Types</option>
+          <option value="TEMP">Temperature</option>
+          <option value="PRESSURE">Pressure</option>
+          <option value="FLOW">Flow</option>
+          <option value="VIBRATION">Vibration</option>
+          <option value="POWER">Power</option>
+        </select>
       </div>
     </div>
 
@@ -43,13 +55,33 @@
 
   <!-- Sensor Detail Modal -->
   <div id="sensor-modal" class="modal" style="display: none;">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 800px;">
       <div class="modal-header">
         <h3 id="modal-sensor-id"></h3>
         <span class="modal-close" onclick="closeSensorModal()">&times;</span>
       </div>
       <div class="modal-body" id="modal-sensor-body">
-        <canvas id="sensor-chart" width="400" height="200"></canvas>
+        <div class="sensor-detail-stats">
+          <div class="detail-stat">
+            <span class="detail-label">Current Value:</span>
+            <span class="detail-value" id="detail-value">--</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value" id="detail-status">--</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-label">Min Threshold:</span>
+            <span class="detail-value" id="detail-min">--</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-label">Max Threshold:</span>
+            <span class="detail-value" id="detail-max">--</span>
+          </div>
+        </div>
+        <div class="chart-container" style="height: 250px; margin-top: 20px;">
+          <canvas id="sensor-chart"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -61,6 +93,7 @@
     
     let allSensors = [];
     let updateInterval;
+    let sensorChart = null;
     
     async function loadSensors() {
       try {
@@ -88,27 +121,52 @@
     
     function filterSensors() {
       const lineFilter = parseInt(document.getElementById('line-filter').value);
-      const filtered = lineFilter === 0 ? allSensors : allSensors.filter(s => s.line === lineFilter);
+      const typeFilter = document.getElementById('type-filter').value;
+      
+      let filtered = allSensors;
+      
+      if (lineFilter !== 0) {
+        filtered = filtered.filter(s => s.line === lineFilter);
+      }
+      
+      if (typeFilter !== 'all') {
+        filtered = filtered.filter(s => s.type === typeFilter);
+      }
       
       const grid = document.getElementById('sensors-grid');
       grid.innerHTML = '';
       
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div class="empty-msg">No sensors match the filter criteria</div>';
+        return;
+      }
+      
       filtered.forEach(sensor => {
         const card = document.createElement('div');
-        card.className = `sensor-card sensor-${getSensorStatus(sensor)}`;
-        card.onclick = () => showSensorDetail(sensor.id);
+        const statusClass = getSensorStatus(sensor);
+        card.className = `sensor-card sensor-${statusClass}`;
+        card.onclick = () => showSensorDetail(sensor);
+        
+        // Get appropriate icon based on sensor type
+        const icon = getSensorIcon(sensor.type);
+        
+        // Calculate percentage for threshold bar
+        const percent = getThresholdPercent(sensor);
+        const barColor = getBarColor(statusClass);
         
         card.innerHTML = `
           <div class="sensor-header">
             <span class="sensor-id">${sensor.id}</span>
             <span class="sensor-type">${sensor.type}</span>
           </div>
+          <div class="sensor-icon-display">${icon}</div>
           <div class="sensor-value">
             ${sensor.value.toFixed(2)} <span class="sensor-unit">${sensor.unit}</span>
           </div>
+          <div class="sensor-status-text">${statusClass.toUpperCase()}</div>
           <div class="sensor-thresholds">
             <div class="threshold-bar">
-              <div class="threshold-fill" style="width: ${getThresholdPercent(sensor)}%"></div>
+              <div class="threshold-fill" style="width: ${percent}%; background: ${barColor}"></div>
             </div>
             <div class="threshold-labels">
               <span>MIN: ${sensor.min_threshold.toFixed(1)}</span>
@@ -116,10 +174,22 @@
             </div>
           </div>
           ${sensor.faulted ? '<div class="sensor-fault">⚠️ FAULT</div>' : ''}
+          <div class="sensor-line-label">Line ${sensor.line}</div>
         `;
         
         grid.appendChild(card);
       });
+    }
+    
+    function getSensorIcon(type) {
+      const icons = {
+        'TEMP': '🌡️',
+        'PRESSURE': '📊',
+        'FLOW': '💧',
+        'VIBRATION': '📳',
+        'POWER': '⚡'
+      };
+      return icons[type] || '📡';
     }
     
     function getSensorStatus(sensor) {
@@ -132,15 +202,26 @@
     
     function getThresholdPercent(sensor) {
       const range = sensor.crit_threshold - sensor.min_threshold;
+      if (range <= 0) return 50;
       const value = sensor.value - sensor.min_threshold;
       return Math.min(100, Math.max(0, (value / range) * 100));
     }
     
-    async function showSensorDetail(sensorId) {
+    function getBarColor(status) {
+      const colors = {
+        'normal': '#10b981',
+        'warning': '#f59e0b',
+        'critical': '#ef4444',
+        'fault': '#6b7280'
+      };
+      return colors[status] || '#cbd5e1';
+    }
+    
+    async function showSensorDetail(sensor) {
       try {
         const token = localStorage.getItem('jwt_token');
         
-        const response = await fetch(`/api/sensors/${sensorId}/readings?limit=30`, {
+        const response = await fetch(`/api/sensors/${sensor.id}/readings?limit=30`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -148,33 +229,78 @@
         
         const data = await response.json();
         
-        document.getElementById('modal-sensor-id').textContent = sensorId;
+        document.getElementById('modal-sensor-id').textContent = sensor.id + ' - ' + sensor.type;
+        document.getElementById('detail-value').textContent = sensor.value.toFixed(2) + ' ' + sensor.unit;
+        document.getElementById('detail-status').textContent = getSensorStatus(sensor).toUpperCase();
+        document.getElementById('detail-min').textContent = sensor.min_threshold.toFixed(2);
+        document.getElementById('detail-max').textContent = sensor.max_threshold.toFixed(2);
         
-        // Simple text-based chart (no canvas library needed)
-        const body = document.getElementById('modal-sensor-body');
-        body.innerHTML = `
-          <div class="sensor-detail">
-            <h4>Recent Readings (Last 30):</h4>
-            <div class="readings-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${data.map(r => `
-                    <tr>
-                      <td>${new Date(r.timestamp).toLocaleTimeString()}</td>
-                      <td>${r.value.toFixed(2)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        `;
+        // Create or update chart
+        const ctx = document.getElementById('sensor-chart').getContext('2d');
+        
+        if (sensorChart) {
+          sensorChart.destroy();
+        }
+        
+        const labels = data.map((r, i) => i + 1);
+        const values = data.map(r => r.value);
+        
+        sensorChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: sensor.type,
+              data: values,
+              borderColor: 'rgb(30, 58, 138)',
+              backgroundColor: 'rgba(30, 58, 138, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Max Threshold',
+              data: Array(data.length).fill(sensor.max_threshold),
+              borderColor: 'rgb(245, 158, 11)',
+              borderDash: [5, 5],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: 'Min Threshold',
+              data: Array(data.length).fill(sensor.min_threshold),
+              borderColor: 'rgb(59, 130, 246)',
+              borderDash: [5, 5],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top'
+              }
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: 'Reading #'
+                }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: sensor.unit
+                }
+              }
+            }
+          }
+        });
         
         document.getElementById('sensor-modal').style.display = 'flex';
         
@@ -186,6 +312,10 @@
     
     function closeSensorModal() {
       document.getElementById('sensor-modal').style.display = 'none';
+      if (sensorChart) {
+        sensorChart.destroy();
+        sensorChart = null;
+      }
     }
     
     // Close modal on outside click
@@ -195,6 +325,20 @@
         closeSensorModal();
       }
     }
+    
+    // Initial load
+    loadSensors();
+    
+    // Auto-refresh every 5 seconds
+    updateInterval = setInterval(loadSensors, 5000);
+    
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      if (updateInterval) clearInterval(updateInterval);
+    });
+  </script>
+</body>
+</html>
     
     // Initial load
     loadSensors();

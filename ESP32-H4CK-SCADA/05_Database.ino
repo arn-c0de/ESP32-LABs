@@ -3,7 +3,6 @@
  *
  * Simple file-based database using LittleFS and JSON.
  * Provides basic CRUD operations for user management.
- * Includes wallet/balance and transaction management.
  */
 
 void initDatabase() {
@@ -250,26 +249,3 @@ void seedTestData() {
 
   Serial.println("[DATABASE] Test data seeded");
 }
-
-// ===== WALLET DATABASE FUNCTIONS =====
-
-float getUserBalance(String username) {
-  return 0.0f;  // Banking features not used in SCADA
-}
-
-bool updateBalance(String username, float newBalance) {
-  return false;  // Banking features not used in SCADA
-}
-
-bool logTransaction(String fromUser, String toUser, float amount, String type) {
-  return false;  // Banking features not used in SCADA
-}
-
-String getTransactionHistory(String username, int limit) {
-  return "[]";  // Banking features not used in SCADA
-}
-
-bool transferFunds(String fromUser, String toUser, float amount) {
-  return false;  // Banking features not used in SCADA
-}
-

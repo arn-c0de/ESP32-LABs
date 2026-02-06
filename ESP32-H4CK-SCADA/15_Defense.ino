@@ -9,47 +9,7 @@
  */
 
 // ===== DATA STRUCTURES =====
-// Note: DefenseType enum and DefenseCost struct are defined in main .ino file
-
-struct DefenseRule {
-  String id;              // Unique rule ID (e.g., "r-001")
-  String requestId;       // Client request ID for idempotency
-  DefenseType type;
-  String target;          // IP address or range
-  unsigned long createdAt;
-  unsigned long expiresAt;
-  int cost_dp;
-  int cost_ap;
-  bool active;
-  String metadata;        // Extra data (JSON-like)
-};
-
-struct DefenseConfig {
-  int max_dp;             // Maximum Defense Points
-  int max_ap;             // Maximum Action Points
-  int max_stability;      // Maximum Stability Score
-  int current_dp;
-  int current_ap;
-  int current_stability;
-  
-  // Per-defense costs
-  DefenseCost ipblock_cost;
-  DefenseCost ratelimit_cost;
-  DefenseCost sessionreset_cost;
-  DefenseCost mistrust_cost;
-  
-  // Cooldowns (seconds)
-  int ipblock_cooldown;
-  int ratelimit_cooldown;
-  int sessionreset_cooldown;
-  int mistrust_cooldown;
-  
-  // Last activation timestamps
-  unsigned long ipblock_last;
-  unsigned long ratelimit_last;
-  unsigned long sessionreset_last;
-  unsigned long mistrust_last;
-};
+// Note: All Defense structures are declared in main .ino file
 
 // Rate limiting tracking
 struct RateLimitEntry {
@@ -59,11 +19,12 @@ struct RateLimitEntry {
   int maxRequests;
 };
 
-// ===== GLOBAL STATE =====
+// ===== GLOBAL STATE (declared in main .ino file) =====
+extern DefenseConfig defenseConfig;
+extern DefenseRule activeRules[32];
+extern int activeRuleCount;
 
-DefenseConfig defenseConfig;
-DefenseRule activeRules[32];  // Max 32 concurrent rules
-int activeRuleCount = 0;
+// Local state
 String recentRequestIds[32];  // For idempotency
 int recentIdCount = 0;
 RateLimitEntry rateLimits[16]; // Track rate limits per IP

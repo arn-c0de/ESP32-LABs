@@ -5,45 +5,69 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ESP32-H4CK-SCADA - Login</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .login-box { animation: fadeIn 0.6s ease-out; }
+    .logo h1 { background: linear-gradient(135deg, #1e3a8a, #0891b2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2em; margin-bottom: 8px; }
+    .system-status-indicator { display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 50%; margin-right: 6px; animation: pulse 2s ease-in-out infinite; }
+    .security-warning { background: linear-gradient(135deg, #fef3c7, #fed7aa); border: 2px solid #f59e0b; border-radius: 10px; padding: 14px; margin-top: 16px; }
+    .security-warning p { margin: 4px 0; color: #92400e; font-size: .9em; }
+    .feature-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; font-size: .85em; }
+    .feature-item { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+  </style>
 </head>
 <body class="login-page">
   <div class="login-container">
     <div class="login-box">
       <div class="logo">
         <h1>⚡ ESP32-H4CK-SCADA</h1>
-        <p class="subtitle">Industrial Control System Lab</p>
-        <p class="version" id="version"></p>
+        <p class="subtitle">Industrial Control System Training Lab</p>
+        <p class="version" id="version">
+          <span class="system-status-indicator"></span>System Online
+        </p>
       </div>
       
       <form id="loginForm">
         <div class="form-group">
           <label for="username">Username</label>
-          <input type="text" id="username" name="username" required autocomplete="username">
+          <input type="text" id="username" name="username" required autocomplete="username" placeholder="Enter username">
         </div>
         
         <div class="form-group">
           <label for="password">Password</label>
-          <input type="password" id="password" name="password" required autocomplete="current-password">
+          <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter password">
         </div>
         
-        <button type="submit" class="btn btn-primary">Login</button>
+        <button type="submit" class="btn-submit">
+          <span>🔓</span> Login to System
+        </button>
         
         <div id="error-message" class="error-message" style="display: none;"></div>
       </form>
       
-      <div class="lab-info">
-        <p><strong>⚠️ TRAINING LAB SYSTEM</strong></p>
-        <p>Contains intentional vulnerabilities</p>
-        <p id="lab-mode"></p>
+      <div class="security-warning">
+        <p><strong>⚠️ CYBERSECURITY TRAINING LAB</strong></p>
+        <p>This system contains intentional security vulnerabilities for educational purposes.</p>
+        <p id="lab-mode" style="font-weight: 600; margin-top: 8px;"></p>
       </div>
       
       <div class="default-creds" id="hints" style="display: none;">
-        <h3>Test Accounts:</h3>
+        <h3>📋 Test Accounts:</h3>
         <ul>
-          <li><code>admin:admin</code> - Administrator</li>
-          <li><code>operator:operator123</code> - Operator</li>
-          <li><code>viewer:viewer</code> - Read Only</li>
+          <li><code>admin:admin</code> - Full system access</li>
+          <li><code>operator:operator123</code> - Control operations</li>
+          <li><code>maint:maint456</code> - Maintenance access</li>
+          <li><code>viewer:viewer</code> - Read-only access</li>
         </ul>
+        <div class="feature-list">
+          <div class="feature-item">✓ SCADA Monitoring</div>
+          <div class="feature-item">✓ Real-time Sensors</div>
+          <div class="feature-item">✓ Actuator Control</div>
+          <div class="feature-item">✓ Alarm System</div>
+          <div class="feature-item">✓ Defense Mechanisms</div>
+          <div class="feature-item">✓ Incident Tracking</div>
+        </div>
       </div>
     </div>
   </div>
@@ -55,15 +79,20 @@
     fetch('/api/info')
       .then(r => r.json())
       .then(data => {
-        document.getElementById('version').textContent = `v${data.version} - ${data.codename}`;
-        document.getElementById('lab-mode').textContent = `Lab Mode: ${data.lab_mode.toUpperCase()}`;
+        const versionEl = document.getElementById('version');
+        versionEl.innerHTML = `<span class="system-status-indicator"></span>v${data.version} - ${data.codename}`;
+        
+        document.getElementById('lab-mode').innerHTML = `🔬 Lab Mode: <span style="color: #f59e0b;">${data.lab_mode.toUpperCase()}</span>`;
         
         // Show hints in testing mode
-        if (data.lab_mode === 'testing') {
+        if (data.lab_mode === 'testing' || data.lab_mode === 'training') {
           document.getElementById('hints').style.display = 'block';
         }
       })
-      .catch(err => console.error('Failed to load system info:', err));
+      .catch(err => {
+        console.error('Failed to load system info:', err);
+        document.getElementById('lab-mode').textContent = '⚠️ System information unavailable';
+      });
     
     // Login form handler
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -72,8 +101,11 @@
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
       const errorMsg = document.getElementById('error-message');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
       
       errorMsg.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>⏳</span> Authenticating...';
       
       try {
         const response = await fetch('/api/login', {
@@ -88,16 +120,32 @@
           localStorage.setItem('jwt_token', data.token);
           localStorage.setItem('username', data.username);
           localStorage.setItem('role', data.role);
-          window.location.href = '/dashboard';
+          
+          submitBtn.innerHTML = '<span>✓</span> Login successful!';
+          submitBtn.style.background = '#10b981';
+          
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 500);
         } else {
-          errorMsg.textContent = data.error || 'Login failed';
+          errorMsg.textContent = '❌ ' + (data.error || 'Login failed');
           errorMsg.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>🔓</span> Login to System';
         }
       } catch (error) {
-        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.textContent = '❌ Network error. Please try again.';
         errorMsg.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>🔓</span> Login to System';
       }
     });
+    
+    // Auto-focus username field
+    document.getElementById('username').focus();
+  </script>
+</body>
+</html>
     
     // Auto-redirect if already logged in
     if (localStorage.getItem('jwt_token')) {
