@@ -176,6 +176,7 @@ Preferences preferences;
 // Runtime State
 unsigned long systemStartTime = 0;
 int totalRequests = 0;
+int failedRequests = 0;
 bool setupComplete = false;
 unsigned long lastPhysicsUpdate = 0;
 unsigned long lastSensorSave = 0;
@@ -241,6 +242,45 @@ struct DefenseCost {
   int ap;
   int ss;
 };
+
+struct DefenseRule {
+  String id;
+  String requestId;
+  DefenseType type;
+  String target;
+  unsigned long createdAt;
+  unsigned long expiresAt;
+  int cost_dp;
+  int cost_ap;
+  bool active;
+  String metadata;
+};
+
+struct DefenseConfig {
+  int max_dp;
+  int max_ap;
+  int max_stability;
+  int current_dp;
+  int current_ap;
+  int current_stability;
+  DefenseCost ipblock_cost;
+  DefenseCost ratelimit_cost;
+  DefenseCost sessionreset_cost;
+  DefenseCost mistrust_cost;
+  int ipblock_cooldown;
+  int ratelimit_cooldown;
+  int sessionreset_cooldown;
+  int mistrust_cooldown;
+  unsigned long ipblock_last;
+  unsigned long ratelimit_last;
+  unsigned long sessionreset_last;
+  unsigned long mistrust_last;
+};
+
+// Defense global variables
+DefenseConfig defenseConfig;
+DefenseRule activeRules[32];
+int activeRuleCount = 0;
 
 // ===== FORWARD DECLARATIONS =====
 // Config

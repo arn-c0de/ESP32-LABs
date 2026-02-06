@@ -16,6 +16,8 @@
       <a href="/sensors">Sensors</a>
       <a href="/actuators">Actuators</a>
       <a href="/alarms" class="active">Alarms</a>
+      <a href="/vulnerabilities">Vulnerabilities</a>
+      <a href="/incidents">Incidents</a>
       <span class="nav-user" id="nav-user"></span>
       <a href="#" onclick="logout()">Logout</a>
     </div>
@@ -140,7 +142,7 @@
           <td>${alarm.acknowledged ? '✓ ACK' : '⚠ ACTIVE'}</td>
           <td>
             ${!alarm.acknowledged && canAcknowledge ? 
-              `<button class="btn btn-sm btn-primary" onclick="acknowledgeAlarm(${idx})">Acknowledge</button>` : 
+              `<button class="btn btn-sm btn-primary" onclick="acknowledgeAlarm('${alarm.sensor_id}', ${alarm.timestamp})">Acknowledge</button>` : 
               '-'}
           </td>
         </tr>
@@ -162,7 +164,7 @@
       document.getElementById('low-count').textContent = counts.LOW || 0;
     }
     
-    async function acknowledgeAlarm(index) {
+    async function acknowledgeAlarm(sensorId, timestamp) {
       if (!canAcknowledge) {
         alert('Insufficient permissions');
         return;
@@ -171,7 +173,7 @@
       try {
         const token = localStorage.getItem('jwt_token');
         
-        const response = await fetch(`/api/alarms/${index}/ack`, {
+        const response = await fetch(`/api/alarms/${sensorId}/ack?timestamp=${timestamp}`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });

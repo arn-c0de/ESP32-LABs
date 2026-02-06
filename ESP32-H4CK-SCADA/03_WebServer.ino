@@ -112,6 +112,38 @@ void setupRoutes() {
     request->send(LittleFS, "/html/alarms.html", "text/html");
   });
 
+  // Vulnerabilities page
+  server.on("/vulnerabilities", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      request->send(429, "text/plain", "Too Many Requests");
+      return;
+    }
+    totalRequests++;
+    Serial.printf("[HTTP] GET /vulnerabilities from %s\n", clientIP.c_str());
+    request->send(LittleFS, "/html/vulnerabilities.html", "text/html");
+  });
+
+  // Incidents page
+  server.on("/incidents", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      request->send(429, "text/plain", "Too Many Requests");
+      return;
+    }
+    totalRequests++;
+    Serial.printf("[HTTP] GET /incidents from %s\n", clientIP.c_str());
+    request->send(LittleFS, "/html/incidents.html", "text/html");
+  });
+
   // Admin page (requires admin role)
   server.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();

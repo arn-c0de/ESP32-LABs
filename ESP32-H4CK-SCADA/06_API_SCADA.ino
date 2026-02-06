@@ -69,41 +69,8 @@ void setupSCADARoutes() {
   });
   
   // Get sensor reading history (VULN: IDOR - no access control on sensor ID)
-  server.on("^\\/api\\/sensors\\/([A-Z0-9\\-]+)\\/readings$", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String clientIP = request->client()->remoteIP().toString();
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-      return;
-    }
-    
-    totalRequests++;
-    
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
-    }
-    
-    String sensorId = request->pathArg(0);
-    int limit = 60;
-    if (request->hasParam("limit")) {
-      limit = request->getParam("limit")->value().toInt();
-      if (limit < 1) limit = 1;
-      if (limit > 1000) limit = 1000;
-    }
-    
-    Serial.printf("[API] GET /api/sensors/%s/readings (limit=%d) from %s\n", 
-                  sensorId.c_str(), limit, clientIP.c_str());
-    
-    // VULN: IDOR - Any authenticated user can read any sensor
-    // No check if user has access to this specific sensor
-    
-    String json = getSensorReadingJSON(sensorId.c_str(), limit);
-    if (json == "null") {
-      request->send(404, "application/json", "{\"error\":\"Sensor not found\"}");
-    } else {
-      request->send(200, "application/json", json);
-    }
-  });
+  // Handled by custom SensorReadingsHandler
+  server.addHandler(new SensorReadingsHandler());
   
   // ===== ACTUATOR APIs =====
   
@@ -132,48 +99,8 @@ void setupSCADARoutes() {
   });
   
   // Control actuator (requires operator role minimum)
-  server.on("^\\/api\\/actuators\\/([A-Z0-9\\-]+)\\/control$", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
-    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      String clientIP = request->client()->remoteIP().toString();
-      
-      if (isIpBlocked(clientIP)) {
-        request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-        return;
-      }
-      
-      totalRequests++;
-      
-      if (!isAuthenticated(request)) {
-        request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-        return;
-      }
-      
-      // Check if user has operator role or higher
-      String role = getRequestRole(request);
-      if (role != "admin" && role != "operator" && role != "maintenance") {
-        request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
-        return;
-      }
-      
-      String actuatorId = request->pathArg(0);
-      
-      DynamicJsonDocument doc(256);
-      DeserializationError error = deserializeJson(doc, (char*)data);
-      
-      if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-        return;
-      }
-      
-      String cmd = doc["command"].as<String>();
-      float param = doc["param"] | 0.0f;
-      
-      Serial.printf("[API] POST /api/actuators/%s/control {cmd=%s, param=%.1f} from %s (%s)\n",
-                    actuatorId.c_str(), cmd.c_str(), param, clientIP.c_str(), role.c_str());
-      
-      String result = executeActuatorCommand(actuatorId.c_str(), cmd.c_str(), param);
-      request->send(200, "application/json", result);
-  });
+  // Handled by custom ActuatorControlHandler
+  server.addHandler(new ActuatorControlHandler());
   
   // ===== ALARM APIs =====
   
@@ -214,47 +141,8 @@ void setupSCADARoutes() {
   });
   
   // Acknowledge alarm (requires operator role minimum)
-  server.on("^\\/api\\/alarms\\/([0-9]+)\\/ack$", HTTP_POST, [](AsyncWebServerRequest *request) {
-    String clientIP = request->client()->remoteIP().toString();
-    
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-      return;
-    }
-    
-    totalRequests++;
-    
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
-    }
-    
-    String role = getRequestRole(request);
-    if (role != "admin" && role != "operator" && role != "maintenance") {
-      request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
-      return;
-    }
-    
-    int alarmIdx = request->pathArg(0).toInt();
-    
-    Serial.printf("[API] POST /api/alarms/%d/ack from %s (%s)\n",
-                  alarmIdx, clientIP.c_str(), role.c_str());
-    
-    if (alarmIdx < 0 || alarmIdx >= alarmCount || alarmIdx >= MAX_ALARMS) {
-      request->send(404, "application/json", "{\"error\":\"Alarm not found\"}");
-      return;
-    }
-    
-    alarms[alarmIdx].acknowledged = true;
-    
-    DynamicJsonDocument doc(128);
-    doc["success"] = true;
-    doc["message"] = "Alarm acknowledged";
-    
-    String output;
-    serializeJson(doc, output);
-    request->send(200, "application/json", output);
-  });
+  // Handled by custom AlarmAckHandler
+  server.addHandler(new AlarmAckHandler());
   
   // ===== SYSTEM INFO API =====
   
@@ -348,6 +236,62 @@ void setupSCADARoutes() {
     String output;
     serializeJson(doc, output);
     request->send(200, "application/json", output);
+  });
+  
+  // ===== DEFENSE API =====
+  
+  server.on("/api/defense/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    totalRequests++;
+    Serial.printf("[API] GET /api/defense/status from %s\n", clientIP.c_str());
+    
+    if (!isAuthenticated(request)) {
+      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+      return;
+    }
+    
+    DynamicJsonDocument doc(2048);
+    
+    // Resources
+    JsonObject resources = doc.createNestedObject("resources");
+    resources["max_dp"] = defenseConfig.max_dp;
+    resources["max_ap"] = defenseConfig.max_ap;
+    resources["max_stability"] = defenseConfig.max_stability;
+    resources["current_dp"] = defenseConfig.current_dp;
+    resources["current_ap"] = defenseConfig.current_ap;
+    resources["current_stability"] = defenseConfig.current_stability;
+    
+    // Active rules
+    JsonArray rulesArr = doc.createNestedArray("rules");
+    for (int i = 0; i < activeRuleCount && i < 32; i++) {
+      if (activeRules[i].active) {
+        JsonObject ruleObj = rulesArr.createNestedObject();
+        ruleObj["id"] = activeRules[i].id;
+        ruleObj["type"] = (int)activeRules[i].type;
+        ruleObj["target"] = activeRules[i].target;
+        ruleObj["createdAt"] = activeRules[i].createdAt;
+        ruleObj["expiresAt"] = activeRules[i].expiresAt;
+        ruleObj["cost_dp"] = activeRules[i].cost_dp;
+        ruleObj["cost_ap"] = activeRules[i].cost_ap;
+      }
+    }
+    
+    String output;
+    serializeJson(doc, output);
+    request->send(200, "application/json", output);
+  });
+  
+  server.on("/api/defense/logs", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    totalRequests++;
+    
+    if (!isAuthenticated(request)) {
+      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+      return;
+    }
+    
+    // Return empty logs for now
+    request->send(200, "application/json", "[]");
   });
   
   Serial.println("[API] SCADA routes configured");

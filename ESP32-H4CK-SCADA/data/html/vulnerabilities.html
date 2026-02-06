@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vulnerabilities - ESP32-H4CK-SCADA</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h1>⚡ SCADA Control</h1>
+    </div>
+    <div class="nav-menu">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/sensors">Sensors</a>
+      <a href="/actuators">Actuators</a>
+      <a href="/alarms">Alarms</a>
+      <a href="/vulnerabilities" class="active">Vulnerabilities</a>
+      <a href="/incidents">Incidents</a>
+      <span class="nav-user" id="nav-user"></span>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>⚠️ Security Testing Lab</h2>
+      <div class="system-status">
+        <span class="status-badge status-warning">● TRAINING MODE</span>
+      </div>
+    </div>
+
+    <div class="vuln-warning">
+      <h3>⚠️ Warning: Intentional Vulnerabilities</h3>
+      <p>This system contains security flaws for educational purposes. Never deploy in production.</p>
+    </div>
+
+    <!-- Vulnerability Categories -->
+    <div class="vuln-categories">
+      <div class="vuln-category" onclick="showCategory('owasp')">
+        <h3>🎯 OWASP Top 10</h3>
+        <p>Common web vulnerabilities</p>
+        <span class="vuln-count" id="owasp-count">10</span>
+      </div>
+      <div class="vuln-category" onclick="showCategory('scada')">
+        <h3>🏭 SCADA-Specific</h3>
+        <p>Industrial control weaknesses</p>
+        <span class="vuln-count" id="scada-count">8</span>
+      </div>
+      <div class="vuln-category" onclick="showCategory('crypto')">
+        <h3>🔐 Cryptographic</h3>
+        <p>Weak crypto implementation</p>
+        <span class="vuln-count" id="crypto-count">5</span>
+      </div>
+      <div class="vuln-category" onclick="showCategory('logic')">
+        <h3>🧩 Logic Flaws</h3>
+        <p>Business logic errors</p>
+        <span class="vuln-count" id="logic-count">5</span>
+      </div>
+    </div>
+
+    <!-- Vulnerability List -->
+    <div class="vuln-container" id="vuln-container">
+      <div class="vuln-section" id="owasp-section">
+        <h3>OWASP Top 10 Vulnerabilities</h3>
+        
+        <div class="vuln-card vuln-critical">
+          <div class="vuln-header">
+            <h4>SQL Injection</h4>
+            <span class="vuln-badge vuln-badge-critical">CRITICAL</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/query</code></p>
+          <p><strong>Method:</strong> GET with parameter <code>?sql=</code></p>
+          <p><strong>Description:</strong> Direct SQL query execution without sanitization</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Try: <code>/api/query?sql=SELECT * FROM users WHERE 1=1--</code></p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Broken Authentication</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Issue:</strong> Default credentials, weak JWT secret</p>
+          <p><strong>Accounts:</strong></p>
+          <ul>
+            <li><code>admin:admin</code></li>
+            <li><code>operator:operator123</code></li>
+            <li><code>maint:maint456</code></li>
+          </ul>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>JWT secret is predictable. Try forging tokens with HS256.</p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Sensitive Data Exposure</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Endpoints:</strong></p>
+          <ul>
+            <li><code>/vuln/debug</code> - System state & sessions</li>
+            <li><code>/api/version</code> - Version information</li>
+            <li><code>/api/config</code> - Configuration data</li>
+          </ul>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Debug endpoints expose JWT tokens and session data.</p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>XXE (XML External Entity)</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/xml-parse</code></p>
+          <p><strong>Method:</strong> POST with XML data</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Try: <code>&lt;!DOCTYPE foo [&lt;!ENTITY xxe SYSTEM 'file:///etc/passwd'&gt;]&gt;</code></p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Broken Access Control (IDOR)</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/sensors/{id}/readings</code></p>
+          <p><strong>Issue:</strong> No authorization check on sensor data access</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Iterate through sensor IDs to access all sensor data.</p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Security Misconfiguration</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Issues:</strong></p>
+          <ul>
+            <li>Debug mode enabled in production</li>
+            <li>Verbose error messages</li>
+            <li>Directory listing enabled</li>
+            <li><code>/vuln/info</code> exposes all vulnerabilities</li>
+          </ul>
+        </div>
+
+        <div class="vuln-card vuln-critical">
+          <div class="vuln-header">
+            <h4>Command Injection</h4>
+            <span class="vuln-badge vuln-badge-critical">CRITICAL</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/actuators/{id}/control</code></p>
+          <p><strong>Issue:</strong> Command parameter not sanitized</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Try commands like: <code>stop; cat /etc/passwd</code></p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>SSRF (Server-Side Request Forgery)</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/fetch?url=</code></p>
+          <p><strong>Issue:</strong> No URL validation, allows internal network access</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Access internal services: <code>?url=http://localhost:6379</code></p>
+            <p>Read local files: <code>?url=file:///etc/passwd</code></p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Insecure Deserialization</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/deserialize</code></p>
+          <p><strong>Issue:</strong> Unsafe object reconstruction from user data</p>
+        </div>
+
+        <div class="vuln-card vuln-critical">
+          <div class="vuln-header">
+            <h4>Unrestricted File Upload</h4>
+            <span class="vuln-badge vuln-badge-critical">CRITICAL</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/upload</code></p>
+          <p><strong>Issue:</strong> No file type validation or size limits</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Upload a webshell: <code>shell.php</code></p>
+          </details>
+        </div>
+      </div>
+
+      <div class="vuln-section" id="scada-section" style="display: none;">
+        <h3>SCADA-Specific Vulnerabilities</h3>
+        
+        <div class="vuln-card vuln-critical">
+          <div class="vuln-header">
+            <h4>Race Condition on Actuators</h4>
+            <span class="vuln-badge vuln-badge-critical">CRITICAL</span>
+          </div>
+          <p><strong>Issue:</strong> No mutex/locking on actuator state changes</p>
+          <p><strong>Impact:</strong> Concurrent requests can cause unsafe states</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Send multiple simultaneous requests to change actuator state.</p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Physics Simulation Bypass</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Issue:</strong> Can manipulate sensor readings directly</p>
+          <p><strong>Endpoint:</strong> <code>/api/sensors/{id}</code> with PUT/PATCH</p>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Missing Safety Interlocks</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Issue:</strong> Can activate dangerous actuator combinations</p>
+          <p><strong>Example:</strong> Activate heater while coolant pump is off</p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Alarm Manipulation</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/alarms/{id}/acknowledge</code></p>
+          <p><strong>Issue:</strong> Can acknowledge alarms without proper auth</p>
+        </div>
+
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Production Line Control Bypas</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Issue:</strong> Emergency stop can be overridden remotely</p>
+          <p><strong>Endpoint:</strong> <code>/api/emergency/override</code></p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Telnet Without Encryption</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Port:</strong> 23</p>
+          <p><strong>Issue:</strong> Plain text telnet access, sniffable credentials</p>
+        </div>
+
+        <div class="vuln-card vuln-low">
+          <div class="vuln-header">
+            <h4>WebSocket Without Auth</h4>
+            <span class="vuln-badge vuln-badge-low">LOW</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/ws</code></p>
+          <p><strong>Issue:</strong> Real-time data without proper authentication</p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Predictable Sensor IDs</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Pattern:</strong> <code>TEMP-L{line}-{num}</code>, <code>PRESS-L{line}-{num}</code></p>
+          <p><strong>Issue:</strong> Easy to enumerate all sensors</p>
+        </div>
+      </div>
+
+      <div class="vuln-section" id="crypto-section" style="display: none;">
+        <h3>Cryptographic Vulnerabilities</h3>
+        
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Weak JWT Secret</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Issue:</strong> JWT secret is "scada_secret_key_2024" or similar weak value</p>
+          <p><strong>Impact:</strong> Can forge admin tokens</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Use tools like jwt_tool to crack or forge tokens.</p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Password Storage</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Issue:</strong> Passwords hashed with weak SHA256 (no salt/iterations)</p>
+          <p><strong>File:</strong> <code>/db/users.json</code> may be accessible</p>
+        </div>
+
+        <div class="vuln-card vuln-low">
+          <div class="vuln-header">
+            <h4>No HTTPS</h4>
+            <span class="vuln-badge vuln-badge-low">LOW</span>
+          </div>
+          <p><strong>Issue:</strong> All traffic sent over HTTP (plain text)</p>
+          <p><strong>Impact:</strong> Credentials and JWT tokens sniffable on network</p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Weak Random Number Generation</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Issue:</strong> Session IDs use <code>millis()</code> - predictable</p>
+          <p><strong>Impact:</strong> Session fixation and hijacking possible</p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Hardcoded Cryptographic Keys</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Location:</strong> Source code, <code>01_Config.ino</code></p>
+          <p><strong>Impact:</strong> Keys exposed in firmware, can be extracted</p>
+        </div>
+      </div>
+
+      <div class="vuln-section" id="logic-section" style="display: none;">
+        <h3>Business Logic Vulnerabilities</h3>
+        
+        <div class="vuln-card vuln-high">
+          <div class="vuln-header">
+            <h4>Privilege Escalation via Role Enum</h4>
+            <span class="vuln-badge vuln-badge-high">HIGH</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/users/profile</code></p>
+          <p><strong>Issue:</strong> Can set own role via PATCH request</p>
+          <details>
+            <summary>💡 Hint</summary>
+            <p>Send: <code>{"role": "admin"}</code> in profile update</p>
+          </details>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Missing Rate Limiting</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Endpoints:</strong> Login, API calls</p>
+          <p><strong>Impact:</strong> Brute force attacks, API abuse, DoS</p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>Session Fixation</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/auth/session-fixation</code></p>
+          <p><strong>Issue:</strong> Accepts session_id parameter before auth</p>
+        </div>
+
+        <div class="vuln-card vuln-low">
+          <div class="vuln-header">
+            <h4>HTTP Parameter Pollution</h4>
+            <span class="vuln-badge vuln-badge-low">LOW</span>
+          </div>
+          <p><strong>Endpoint:</strong> <code>/api/user/email?user_id=1&user_id=2</code></p>
+          <p><strong>Issue:</strong> Multiple parameters with same name confuse logic</p>
+        </div>
+
+        <div class="vuln-card vuln-medium">
+          <div class="vuln-header">
+            <h4>CORS Misconfiguration</h4>
+            <span class="vuln-badge vuln-badge-medium">MEDIUM</span>
+          </div>
+          <p><strong>Issue:</strong> <code>Access-Control-Allow-Origin: *</code></p>
+          <p><strong>Impact:</strong> Any website can make requests on user's behalf</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exploitation Tools -->
+    <div class="tools-section">
+      <h3>🛠️ Testing Tools</h3>
+      <div class="tools-grid">
+        <div class="tool-card">
+          <h4>Quick Tests</h4>
+          <button class="btn btn-primary" onclick="testIDOR()">Test IDOR</button>
+          <button class="btn btn-primary" onclick="testSQLi()">Test SQLi</button>
+          <button class="btn btn-primary" onclick="testDebug()">View Debug Info</button>
+        </div>
+        <div class="tool-card">
+          <h4>System Info</h4>
+          <button class="btn btn-secondary" onclick="getVersion()">Get Version</button>
+          <button class="btn btn-secondary" onclick="getEndpoints()">List Endpoints</button>
+          <button class="btn btn-secondary" onclick="getVulnInfo()">Vuln Info</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Display -->
+    <div id="test-results" class="test-results" style="display: none;">
+      <h4>Test Results</h4>
+      <pre id="results-content"></pre>
+      <button class="btn btn-secondary" onclick="closeResults()">Close</button>
+    </div>
+  </div>
+
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script>
+    requireAuth();
+    
+    let currentCategory = 'owasp';
+    
+    function showCategory(category) {
+      // Hide all sections
+      document.querySelectorAll('.vuln-section').forEach(s => s.style.display = 'none');
+      
+      // Show selected section
+      document.getElementById(category + '-section').style.display = 'block';
+      
+      // Update active category
+      document.querySelectorAll('.vuln-category').forEach(c => c.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      
+      currentCategory = category;
+    }
+    
+    async function testIDOR() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/sensors/TEMP-L1-1/readings?limit=10', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        showResults('IDOR Test', JSON.stringify(data, null, 2));
+      } catch (error) {
+        showResults('IDOR Test', 'Error: ' + error.message);
+      }
+    }
+    
+    async function testSQLi() {
+      try {
+        const response = await fetch("/api/query?sql=SELECT * FROM users WHERE 1=1--");
+        const data = await response.json();
+        showResults('SQL Injection Test', JSON.stringify(data, null, 2));
+      } catch (error) {
+        showResults('SQL Injection Test', 'Error: ' + error.message);
+      }
+    }
+    
+    async function testDebug() {
+      try {
+        const response = await fetch('/vuln/debug');
+        const data = await response.json();
+        showResults('Debug Info', JSON.stringify(data, null, 2));
+      } catch (error) {
+        showResults('Debug Info', 'Error: ' + error.message);
+      }
+    }
+    
+    async function getVersion() {
+      try {
+        const response = await fetch('/api/version');
+        const data = await response.json();
+        showResults('Version Info', JSON.stringify(data, null, 2));
+      } catch (error) {
+        showResults('Version Info', 'Error: ' + error.message);
+      }
+    }
+    
+    async function getEndpoints() {
+      try {
+        const response = await fetch('/api/endpoints');
+        const data = await response.json();
+        showResults('Available Endpoints', JSON.stringify(data, null, 2));
+      } catch (error) {
+        showResults('Endpoints', 'Error: ' + error.message);
+      }
+    }
+    
+    async function getVulnInfo() {
+      try {
+        const response = await fetch('/vuln/info');
+        const text = await response.text();
+        showResults('Vulnerability Info', text);
+      } catch (error) {
+        showResults('Vuln Info', 'Error: ' + error.message);
+      }
+    }
+    
+    function showResults(title, content) {
+      document.getElementById('results-content').textContent = `=== ${title} ===\n\n${content}`;
+      document.getElementById('test-results').style.display = 'block';
+      document.getElementById('test-results').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function closeResults() {
+      document.getElementById('test-results').style.display = 'none';
+    }
+    
+    // Initialize first category
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelector('.vuln-category').classList.add('active');
+    });
+  </script>
+
+  <style>
+    .vuln-warning {
+      background: #ff6b6b;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    
+    .vuln-categories {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .vuln-category {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+    }
+    
+    .vuln-category:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    }
+    
+    .vuln-category.active {
+      border: 2px solid var(--primary-color);
+    }
+    
+    .vuln-count {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--primary-color);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-weight: bold;
+    }
+    
+    .vuln-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 4px solid;
+    }
+    
+    .vuln-critical { border-left-color: #e74c3c; }
+    .vuln-high { border-left-color: #e67e22; }
+    .vuln-medium { border-left-color: #f39c12; }
+    .vuln-low { border-left-color: #3498db; }
+    
+    .vuln-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .vuln-badge {
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    
+    .vuln-badge-critical { background: #e74c3c; color: white; }
+    .vuln-badge-high { background: #e67e22; color: white; }
+    .vuln-badge-medium { background: #f39c12; color: white; }
+    .vuln-badge-low { background: #3498db; color: white; }
+    
+    .vuln-card code {
+      background: rgba(0,0,0,0.3);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    
+    .vuln-card details {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(52, 152, 219, 0.1);
+      border-radius: 4px;
+    }
+    
+    .vuln-card summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+    
+    .tools-section {
+      margin-top: 30px;
+      padding: 20px;
+      background: var(--card-bg);
+      border-radius: 8px;
+    }
+    
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .tool-card {
+      padding: 15px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+    }
+    
+    .tool-card button {
+      margin: 5px;
+    }
+    
+    .test-results {
+      margin-top: 20px;
+      padding: 20px;
+      background: var(--card-bg);
+      border-radius: 8px;
+      border: 2px solid var(--primary-color);
+    }
+    
+    .test-results pre {
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 400px;
+    }
+  </style>
+</body>
+</html>

@@ -149,52 +149,101 @@ static const char* getLineStatus(int line) {
 String getDashboardStatusJSON() {
   DynamicJsonDocument doc(4096);
 
-  // System uptime
-  doc["uptime"] = millis() - systemStartTime;
+  // System uptime (seconds)
+  unsigned long uptimeMs = millis() - systemStartTime;
+  doc["uptime"] = uptimeMs / 1000;
+  
+  // System statistics
+  doc["total_sensors"] = TOTAL_SENSORS;
+  
+  // Count active actuators (running or starting)
+  int activeActCount = 0;
+  for (int i = 0; i < TOTAL_ACTUATORS; i++) {
+    if (actuators[i].state == ACT_RUNNING || actuators[i].state == ACT_STARTING) {
+      activeActCount++;
+    }
+  }
+  doc["active_actuators"] = activeActCount;
 
-  // Lines array
+  // Count active alarms
+  int activeAlarms = 0;
+  for (int i = 0; i < alarmCount; i++) {
+    if (!alarms[i].acknowledged) {
+      activeAlarms++;
+    }
+  }
+  doc["active_alarms"] = activeAlarms;
+  
+  // CPU usage (simulate based on active components)
+  int cpuUsage = 25 + (activeActCount * 10) + (activeAlarms * 5);
+  if (cpuUsage > 100) cpuUsage = 100;
+  doc["cpu_usage"] = cpuUsage;
+  
+  // Memory usage
+  doc["memory_usage"] = 42 + (uptimeMs % 30000) / 1000;  // Simulate 42-72%
+  
+  // Network stats
+  doc["total_requests"] = totalRequests;
+  doc["failed_requests"] = failedRequests;
+
+  // Production Lines array with detailed metrics
   JsonArray linesArr = doc.createNestedArray("lines");
   for (int line = 1; line <= NUM_LINES; line++) {
     JsonObject lineObj = linesArr.createNestedObject();
-    lineObj["line"] = line;
-    lineObj["status"] = getLineStatus(line);
-
-    JsonArray sensArr = lineObj.createNestedArray("sensors");
+    lineObj["number"] = line;
+    
+    String status = getLineStatus(line);
+    lineObj["status"] = status;
+    
+    // Get sensor values for this line
     int base = (line - 1) * SENSORS_PER_LINE;
+    float temp = 0, pressure = 0, flow = 0, vibration = 0, power = 0;
+    
     for (int s = 0; s < SENSORS_PER_LINE; s++) {
       const SensorData &sd = sensors[base + s];
-      JsonObject sObj = sensArr.createNestedObject();
-      sObj["id"] = sd.id;
-      sObj["type"] = SENSOR_TYPE_NAMES[sd.type];
-      sObj["value"] = serialized(String(sd.currentValue, 2));
-      sObj["unit"] = SENSOR_UNITS[sd.type];
-      sObj["status"] = getSensorStatus(sd);
+      if (sd.type == TEMP) temp = sd.currentValue;
+      else if (sd.type == PRESSURE) pressure = sd.currentValue;
+      else if (sd.type == FLOW) flow = sd.currentValue;
+      else if (sd.type == VIBRATION) vibration = sd.currentValue;
+      else if (sd.type == POWER) power = sd.currentValue;
     }
-  }
-
-  // Alarms summary
-  JsonObject alarmsObj = doc.createNestedObject("alarms");
-  int activeCount = 0;
-  int critCount = 0;
-  for (int i = 0; i < alarmCount; i++) {
-    if (!alarms[i].acknowledged) {
-      activeCount++;
-      if (strcmp(alarms[i].level, "CRITICAL") == 0) critCount++;
+    
+    lineObj["temp"] = serialized(String(temp, 1));
+    lineObj["pressure"] = serialized(String(pressure, 1));
+    lineObj["flow"] = serialized(String(flow, 1));
+    lineObj["vibration"] = serialized(String(vibration, 1));
+    lineObj["power"] = serialized(String(power, 1));
+    
+    // Get motor state for this line (first actuator is motor)
+    int motorIdx = (line - 1) * ACTUATORS_PER_LINE;
+    if (motorIdx < TOTAL_ACTUATORS) {
+      const ActuatorData &motor = actuators[motorIdx];
+      lineObj["motor_state"] = ACTUATOR_STATE_NAMES[motor.state];
+      lineObj["motor_speed"] = serialized(String(motor.speed, 0));
+    } else {
+      lineObj["motor_state"] = "UNKNOWN";
+      lineObj["motor_speed"] = 0;
     }
-  }
-  alarmsObj["active"] = activeCount;
-  alarmsObj["critical"] = critCount;
-
-  // Actuators summary
-  JsonArray actArr = doc.createNestedArray("actuators");
-  for (int i = 0; i < TOTAL_ACTUATORS; i++) {
-    const ActuatorData &a = actuators[i];
-    JsonObject aObj = actArr.createNestedObject();
-    aObj["id"] = a.id;
-    aObj["type"] = ACTUATOR_TYPE_NAMES[a.type];
-    aObj["state"] = ACTUATOR_STATE_NAMES[a.state];
-    aObj["speed"] = serialized(String(a.speed, 1));
-    aObj["line"] = a.line;
+    
+    // Count alarms for this line
+    int lineAlarms = 0;
+    for (int i = 0; i < alarmCount; i++) {
+      if (alarms[i].line == line && !alarms[i].acknowledged) {
+        lineAlarms++;
+      }
+    }
+    lineObj["alarms"] = lineAlarms;
+    
+    // Production efficiency (simulate based on motor speed and alarms)
+    if (status == "running") {
+      float motorSpeed = motorIdx < TOTAL_ACTUATORS ? actuators[motorIdx].speed : 0;
+      int efficiency = (int)(motorSpeed * 0.85) - (lineAlarms * 10);
+      if (efficiency < 0) efficiency = 0;
+      if (efficiency > 100) efficiency = 100;
+      lineObj["efficiency"] = efficiency;
+    } else {
+      lineObj["efficiency"] = 0;
+    }
   }
 
   String output;

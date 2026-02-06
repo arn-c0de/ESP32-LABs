@@ -45,8 +45,9 @@ bool isAlarmActive(const char* sensorId, const char* level) {
     if (strcmp(alarms[i].sensorId, sensorId) == 0 &&
         strcmp(alarms[i].level, level) == 0 &&
         !alarms[i].acknowledged) {
-      // Consider active if it was raised within the last 30 seconds
-      if (millis() - alarms[i].timestamp < 30000) {
+      // Consider active if it was raised within the last 5 minutes (300 seconds)
+      // This prevents alarm spam from minor sensor fluctuations
+      if (millis() - alarms[i].timestamp < 300000) {
         return true;
       }
     }
@@ -100,7 +101,7 @@ String getAlarmHistoryJSON(int line, int limit) {
     first = false;
 
     json += "{";
-    json += "\"sensorId\":\"" + String(a.sensorId) + "\",";
+    json += "\"sensor_id\":\"" + String(a.sensorId) + "\",";
     json += "\"line\":" + String(a.line) + ",";
     json += "\"level\":\"" + String(a.level) + "\",";
     json += "\"value\":" + String(a.value, 2) + ",";
