@@ -2,28 +2,10 @@
 // 11_Incidents.ino — Auto-Incident Generation + Cascade
 // ============================================================
 
-enum IncidentType {
-  INC_STUCK_VALVE, INC_SENSOR_FAULT, INC_MOTOR_OVERLOAD,
-  INC_TEMP_SPIKE, INC_PRESSURE_LOSS, INC_LOSS_OF_SIGNAL,
-  INC_SAFETY_BYPASS
-};
+#include "include/common.h"
 
-enum IncidentSeverity { INC_SEV_LOW, INC_SEV_MEDIUM, INC_SEV_HIGH, INC_SEV_CRITICAL };
+// Incident types and severity are defined in include/common.h
 
-struct Incident {
-  char           id[16];
-  IncidentType   type;
-  IncidentSeverity severity;
-  int            line;
-  String         equipment;
-  String         description;
-  String         subFlag;
-  unsigned long  createdAt;
-  unsigned long  resolvedAt;
-  bool           active;
-  bool           resolved;
-  int            cascadeDepth;
-};
 
 #define MAX_INCIDENTS 20
 Incident incidents[MAX_INCIDENTS];

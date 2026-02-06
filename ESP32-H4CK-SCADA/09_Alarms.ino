@@ -2,21 +2,7 @@
 // 09_Alarms.ino — Threshold Checks + Escalation
 // ============================================================
 
-enum AlarmSeverity { ALM_LOW, ALM_MEDIUM, ALM_HIGH, ALM_CRITICAL };
-
-struct Alarm {
-  char     id[16];
-  char     sensorId[20];
-  int      line;
-  AlarmSeverity severity;
-  float    value;
-  float    threshold;
-  String   message;
-  String   status;     // active, acknowledged, cleared
-  unsigned long triggeredAt;
-  unsigned long clearedAt;
-  bool     active;
-};
+#include "include/common.h"
 
 #define MAX_ACTIVE_ALARMS 50
 Alarm activeAlarms[MAX_ACTIVE_ALARMS];

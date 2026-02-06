@@ -2,14 +2,7 @@
 // 10_Safety.ino — Interlocks + Emergency Protocols
 // ============================================================
 
-struct SafetyInterlock {
-  char   id[20];
-  int    line;
-  String condition;    // what triggers it
-  String action;       // what it does
-  bool   triggered;
-  unsigned long triggeredAt;
-};
+#include "include/common.h"
 
 #define MAX_INTERLOCKS 16
 SafetyInterlock interlocks[MAX_INTERLOCKS];

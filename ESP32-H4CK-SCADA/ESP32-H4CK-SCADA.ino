@@ -16,6 +16,7 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <mbedtls/md.h>
+#include "include/common.h"
 
 // Forward declarations for all modules
 void configInit();

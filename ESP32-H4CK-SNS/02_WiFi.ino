@@ -6,16 +6,29 @@
  */
 
 void initWiFi() {
-  WiFi.mode(WIFI_MODE_STA);
-  WiFi.setAutoReconnect(true);
+  Serial.println("[WIFI] Initializing WiFi...");
+  
+  // Disable WiFi power save for stability
+  WiFi.setSleep(false);
+  delay(50);
   
   if (STATION_MODE) {
     Serial.println("[WIFI] Starting in Station Mode...");
+    WiFi.mode(WIFI_MODE_STA);
+    delay(200);
+    yield();
+    WiFi.setAutoReconnect(true);
     connectWiFi();
   } else {
     Serial.println("[WIFI] Starting in Access Point Mode...");
+    WiFi.mode(WIFI_MODE_AP);
+    delay(200);
+    yield();
+    // Start AP in background - will be ready shortly
     startAccessPoint();
   }
+  
+  Serial.println("[WIFI] WiFi initialization queued");
 }
 
 void connectWiFi() {
@@ -53,20 +66,28 @@ void connectWiFi() {
 
 void startAccessPoint() {
   Serial.printf("[WIFI] Starting Access Point: %s\n", AP_SSID_STR.c_str());
+  yield();
   
-  WiFi.mode(WIFI_AP);
+  // Attempt to start AP
   bool apStarted = WiFi.softAP(AP_SSID_STR.c_str(), AP_PASSWORD_STR.c_str());
+  yield();
+  delay(500); // Give AP time to fully initialize
+  yield();
   
   if (apStarted) {
     Serial.println("[WIFI] Access Point started successfully!");
+    delay(100);
     Serial.printf("[WIFI] AP IP Address: %s\n", WiFi.softAPIP().toString().c_str());
+    yield();
     Serial.printf("[WIFI] AP MAC Address: %s\n", WiFi.softAPmacAddress().c_str());
+    yield();
     Serial.printf("[WIFI] Connect with password: %s\n", AP_PASSWORD_STR.c_str());
     
     // Solid LED for AP mode
     digitalWrite(LED_PIN, HIGH);
   } else {
     Serial.println("[WIFI] Failed to start Access Point!");
+    digitalWrite(LED_PIN, LOW);
   }
 }
 
@@ -111,21 +132,5 @@ void scanNetworks() {
                   WiFi.SSID(i).c_str(), 
                   WiFi.RSSI(i),
                   WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "[OPEN]" : "[SECURED]");
-  }
-}
-
-void handleWiFiEvent(WiFiEvent_t event) {
-  switch (event) {
-    case SYSTEM_EVENT_STA_CONNECTED:
-      Serial.println("[WIFI EVENT] Connected to AP");
-      break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-      Serial.println("[WIFI EVENT] Disconnected from AP");
-      break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-      Serial.printf("[WIFI EVENT] Got IP: %s\n", WiFi.localIP().toString().c_str());
-      break;
-    default:
-      break;
   }
 }
