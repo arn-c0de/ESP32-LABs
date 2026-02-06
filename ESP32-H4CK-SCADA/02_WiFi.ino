@@ -1,97 +1,136 @@
-// ============================================================
-// 02_WiFi.ino — WiFi AP + STA mode
-// ============================================================
+/*
+ * WiFi Management Module
+ * 
+ * Handles WiFi connectivity in both Station and Access Point modes.
+ * Provides auto-reconnect functionality and network monitoring.
+ */
 
-String wifiLocalIP = "";
-int wifiConnectedClients = 0;
-
-void wifiInit() {
-  Serial.println("[WIFI] Initializing...");
-
+void initWiFi() {
+  Serial.println("[WIFI] Initializing WiFi...");
+  
   // Disable WiFi power save for stability
   WiFi.setSleep(false);
   delay(50);
   
-  WiFi.mode(WIFI_AP_STA);
-  delay(200);
-  yield();
-
-  // Access Point mode
-  if (WIFI_AP_MODE) {
-    WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
+  if (STATION_MODE) {
+    Serial.println("[WIFI] Starting in Station Mode...");
+    WiFi.mode(WIFI_MODE_STA);
+    delay(200);
     yield();
-    bool apStarted = WiFi.softAP(AP_SSID, AP_PASSWORD, 1, 0, 8);
-    yield();
-    delay(500); // Give AP time to fully initialize
-    yield();
-    
-    if (apStarted) {
-      Serial.printf("[WIFI] AP started: %s @ %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
-      wifiLocalIP = WiFi.softAPIP().toString();
-    } else {
-      Serial.println("[WIFI] Failed to start AP!");
-    }
-  }
-
-  // Station mode (connect to existing network)
-  if (WIFI_STA_MODE) {
-    Serial.printf("[WIFI] Connecting to %s...\n", WIFI_SSID);
     WiFi.setAutoReconnect(true);
+    connectWiFi();
+  } else {
+    Serial.println("[WIFI] Starting in Access Point Mode...");
+    WiFi.mode(WIFI_MODE_AP);
+    delay(200);
     yield();
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-      delay(500);
-      Serial.print(".");
-      attempts++;
-      yield();
-    }
-
-    Serial.println();
-    
-    if (WiFi.status() == WL_CONNECTED) {
-      wifiLocalIP = WiFi.localIP().toString();
-      Serial.printf("[WIFI] STA connected: %s\n", wifiLocalIP.c_str());
-      Serial.printf("[WIFI] Signal: %d dBm\n", WiFi.RSSI());
-    } else {
-      Serial.println("[WIFI] STA connection failed. AP mode only.");
-    }
+    // Start AP in background - will be ready shortly
+    startAccessPoint();
   }
+  
+  Serial.println("[WIFI] WiFi initialization queued");
+}
 
-  delay(200);
+void connectWiFi() {
+  Serial.printf("[WIFI] Connecting to: %s\n", WIFI_SSID_STR.c_str());
+  
+  WiFi.begin(WIFI_SSID_STR.c_str(), WIFI_PASSWORD_STR.c_str());
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  Serial.println();
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("[WIFI] Connected successfully!");
+    Serial.printf("[WIFI] IP Address: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("[WIFI] MAC Address: %s\n", WiFi.macAddress().c_str());
+    Serial.printf("[WIFI] Signal Strength: %d dBm\n", WiFi.RSSI());
+    
+    // Blink LED to indicate successful connection
+    for (int i = 0; i < 3; i++) {
+      digitalWrite(LED_PIN, HIGH);
+      delay(100);
+      digitalWrite(LED_PIN, LOW);
+      delay(100);
+    }
+  } else {
+    Serial.println("[WIFI] Connection failed! Starting AP mode as fallback...");
+    startAccessPoint();
+  }
+}
+
+void startAccessPoint() {
+  Serial.printf("[WIFI] Starting Access Point: %s\n", AP_SSID_STR.c_str());
   yield();
   
-  Serial.printf("[WIFI] Access: http://%s\n", wifiLocalIP.c_str());
+  // Attempt to start AP
+  bool apStarted = WiFi.softAP(AP_SSID_STR.c_str(), AP_PASSWORD_STR.c_str());
+  yield();
+  delay(500); // Give AP time to fully initialize
+  yield();
+  
+  if (apStarted) {
+    Serial.println("[WIFI] Access Point started successfully!");
+    delay(100);
+    Serial.printf("[WIFI] AP IP Address: %s\n", WiFi.softAPIP().toString().c_str());
+    yield();
+    Serial.printf("[WIFI] AP MAC Address: %s\n", WiFi.softAPmacAddress().c_str());
+    yield();
+    Serial.printf("[WIFI] Connect with password: %s\n", AP_PASSWORD_STR.c_str());
+    
+    // Solid LED for AP mode
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    Serial.println("[WIFI] Failed to start Access Point!");
+    digitalWrite(LED_PIN, LOW);
+  }
 }
 
-String wifiGetIP() {
-  if (WIFI_STA_MODE && WiFi.status() == WL_CONNECTED) {
+void checkWiFiConnection() {
+  if (STATION_MODE && WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WIFI] Connection lost. Attempting to reconnect...");
+    connectWiFi();
+  }
+}
+
+String getLocalIP() {
+  if (STATION_MODE) {
     return WiFi.localIP().toString();
+  } else {
+    return WiFi.softAPIP().toString();
   }
-  return WiFi.softAPIP().toString();
 }
 
-int wifiGetClients() {
-  return WiFi.softAPgetStationNum();
+String getMACAddress() {
+  if (STATION_MODE) {
+    return WiFi.macAddress();
+  } else {
+    return WiFi.softAPmacAddress();
+  }
 }
 
-String wifiStatusJson() {
-  JsonDocument doc;
-  doc["ap_mode"]    = WIFI_AP_MODE;
-  doc["sta_mode"]   = WIFI_STA_MODE;
-  doc["ap_ssid"]    = AP_SSID;
-  doc["ap_ip"]      = WiFi.softAPIP().toString();
-  doc["sta_connected"] = (WiFi.status() == WL_CONNECTED);
-  if (WiFi.status() == WL_CONNECTED) {
-    doc["sta_ip"]   = WiFi.localIP().toString();
-    doc["sta_ssid"] = WiFi.SSID();
-    doc["sta_rssi"] = WiFi.RSSI();
+int getSignalStrength() {
+  if (STATION_MODE && WiFi.status() == WL_CONNECTED) {
+    return WiFi.RSSI();
   }
-  doc["clients"]    = wifiGetClients();
-  doc["mac"]        = WiFi.macAddress();
+  return 0;
+}
 
-  String out;
-  serializeJson(doc, out);
-  return out;
+void scanNetworks() {
+  Serial.println("[WIFI] Scanning for networks...");
+  int n = WiFi.scanNetworks();
+  
+  Serial.printf("[WIFI] Found %d networks:\n", n);
+  for (int i = 0; i < n; i++) {
+    Serial.printf("  %d: %s (%d dBm) %s\n", 
+                  i + 1, 
+                  WiFi.SSID(i).c_str(), 
+                  WiFi.RSSI(i),
+                  WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "[OPEN]" : "[SECURED]");
+  }
 }

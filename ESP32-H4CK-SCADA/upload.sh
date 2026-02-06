@@ -303,7 +303,7 @@ echo "  Image created: $(ls -lh $LITTLEFS_IMAGE | awk '{print $5}')"
 sleep 2
 
 echo "  Flashing filesystem to $PORT at offset $PARTITION_OFFSET..."
-if python3 -m esptool --chip esp32 --port "$PORT" --baud $BAUD_FLASH \
+if $VENV_PY -m esptool --chip esp32 --port "$PORT" --baud $BAUD_FLASH \
     --before default_reset --after hard_reset \
     write_flash -z -fs 4MB -fm dio -ff 40m $PARTITION_OFFSET "$LITTLEFS_IMAGE" 2>&1 | tee /tmp/flash.log; then
   echo "✅ Filesystem upload successful!"

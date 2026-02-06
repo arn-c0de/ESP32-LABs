@@ -1,76 +1,108 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32-SCADA | Login</title>
+  <title>ESP32-H4CK-SCADA - Login</title>
   <link rel="stylesheet" href="/css/style.css">
-  <style>
-    .login-page { display:flex; align-items:center; justify-content:center; min-height:100vh; }
-    .login-box { background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:40px; width:100%; max-width:400px; }
-    .login-logo { text-align:center; margin-bottom:24px; }
-    .login-logo h1 { font-family:var(--font-mono); color:var(--scada-cyan); font-size:1.4rem; }
-    .login-logo p { color:var(--text-muted); font-size:0.85rem; margin-top:4px; }
-    .login-error { color:var(--scada-red); font-size:0.85rem; margin-top:8px; display:none; }
-  </style>
 </head>
-<body>
-  <div class="login-page">
+<body class="login-page">
+  <div class="login-container">
     <div class="login-box">
-      <div class="login-logo">
-        <h1>ESP32-SCADA</h1>
-        <p>Industrial Security Lab v2.0</p>
+      <div class="logo">
+        <h1>⚡ ESP32-H4CK-SCADA</h1>
+        <p class="subtitle">Industrial Control System Lab</p>
+        <p class="version" id="version"></p>
       </div>
-
-      <form id="login-form">
+      
+      <form id="loginForm">
         <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" id="username" class="form-input" placeholder="Enter username" autocomplete="off" required>
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required autocomplete="username">
         </div>
+        
         <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" id="password" class="form-input" placeholder="Enter password" required>
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password">
         </div>
-        <div class="login-error" id="login-error"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:16px;justify-content:center">
-          Login
-        </button>
+        
+        <button type="submit" class="btn btn-primary">Login</button>
+        
+        <div id="error-message" class="error-message" style="display: none;"></div>
       </form>
-
-      <div style="margin-top:24px;text-align:center">
-        <button class="btn btn-sm mode-toggle">Light</button>
+      
+      <div class="lab-info">
+        <p><strong>⚠️ TRAINING LAB SYSTEM</strong></p>
+        <p>Contains intentional vulnerabilities</p>
+        <p id="lab-mode"></p>
+      </div>
+      
+      <div class="default-creds" id="hints" style="display: none;">
+        <h3>Test Accounts:</h3>
+        <ul>
+          <li><code>admin:admin</code> - Administrator</li>
+          <li><code>operator:operator123</code> - Operator</li>
+          <li><code>viewer:viewer</code> - Read Only</li>
+        </ul>
       </div>
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
   <script src="/js/auth-sync.js"></script>
   <script src="/js/mode.js"></script>
-  <script src="/js/notifications.js"></script>
   <script>
-    // Redirect if already logged in
-    if (Auth.isLoggedIn) location.href = '/dashboard';
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const user = document.getElementById('username').value;
-      const pass = document.getElementById('password').value;
-      const errEl = document.getElementById('login-error');
-      errEl.style.display = 'none';
-
-      try {
-        const result = await API.login(user, pass);
-        if (result.success) {
-          location.href = '/dashboard';
-        } else {
-          errEl.textContent = result.message || 'Login failed';
-          errEl.style.display = 'block';
+    // Load system info
+    fetch('/api/info')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('version').textContent = `v${data.version} - ${data.codename}`;
+        document.getElementById('lab-mode').textContent = `Lab Mode: ${data.lab_mode.toUpperCase()}`;
+        
+        // Show hints in testing mode
+        if (data.lab_mode === 'testing') {
+          document.getElementById('hints').style.display = 'block';
         }
-      } catch (err) {
-        errEl.textContent = err.message || 'Connection error';
-        errEl.style.display = 'block';
+      })
+      .catch(err => console.error('Failed to load system info:', err));
+    
+    // Login form handler
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('error-message');
+      
+      errorMsg.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.token) {
+          localStorage.setItem('jwt_token', data.token);
+          localStorage.setItem('username', data.username);
+          localStorage.setItem('role', data.role);
+          window.location.href = '/dashboard';
+        } else {
+          errorMsg.textContent = data.error || 'Login failed';
+          errorMsg.style.display = 'block';
+        }
+      } catch (error) {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.style.display = 'block';
       }
     });
+    
+    // Auto-redirect if already logged in
+    if (localStorage.getItem('jwt_token')) {
+      window.location.href = '/dashboard';
+    }
   </script>
 </body>
 </html>

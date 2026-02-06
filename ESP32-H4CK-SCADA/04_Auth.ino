@@ -1,248 +1,540 @@
-// ============================================================
-// 04_Auth.ino — JWT/Session + Role-Based Access Control
-// ============================================================
+/*
+ * Authentication Module
+ * 
+ * Handles user authentication, session management, and JWT tokens.
+ * Contains intentional vulnerabilities for educational purposes.
+ */
 
-#include "include/common.h"
-
-// Roles & Session are defined in include/common.h
-
-#define MAX_SESSIONS 16
-Session sessions[MAX_SESSIONS];
-int sessionCount = 0;
-
-// ===== Default users =====
-struct User {
-  const char* username;
-  const char* password;
-  UserRole    role;
-};
-
-User defaultUsers[] = {
-  {"admin",       "admin123",       ROLE_ADMIN},
-  {"operator",    "changeme",       ROLE_OPERATOR},
-  {"maintenance", "m4int3n@nc3",    ROLE_MAINTENANCE},
-  {"viewer",      "viewer",         ROLE_VIEWER},
-  {"scada",       "scada2026",      ROLE_OPERATOR}
-};
-const int NUM_DEFAULT_USERS = 5;
-
-void authInit() {
-  Serial.println("[AUTH] Initializing authentication...");
-  memset(sessions, 0, sizeof(sessions));
-  sessionCount = 0;
-  Serial.printf("[AUTH] %d default users configured.\n", NUM_DEFAULT_USERS);
+void initAuth() {
+  // Clear any existing sessions
+  activeSessions.clear();
+  
+  Serial.println("[AUTH] Authentication system initialized");
+  Serial.printf("[AUTH] Session timeout: %d seconds\n", SESSION_TIMEOUT / 1000);
+  Serial.printf("[AUTH] JWT expiry: %d seconds\n", JWT_EXPIRY);
 }
 
-// ===== Role to string =====
-const char* roleToString(UserRole role) {
-  switch (role) {
-    case ROLE_ADMIN:       return "admin";
-    case ROLE_OPERATOR:    return "operator";
-    case ROLE_MAINTENANCE: return "maintenance";
-    case ROLE_VIEWER:      return "viewer";
-    default:               return "none";
-  }
-}
-
-UserRole stringToRole(const String& str) {
-  if (str == "admin")       return ROLE_ADMIN;
-  if (str == "operator")    return ROLE_OPERATOR;
-  if (str == "maintenance") return ROLE_MAINTENANCE;
-  if (str == "viewer")      return ROLE_VIEWER;
-  return ROLE_NONE;
-}
-
-// ===== Authenticate user =====
-UserRole authenticateUser(const String& username, const String& password) {
-  for (int i = 0; i < NUM_DEFAULT_USERS; i++) {
-    if (username == defaultUsers[i].username && password == defaultUsers[i].password) {
-      return defaultUsers[i].role;
+bool authenticateUser(String username, String password) {
+  // Intentional vulnerability: No rate limiting on failed attempts
+  failedLoginAttempts++;
+  
+  // Check default users (plaintext passwords - intentional vulnerability)
+  for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
+    if (defaultUsers[i].username == username && 
+        defaultUsers[i].password == password) {
+      
+      logInfo("Successful login: " + username);
+      failedLoginAttempts = 0;
+      return true;
     }
   }
-  return ROLE_NONE;
-}
-
-// ===== Create session =====
-String createSession(const String& username, UserRole role, const String& ip) {
-  // Find empty slot or reuse oldest
-  int slot = -1;
-  unsigned long oldest = ULONG_MAX;
-  int oldestIdx = 0;
-
-  for (int i = 0; i < MAX_SESSIONS; i++) {
-    if (!sessions[i].active) { slot = i; break; }
-    if (sessions[i].createdAt < oldest) {
-      oldest = sessions[i].createdAt;
-      oldestIdx = i;
+  
+  // Check database users
+  String userData = getUserByUsername(username);
+  if (userData != "") {
+    // Parse user data and verify password
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, userData);
+    
+    if (!error) {
+      String storedPassword = doc["password"].as<String>();
+      
+      // Intentional vulnerability: Simple string comparison (no hashing in default mode)
+      if (VULN_WEAK_AUTH && password == storedPassword) {
+        logInfo("Successful login from DB: " + username);
+        failedLoginAttempts = 0;
+        return true;
+      }
+      
+      // Secure path: Use password hashing (when vulnerability mode is off)
+      if (!VULN_WEAK_AUTH && verifyPassword(password, storedPassword)) {
+        logInfo("Successful login (hashed): " + username);
+        failedLoginAttempts = 0;
+        return true;
+      }
     }
   }
-  if (slot < 0) slot = oldestIdx;
-
-  sessions[slot].sessionId    = generateSessionId();
-  sessions[slot].username     = username;
-  sessions[slot].role         = role;
-  sessions[slot].ip           = ip;
-  sessions[slot].createdAt    = millis();
-  sessions[slot].lastActivity = millis();
-  sessions[slot].active       = true;
-  if (sessionCount < MAX_SESSIONS) sessionCount++;
-
-  debugLogf("AUTH", "Session created: %s user=%s role=%s ip=%s",
-    sessions[slot].sessionId.c_str(), username.c_str(),
-    roleToString(role), ip.c_str());
-
-  return sessions[slot].sessionId;
+  
+  logError("Failed login attempt: " + username);
+  lastFailedLogin = millis();
+  return false;
 }
 
-// ===== Validate session =====
-Session* getSession(const String& sessionId) {
-  for (int i = 0; i < MAX_SESSIONS; i++) {
-    if (sessions[i].active && sessions[i].sessionId == sessionId) {
-      sessions[i].lastActivity = millis();
-      return &sessions[i];
-    }
+String generateJWT(String username, String role) {
+  // Intentionally simple JWT implementation (vulnerable)
+  DynamicJsonDocument payload(256);
+  payload["username"] = username;
+  payload["role"] = role;
+  payload["exp"] = millis() + (JWT_EXPIRY * 1000);
+  payload["iat"] = millis();
+  
+  String payloadStr;
+  serializeJson(payload, payloadStr);
+  
+  // Intentional vulnerability: Weak signature (just base64, no real crypto)
+  if (VULN_WEAK_AUTH) {
+    String header = base64Encode("{\"alg\":\"none\",\"typ\":\"JWT\"}");
+    String body = base64Encode(payloadStr);
+    return header + "." + body + ".unsigned";  // No signature!
   }
-  return nullptr;
+  
+  // Slightly better (but still weak for demonstration)
+  String token = base64Encode(payloadStr);
+  String signature = sha256Hash(token + JWT_SECRET_STR);
+  return token + "." + signature;
 }
 
-// ===== Destroy session =====
-void destroySession(const String& sessionId) {
-  for (int i = 0; i < MAX_SESSIONS; i++) {
-    if (sessions[i].active && sessions[i].sessionId == sessionId) {
-      sessions[i].active = false;
-      debugLogf("AUTH", "Session destroyed: %s", sessionId.c_str());
-      return;
-    }
+bool validateJWT(String token) {
+  if (token == "") return false;
+  
+  // Intentional vulnerability: Accept unsigned tokens
+  if (VULN_WEAK_AUTH && token.indexOf(".unsigned") > 0) {
+    return true;  // Accept any unsigned token!
   }
-}
-
-// ===== Destroy sessions by IP =====
-void destroySessionsByIP(const String& ip) {
-  for (int i = 0; i < MAX_SESSIONS; i++) {
-    if (sessions[i].active && sessions[i].ip == ip) {
-      sessions[i].active = false;
-    }
-  }
-  debugLogf("AUTH", "Sessions destroyed for IP: %s", ip.c_str());
-}
-
-// ===== Simple JWT generation =====
-String generateJWT(const String& username, UserRole role) {
-  // Header
-  String header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
-  String headerB64 = base64Encode(header);
-
-  // Payload
-  JsonDocument doc;
-  doc["sub"]  = username;
-  doc["role"] = roleToString(role);
-  doc["iat"]  = millis() / 1000;
-  doc["exp"]  = millis() / 1000 + 3600;
-  String payload;
-  serializeJson(doc, payload);
-  String payloadB64 = base64Encode(payload);
-
-  // Signature
-  String sigInput = headerB64 + "." + payloadB64;
-  String sig = hmacSHA256(sigInput, String(JWT_SECRET));
-
-  return headerB64 + "." + payloadB64 + "." + sig;
-}
-
-// ===== Validate JWT =====
-bool validateJWT(const String& token, String& username, UserRole& role) {
-  int dot1 = token.indexOf('.');
-  int dot2 = token.indexOf('.', dot1 + 1);
-  if (dot1 < 0 || dot2 < 0) return false;
-
-  String headerB64  = token.substring(0, dot1);
-  String payloadB64 = token.substring(dot1 + 1, dot2);
-  String sig        = token.substring(dot2 + 1);
-
+  
+  // Basic validation
+  int dotPos = token.indexOf('.');
+  if (dotPos < 0) return false;
+  
+  String payload = token.substring(0, dotPos);
+  String signature = token.substring(dotPos + 1);
+  
   // Verify signature
-  String sigInput = headerB64 + "." + payloadB64;
-  String expected = hmacSHA256(sigInput, String(JWT_SECRET));
-  if (sig != expected) return false;
-
-  // Decode payload
-  String payload = base64Decode(payloadB64);
-  JsonDocument doc;
-  if (deserializeJson(doc, payload)) return false;
-
-  username = doc["sub"].as<String>();
-  role     = stringToRole(doc["role"].as<String>());
+  String expectedSignature = sha256Hash(payload + JWT_SECRET_STR);
+  if (signature != expectedSignature) {
+    return false;
+  }
+  
+  // Decode and check expiry
+  String decoded = base64Decode(payload);
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, decoded);
+  
+  if (error) return false;
+  
+  unsigned long exp = doc["exp"];
+  if (millis() > exp) {
+    return false;  // Token expired
+  }
+  
   return true;
 }
 
-// ===== Extract auth from request =====
-UserRole getRequestRole(AsyncWebServerRequest* request) {
-  // Check cookie session
-  if (request->hasHeader("Cookie")) {
-    String cookies = request->header("Cookie");
-    int idx = cookies.indexOf("session=");
-    if (idx >= 0) {
-      String sessId = cookies.substring(idx + 8);
-      int end = sessId.indexOf(';');
-      if (end > 0) sessId = sessId.substring(0, end);
-      Session* sess = getSession(sessId);
-      if (sess) return sess->role;
-    }
-  }
-
-  // Check Authorization header (Bearer JWT)
+bool isAuthenticated(AsyncWebServerRequest *request) {
+  // Check for Authorization header
   if (request->hasHeader("Authorization")) {
-    String auth = request->header("Authorization");
-    if (auth.startsWith("Bearer ")) {
-      String token = auth.substring(7);
-      String user;
-      UserRole role;
-      if (validateJWT(token, user, role)) return role;
+    String authHeader = request->header("Authorization");
+    if (authHeader.startsWith("Bearer ")) {
+      String token = authHeader.substring(7);
+      return validateJWT(token);
     }
   }
-
-  // Check X-Session header
-  if (request->hasHeader("X-Session")) {
-    Session* sess = getSession(request->header("X-Session"));
-    if (sess) return sess->role;
-  }
-
-  return ROLE_NONE;
-}
-
-// ===== Get session from request =====
-Session* getRequestSession(AsyncWebServerRequest* request) {
+  
+  // Check for session cookie
   if (request->hasHeader("Cookie")) {
     String cookies = request->header("Cookie");
-    int idx = cookies.indexOf("session=");
-    if (idx >= 0) {
-      String sessId = cookies.substring(idx + 8);
-      int end = sessId.indexOf(';');
-      if (end > 0) sessId = sessId.substring(0, end);
-      return getSession(sessId);
+    int sessionPos = cookies.indexOf("session=");
+    if (sessionPos >= 0) {
+      int endPos = cookies.indexOf(';', sessionPos);
+      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
+      
+      // Check if session exists and is valid
+      if (activeSessions.find(sessionId) != activeSessions.end()) {
+        Session &session = activeSessions[sessionId];
+        
+        // Check if session expired
+        if (millis() - session.lastActivity > SESSION_TIMEOUT) {
+          activeSessions.erase(sessionId);
+          return false;
+        }
+        
+        // Update last activity
+        session.lastActivity = millis();
+        return true;
+      }
     }
   }
-  if (request->hasHeader("X-Session")) {
-    return getSession(request->header("X-Session"));
-  }
-  return nullptr;
+  
+  return false;
 }
 
-// ===== Auth status JSON =====
-String authStatusJson() {
-  JsonDocument doc;
-  doc["active_sessions"] = sessionCount;
-  JsonArray arr = doc["sessions"].to<JsonArray>();
-  for (int i = 0; i < MAX_SESSIONS; i++) {
-    if (sessions[i].active) {
-      JsonObject s = arr.add<JsonObject>();
-      s["id"]       = sessions[i].sessionId;
-      s["user"]     = sessions[i].username;
-      s["role"]     = roleToString(sessions[i].role);
-      s["ip"]       = sessions[i].ip;
-      s["age_sec"]  = (millis() - sessions[i].createdAt) / 1000;
+String getUserRole(String token) {
+  String decoded = base64Decode(token);
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, decoded);
+  
+  if (!error) {
+    return doc["role"].as<String>();
+  }
+  
+  return "guest";
+}
+
+String getRequestRole(AsyncWebServerRequest *request) {
+  // Check session cookie first
+  if (request->hasHeader("Cookie")) {
+    String cookies = request->header("Cookie");
+    int sessionPos = cookies.indexOf("session=");
+    if (sessionPos >= 0) {
+      int endPos = cookies.indexOf(';', sessionPos);
+      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
+      
+      if (activeSessions.find(sessionId) != activeSessions.end()) {
+        return activeSessions[sessionId].role;
+      }
     }
   }
-  String out;
-  serializeJson(doc, out);
-  return out;
+  
+  // Check Authorization header (JWT)
+  if (request->hasHeader("Authorization")) {
+    String authHeader = request->header("Authorization");
+    if (authHeader.startsWith("Bearer ")) {
+      String token = authHeader.substring(7);
+      if (validateJWT(token)) {
+        return getUserRole(token);
+      }
+    }
+  }
+  
+  // Check role cookie
+  if (request->hasHeader("Cookie")) {
+    String cookies = request->header("Cookie");
+    int pos = cookies.indexOf("auth_role=");
+    if (pos >= 0) {
+      int endPos = cookies.indexOf(';', pos);
+      return cookies.substring(pos + 10, endPos > 0 ? endPos : cookies.length());
+    }
+  }
+  
+  return "guest";
 }
+
+bool isAdmin(AsyncWebServerRequest *request) {
+  if (!isAuthenticated(request)) {
+    return false;
+  }
+  
+  String role = getRequestRole(request);
+  return (role == "admin");
+}
+
+bool requireAdmin(AsyncWebServerRequest *request) {
+  // Honor global toggle: allow disabling admin checks for lab scenarios
+  if (!PROTECT_ADMIN_ENDPOINTS) {
+    Serial.printf("[AUTH] WARNING: Admin endpoint protection DISABLED - allowing access (INSECURE)\n");
+    return true;
+  }
+
+  if (!isAuthenticated(request)) {
+    Serial.printf("[AUTH] Admin access denied - not authenticated\n");
+    request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
+    return false;
+  }
+  
+  if (!isAdmin(request)) {
+    String role = getRequestRole(request);
+    Serial.printf("[AUTH] Admin access denied - insufficient privileges (role: %s)\n", role.c_str());
+    request->send(403, "application/json", "{\"error\":\"Admin privileges required\"}");
+    return false;
+  }
+  
+  Serial.printf("[AUTH] Admin access granted\n");
+  return true;
+}
+
+void createSession(String username, String role, String ipAddress) {
+  String sessionId = generateRandomToken(SESSION_ID_LENGTH);
+  
+  Session newSession;
+  newSession.sessionId = sessionId;
+  newSession.username = username;
+  newSession.role = role;
+  newSession.createdAt = millis();
+  newSession.lastActivity = millis();
+  newSession.ipAddress = ipAddress;
+  
+  activeSessions[sessionId] = newSession;
+  
+  logInfo("Session created for: " + username + " (ID: " + sessionId + ")");
+}
+
+void destroySession(String sessionId) {
+  if (activeSessions.find(sessionId) != activeSessions.end()) {
+    String username = activeSessions[sessionId].username;
+    activeSessions.erase(sessionId);
+    logInfo("Session destroyed for: " + username);
+  }
+}
+
+void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len) {
+  totalRequests++;
+  
+  String clientIP = request->client()->remoteIP().toString();
+  Serial.printf("[AUTH] Login attempt from %s\n", clientIP.c_str());
+  
+  String username = "";
+  String password = "";
+  
+  // Parse JSON body
+  DynamicJsonDocument doc(512);
+  DeserializationError error = deserializeJson(doc, (char*)data, len);
+  
+  if (error) {
+    Serial.printf("[AUTH] JSON parse error: %s\n", error.c_str());
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  
+  username = doc["username"].as<String>();
+  password = doc["password"].as<String>();
+  
+  Serial.printf("[AUTH] User: %s, Pass: %s from %s\n", username.c_str(), password.c_str(), clientIP.c_str());
+  
+  // Authenticate
+  if (authenticateUser(username, password)) {
+    // Find user role
+    String role = "guest";
+    for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
+      if (defaultUsers[i].username == username) {
+        role = defaultUsers[i].role;
+        break;
+      }
+    }
+    
+    // Create session
+    String ipAddress = request->client()->remoteIP().toString();
+    createSession(username, role, ipAddress);
+    Serial.printf("[AUTH] ✅ Login SUCCESS: %s (role: %s) from %s\n", username.c_str(), role.c_str(), ipAddress.c_str());
+    
+    // Generate JWT token
+    String token = generateJWT(username, role);
+    
+    // Generate session cookie
+    String sessionId = activeSessions.rbegin()->first;
+
+    // API/fetch request - return JSON
+    DynamicJsonDocument response(512);
+    response["success"] = true;
+    response["token"] = token;
+    response["username"] = username;
+    response["role"] = role;
+    response["message"] = "Login successful";
+
+    String responseStr;
+    serializeJson(response, responseStr);
+
+    AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", responseStr);
+    resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+    request->send(resp);
+  } else {
+    DynamicJsonDocument response(256);
+    response["success"] = false;
+    response["error"] = "Invalid credentials";
+    response["failed_attempts"] = failedLoginAttempts;
+
+    String responseStr;
+    serializeJson(response, responseStr);
+    request->send(401, "application/json", responseStr);
+  }
+}
+
+void handleLogin(AsyncWebServerRequest *request) {
+  totalRequests++;
+  
+  String clientIP = request->client()->remoteIP().toString();
+  Serial.printf("[AUTH] Login attempt from %s\n", clientIP.c_str());
+  
+  if (request->method() != HTTP_POST) {
+    request->send(405, "application/json", "{\"error\":\"Method not allowed\"}");
+    return;
+  }
+  
+  String username = "";
+  String password = "";
+  
+  // Parse POST parameters
+  if (request->hasParam("username", true)) {
+    username = request->getParam("username", true)->value();
+  }
+  if (request->hasParam("password", true)) {
+    password = request->getParam("password", true)->value();
+  }
+  
+  Serial.printf("[AUTH] User: %s, Pass: %s from %s\n", username.c_str(), password.c_str(), clientIP.c_str());
+  
+  // Authenticate
+  if (authenticateUser(username, password)) {
+    // Find user role
+    String role = "guest";
+    for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
+      if (defaultUsers[i].username == username) {
+        role = defaultUsers[i].role;
+        break;
+      }
+    }
+    
+    // Create session
+    String ipAddress = request->client()->remoteIP().toString();
+    createSession(username, role, ipAddress);
+    Serial.printf("[AUTH] ✅ Login SUCCESS: %s (role: %s) from %s\n", username.c_str(), role.c_str(), ipAddress.c_str());
+    
+    // Generate JWT token
+    String token = generateJWT(username, role);
+    
+    // Generate session cookie
+    String sessionId = activeSessions.rbegin()->first;
+
+    // Check if this is a browser form submit (not fetch/XHR)
+    bool isBrowserForm = false;
+    if (request->hasHeader("Accept")) {
+      String accept = request->header("Accept");
+      isBrowserForm = accept.indexOf("text/html") >= 0 && accept.indexOf("application/json") < 0;
+    }
+
+    if (isBrowserForm) {
+      // Browser form submit - redirect with session cookie and store token in cookie
+      String redirectUrl = "/dashboard";
+      AsyncWebServerResponse *resp = request->beginResponse(302, "text/html", "Redirecting...");
+      resp->addHeader("Location", redirectUrl);
+      resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_token=" + token + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_user=" + username + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_role=" + role + "; Path=/");
+      request->send(resp);
+    } else {
+      // API/fetch request - return JSON
+      DynamicJsonDocument response(512);
+      response["success"] = true;
+      response["token"] = token;
+      response["username"] = username;
+      response["role"] = role;
+      response["message"] = "Login successful";
+
+      String responseStr;
+      serializeJson(response, responseStr);
+
+      AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", responseStr);
+      resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+      request->send(resp);
+    }
+  } else {
+    // Check if browser form submit
+    bool isBrowserForm = false;
+    if (request->hasHeader("Accept")) {
+      String accept = request->header("Accept");
+      isBrowserForm = accept.indexOf("text/html") >= 0 && accept.indexOf("application/json") < 0;
+    }
+
+    if (isBrowserForm) {
+      // Redirect back to login page with error
+      AsyncWebServerResponse *resp = request->beginResponse(302, "text/html", "Redirecting...");
+      resp->addHeader("Location", "/login?error=1");
+      request->send(resp);
+    } else {
+      DynamicJsonDocument response(256);
+      response["success"] = false;
+      response["error"] = "Invalid credentials";
+      response["failed_attempts"] = failedLoginAttempts;
+
+      String responseStr;
+      serializeJson(response, responseStr);
+      request->send(401, "application/json", responseStr);
+    }
+  }
+}
+
+void handleLogout(AsyncWebServerRequest *request) {
+  totalRequests++;
+  
+  // Destroy session
+  if (request->hasHeader("Cookie")) {
+    String cookies = request->header("Cookie");
+    int sessionPos = cookies.indexOf("session=");
+    if (sessionPos >= 0) {
+      int endPos = cookies.indexOf(';', sessionPos);
+      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
+      destroySession(sessionId);
+    }
+  }
+  
+  DynamicJsonDocument response(128);
+  response["success"] = true;
+  response["message"] = "Logged out successfully";
+  
+  String responseStr;
+  serializeJson(response, responseStr);
+  request->send(200, "application/json", responseStr);
+}
+
+// Get username from request (from JWT or session)
+String getRequestUsername(AsyncWebServerRequest *request) {
+  // Try Authorization header (JWT)
+  if (request->hasHeader("Authorization")) {
+    String authHeader = request->header("Authorization");
+    if (authHeader.startsWith("Bearer ")) {
+      String token = authHeader.substring(7);
+      int dotPos = token.indexOf('.');
+      if (dotPos > 0) {
+        int secondDot = token.indexOf('.', dotPos + 1);
+        if (secondDot > 0) {
+          String payload = token.substring(dotPos + 1, secondDot);
+          String decoded = base64Decode(payload);
+          DynamicJsonDocument doc(256);
+          DeserializationError error = deserializeJson(doc, decoded);
+          if (!error) {
+            return doc["username"].as<String>();
+          }
+        }
+      }
+    }
+  }
+  
+  // Try session cookie
+  if (request->hasHeader("Cookie")) {
+    String cookies = request->header("Cookie");
+    int sessionPos = cookies.indexOf("session=");
+    if (sessionPos >= 0) {
+      int endPos = cookies.indexOf(';', sessionPos);
+      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
+      if (activeSessions.find(sessionId) != activeSessions.end()) {
+        return activeSessions[sessionId].username;
+      }
+    }
+  }
+  
+  return "";
+}
+
+// Check if user has minimum required role
+// Role hierarchy: viewer < maintenance < operator < admin
+bool requireRole(AsyncWebServerRequest *request, const char* minRole) {
+  if (!isAuthenticated(request)) {
+    request->send(401, "application/json", "{\"error\":\"Authentication required\"}");
+    return false;
+  }
+  
+  String userRole = getRequestRole(request);
+  
+  // Define role hierarchy
+  int roleLevel = 0;
+  if (userRole == "admin") roleLevel = 3;
+  else if (userRole == "operator") roleLevel = 2;
+  else if (userRole == "maintenance") roleLevel = 1;
+  else roleLevel = 0; // viewer
+  
+  int minLevel = 0;
+  String minRoleStr = String(minRole);
+  if (minRoleStr == "admin") minLevel = 3;
+  else if (minRoleStr == "operator") minLevel = 2;
+  else if (minRoleStr == "maintenance") minLevel = 1;
+  else minLevel = 0;
+  
+  if (roleLevel < minLevel) {
+    Serial.printf("[AUTH] Insufficient role: %s (required: %s)\n", userRole.c_str(), minRole);
+    request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+    return false;
+  }
+  
+  return true;
+}
+

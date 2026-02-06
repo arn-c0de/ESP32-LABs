@@ -1,62 +1,36 @@
-// ============================================================
-// auth-sync.js — Session management + auth state
-// ============================================================
-
-const Auth = {
-  get isLoggedIn() { return !!localStorage.getItem('session'); },
-  get username()   { return localStorage.getItem('username') || ''; },
-  get role()       { return localStorage.getItem('role') || 'none'; },
-  get session()    { return localStorage.getItem('session') || ''; },
-  get isAdmin()    { return this.role === 'admin'; },
-
-  async check() {
-    try {
-      const data = await API.get('/api/auth/status');
-      if (!data.authenticated) {
-        this.clear();
-        return false;
-      }
-      return true;
-    } catch (e) {
-      return false;
+// Auth Sync for SCADA - Syncs JWT token from cookies to localStorage
+(function(){
+    function getCookie(name){
+        var match = document.cookie.match('(^|;)\\s*' + name + '=([^;]*)');
+        return match ? decodeURIComponent(match[2]) : null;
     }
-  },
-
-  clear() {
-    localStorage.removeItem('session');
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    localStorage.removeItem('role');
-  },
-
-  requireAuth() {
-    if (!this.isLoggedIn) {
-      location.href = '/';
-      return false;
+    
+    var token = getCookie('jwt_token');
+    var username = getCookie('username');
+    var role = getCookie('role');
+    
+    if(token && username){
+        localStorage.setItem('jwt_token', token);
+        localStorage.setItem('username', username);
+        localStorage.setItem('role', role || 'viewer');
     }
-    return true;
-  },
+})();
 
-  updateUI() {
-    // Update username display
-    document.querySelectorAll('.user-name').forEach(el => {
-      el.textContent = this.username || 'Guest';
-    });
-    document.querySelectorAll('.user-role').forEach(el => {
-      el.textContent = this.role;
-    });
+// Global auth helpers
+function requireAuth() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+        window.location.href = '/';
+    }
+}
 
-    // Show/hide admin elements
-    document.querySelectorAll('.admin-only').forEach(el => {
-      el.style.display = this.isAdmin ? '' : 'none';
+function logout() {
+    fetch('/api/logout', {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') }
+    }).finally(function() {
+        localStorage.clear();
+        window.location.href = '/';
     });
+}
 
-    // Show/hide auth-dependent elements
-    document.querySelectorAll('.auth-only').forEach(el => {
-      el.style.display = this.isLoggedIn ? '' : 'none';
-    });
-    document.querySelectorAll('.guest-only').forEach(el => {
-      el.style.display = this.isLoggedIn ? 'none' : '';
-    });
-  }
-};
