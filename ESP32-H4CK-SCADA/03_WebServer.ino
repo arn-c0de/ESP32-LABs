@@ -12,6 +12,8 @@ void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
     IPAddress ip = client->remoteIP();
     debugLogf("WS", "Client connected: #%u from %d.%d.%d.%d", client->id(),
               ip[0], ip[1], ip[2], ip[3]);
+    // Send welcome message
+    client->text("{\"type\":\"connected\",\"msg\":\"Connected to SCADA system\"}");
   } else if (type == WS_EVT_DISCONNECT) {
     debugLogf("WS", "Client disconnected: #%u", client->id());
   } else if (type == WS_EVT_DATA) {
@@ -25,12 +27,17 @@ void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
       // Handle incoming WS messages (e.g., subscribe to specific data)
       debugLogf("WS", "Message from #%u: %s", client->id(), msgBuf);
     }
+  } else if (type == WS_EVT_ERROR) {
+    debugLogf("WS", "Error from client #%u", client->id());
   }
 }
 
 // Broadcast JSON to all WS clients
 void wsBroadcast(const String& json) {
-  ws.textAll(json);
+  // Check if we have clients before broadcasting
+  if (ws.count() > 0) {
+    ws.textAll(json);
+  }
 }
 
 // Client IP helper
@@ -519,18 +526,27 @@ void setupStaticFiles() {
 void webServerInit() {
   Serial.println("[WEB] Initializing web server...");
 
-  // WebSocket
+  // WebSocket configuration for stability
   ws.onEvent(onWsEvent);
+  // ws.setCloseClientOnQueueFull(true); // Not available in all versions
   server.addHandler(&ws);
+  
+  yield();
+  delay(100);
 
   // API routes
   setupAPIRoutes();
+  yield();
 
   // Static files
   setupStaticFiles();
+  yield();
 
   // Start server
   server.begin();
+  delay(200);
+  yield();
+  
   Serial.printf("[WEB] Server started on port %d\n", WEB_PORT);
   Serial.printf("[WEB] Dashboard: http://%s/dashboard\n", wifiGetIP().c_str());
 }
