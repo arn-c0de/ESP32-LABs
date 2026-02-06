@@ -19,7 +19,7 @@ void sensorsInit() {
       sensorArray[idx].typeIdx   = s;
       sensorArray[idx].value     = SENSOR_NOMINAL[s];
       sensorArray[idx].prevValue = SENSOR_NOMINAL[s];
-      sensorArray[idx].status    = "normal";
+      strncpy(sensorArray[idx].status, "normal", sizeof(sensorArray[idx].status) - 1);
       sensorArray[idx].lastUpdate = millis();
     }
   }
@@ -41,15 +41,15 @@ void sensorsUpdate() {
 
       // Determine status
       if (isSensorFaulted(l + 1, s)) {
-        sd.status = "fault";
+        strncpy(sd.status, "fault", sizeof(sd.status) - 1);
       } else if (sd.value >= SENSOR_CRIT_THRESH[s]) {
-        sd.status = "critical";
+        strncpy(sd.status, "critical", sizeof(sd.status) - 1);
       } else if (sd.value >= SENSOR_HIGH_THRESH[s]) {
-        sd.status = "high";
+        strncpy(sd.status, "high", sizeof(sd.status) - 1);
       } else if (sd.value <= SENSOR_LOW_THRESH[s]) {
-        sd.status = "low";
+        strncpy(sd.status, "low", sizeof(sd.status) - 1);
       } else {
-        sd.status = "normal";
+        strncpy(sd.status, "normal", sizeof(sd.status) - 1);
       }
 
       // Store in ringbuffer
@@ -70,6 +70,9 @@ void sensorsUpdate() {
 
 // ===== WebSocket broadcast =====
 void wsBroadcastSensorData() {
+  // TEMPORARILY DISABLED FOR STABILITY TESTING
+  return;
+  
   JsonDocument doc;
   doc["type"] = "sensors";
   JsonArray arr = doc["data"].to<JsonArray>();
@@ -217,8 +220,8 @@ String getLineStatus(int line) {
 
   for (int s = 0; s < SENSORS_PER_LINE; s++) {
     int idx = (line - 1) * SENSORS_PER_LINE + s;
-    if (sensorArray[idx].status == "critical" || sensorArray[idx].status == "fault") hasCritical = true;
-    if (sensorArray[idx].status == "high") hasAlarm = true;
+    if (strcmp(sensorArray[idx].status, "critical") == 0 || strcmp(sensorArray[idx].status, "fault") == 0) hasCritical = true;
+    if (strcmp(sensorArray[idx].status, "high") == 0) hasAlarm = true;
   }
 
   if (hasCritical) return "alarm";

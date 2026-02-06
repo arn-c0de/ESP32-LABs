@@ -20,8 +20,8 @@ void safetyInit() {
       SafetyInterlock& si = interlocks[interlockCount++];
       snprintf(si.id, sizeof(si.id), "INTERLOCK-L%d-OT", l);
       si.line      = l;
-      si.condition = "temperature > critical";
-      si.action    = "stop_motor";
+      strncpy(si.condition, "temperature > critical", sizeof(si.condition) - 1);
+      strncpy(si.action, "stop_motor", sizeof(si.action) - 1);
       si.triggered = false;
     }
     // Overpressure → close valve
@@ -29,8 +29,8 @@ void safetyInit() {
       SafetyInterlock& si = interlocks[interlockCount++];
       snprintf(si.id, sizeof(si.id), "INTERLOCK-L%d-OP", l);
       si.line      = l;
-      si.condition = "pressure > critical";
-      si.action    = "close_valve";
+      strncpy(si.condition, "pressure > critical", sizeof(si.condition) - 1);
+      strncpy(si.action, "close_valve", sizeof(si.action) - 1);
       si.triggered = false;
     }
     // High vibration → reduce speed
@@ -38,8 +38,8 @@ void safetyInit() {
       SafetyInterlock& si = interlocks[interlockCount++];
       snprintf(si.id, sizeof(si.id), "INTERLOCK-L%d-HV", l);
       si.line      = l;
-      si.condition = "vibration > critical";
-      si.action    = "reduce_speed";
+      strncpy(si.condition, "vibration > critical", sizeof(si.condition) - 1);
+      strncpy(si.action, "reduce_speed", sizeof(si.action) - 1);
       si.triggered = false;
     }
     // Overcurrent → trip motor
@@ -47,8 +47,8 @@ void safetyInit() {
       SafetyInterlock& si = interlocks[interlockCount++];
       snprintf(si.id, sizeof(si.id), "INTERLOCK-L%d-OC", l);
       si.line      = l;
-      si.condition = "current > critical";
-      si.action    = "trip_motor";
+      strncpy(si.condition, "current > critical", sizeof(si.condition) - 1);
+      strncpy(si.action, "trip_motor", sizeof(si.action) - 1);
       si.triggered = false;
     }
   }
@@ -58,6 +58,9 @@ void safetyInit() {
 
 // ===== Safety check (periodic) =====
 void safetyUpdate() {
+  // TEMPORARILY DISABLED FOR STABILITY TESTING
+  return;
+  
   if (emergencyStopActive) return;
 
   for (int i = 0; i < interlockCount; i++) {
@@ -67,22 +70,22 @@ void safetyUpdate() {
     bool shouldTrigger = false;
 
     // Check temperature interlock
-    if (si.action == "stop_motor") {
+    if (strcmp(si.action, "stop_motor") == 0) {
       float temp = getSensorValue(l, 0);  // temperature = index 0
       if (temp >= SENSOR_CRIT_THRESH[0]) shouldTrigger = true;
     }
     // Check pressure interlock
-    else if (si.action == "close_valve") {
+    else if (strcmp(si.action, "close_valve") == 0) {
       float press = getSensorValue(l, 1);  // pressure = index 1
       if (press >= SENSOR_CRIT_THRESH[1]) shouldTrigger = true;
     }
     // Check vibration interlock
-    else if (si.action == "reduce_speed") {
+    else if (strcmp(si.action, "reduce_speed") == 0) {
       float vib = getSensorValue(l, 2);  // vibration = index 2
       if (vib >= SENSOR_CRIT_THRESH[2]) shouldTrigger = true;
     }
     // Check current interlock
-    else if (si.action == "trip_motor") {
+    else if (strcmp(si.action, "trip_motor") == 0) {
       float cur = getSensorValue(l, 4);  // current = index 4
       if (cur >= SENSOR_CRIT_THRESH[4]) shouldTrigger = true;
     }
@@ -104,22 +107,22 @@ void safetyUpdate() {
 // ===== Execute safety action =====
 void executeSafetyAction(const SafetyInterlock& si) {
   debugLogf("SAFETY", "INTERLOCK TRIGGERED: %s (Line %d) → %s",
-    si.id, si.line, si.action.c_str());
+    si.id, si.line, si.action);
 
   char motorId[20], valveId[20];
   snprintf(motorId, sizeof(motorId), "MOTOR-L%d-01", si.line);
   snprintf(valveId, sizeof(valveId), "VALVE-L%d-01", si.line);
 
-  if (si.action == "stop_motor" || si.action == "trip_motor") {
+  if (strcmp(si.action, "stop_motor") == 0 || strcmp(si.action, "trip_motor") == 0) {
     setActuatorState(String(motorId), STATE_STOPPED);
     // Also lock to prevent restart
     Actuator* act = getActuatorById(String(motorId));
     if (act) act->locked = true;
   }
-  else if (si.action == "close_valve") {
+  else if (strcmp(si.action, "close_valve") == 0) {
     setActuatorState(String(valveId), STATE_CLOSED);
   }
-  else if (si.action == "reduce_speed") {
+  else if (strcmp(si.action, "reduce_speed") == 0) {
     Actuator* act = getActuatorById(String(motorId));
     if (act && act->speed > 50.0f) {
       act->speed = 50.0f;

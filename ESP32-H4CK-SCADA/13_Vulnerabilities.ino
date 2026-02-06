@@ -39,7 +39,7 @@ void setupVulnRoutes() {
     SensorData* sd = getSensorById(sensorId);
     if (sd) {
       sd->value = fakeValue;
-      sd->status = "tampered";
+      strncpy(sd->status, "tampered", sizeof(sd->status) - 1);
 
       JsonDocument result;
       result["success"]   = true;
