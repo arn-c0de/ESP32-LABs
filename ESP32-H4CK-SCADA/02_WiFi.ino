@@ -8,19 +8,36 @@ int wifiConnectedClients = 0;
 void wifiInit() {
   Serial.println("[WIFI] Initializing...");
 
+  // Disable WiFi power save for stability
+  WiFi.setSleep(false);
+  delay(50);
+  
   WiFi.mode(WIFI_AP_STA);
+  delay(200);
+  yield();
 
   // Access Point mode
   if (WIFI_AP_MODE) {
     WiFi.softAPConfig(AP_IP, AP_GATEWAY, AP_SUBNET);
-    WiFi.softAP(AP_SSID, AP_PASSWORD, 1, 0, 8);
-    Serial.printf("[WIFI] AP started: %s @ %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
-    wifiLocalIP = WiFi.softAPIP().toString();
+    yield();
+    bool apStarted = WiFi.softAP(AP_SSID, AP_PASSWORD, 1, 0, 8);
+    yield();
+    delay(500); // Give AP time to fully initialize
+    yield();
+    
+    if (apStarted) {
+      Serial.printf("[WIFI] AP started: %s @ %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
+      wifiLocalIP = WiFi.softAPIP().toString();
+    } else {
+      Serial.println("[WIFI] Failed to start AP!");
+    }
   }
 
   // Station mode (connect to existing network)
   if (WIFI_STA_MODE) {
     Serial.printf("[WIFI] Connecting to %s...\n", WIFI_SSID);
+    WiFi.setAutoReconnect(true);
+    yield();
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
     int attempts = 0;
@@ -28,17 +45,22 @@ void wifiInit() {
       delay(500);
       Serial.print(".");
       attempts++;
+      yield();
     }
 
+    Serial.println();
+    
     if (WiFi.status() == WL_CONNECTED) {
       wifiLocalIP = WiFi.localIP().toString();
-      Serial.printf("\n[WIFI] STA connected: %s\n", wifiLocalIP.c_str());
+      Serial.printf("[WIFI] STA connected: %s\n", wifiLocalIP.c_str());
+      Serial.printf("[WIFI] Signal: %d dBm\n", WiFi.RSSI());
     } else {
-      Serial.println("\n[WIFI] STA connection failed. AP mode only.");
+      Serial.println("[WIFI] STA connection failed. AP mode only.");
     }
   }
 
-  delay(100);
+  delay(200);
+  yield();
   
   Serial.printf("[WIFI] Access: http://%s\n", wifiLocalIP.c_str());
 }
