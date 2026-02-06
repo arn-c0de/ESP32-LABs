@@ -1,231 +1,204 @@
-// ============================================================
-// 07_Sensors.ino — Sensor Management + Timeseries
-// 20 sensors across 4 production lines (5 per line)
-// ============================================================
+/*
+ * Sensor Management Module
+ *
+ * Initializes all 20 sensors across 4 production lines,
+ * provides JSON output for API endpoints.
+ */
 
-#include "include/common.h"
+// Base value ranges per sensor type
+static const float SENSOR_BASE_MIN[] = { 65.0f, 4.0f, 80.0f, 0.3f, 8.0f };
+static const float SENSOR_BASE_MAX[] = { 75.0f, 6.0f, 120.0f, 0.5f, 12.0f };
 
-SensorData sensorArray[NUM_LINES * SENSORS_PER_LINE];
+// Threshold offsets from base value
+static const float SENSOR_WARN_OFFSET[]  = { 15.0f, 2.0f, 30.0f, 0.5f, 5.0f };
+static const float SENSOR_CRIT_OFFSET[]  = { 25.0f, 3.5f, 50.0f, 1.0f, 8.0f };
 
-void sensorsInit() {
-  Serial.println("[SENSORS] Initializing sensor array...");
-
-  for (int l = 0; l < NUM_LINES; l++) {
+void initSensors() {
+  for (int line = 0; line < NUM_LINES; line++) {
     for (int s = 0; s < SENSORS_PER_LINE; s++) {
-      int idx = l * SENSORS_PER_LINE + s;
-      snprintf(sensorArray[idx].id, sizeof(sensorArray[idx].id),
-               "SENSOR-L%d-%02d", l + 1, s + 1);
-      sensorArray[idx].line      = l + 1;
-      sensorArray[idx].typeIdx   = s;
-      sensorArray[idx].value     = SENSOR_NOMINAL[s];
-      sensorArray[idx].prevValue = SENSOR_NOMINAL[s];
-      strncpy(sensorArray[idx].status, "normal", sizeof(sensorArray[idx].status) - 1);
-      sensorArray[idx].lastUpdate = millis();
-    }
-  }
+      int idx = line * SENSORS_PER_LINE + s;
+      SensorData &sd = sensors[idx];
 
-  Serial.printf("[SENSORS] %d sensors initialized across %d lines.\n",
-    NUM_LINES * SENSORS_PER_LINE, NUM_LINES);
-}
+      // ID: SENSOR-L1-01 through SENSOR-L4-05
+      snprintf(sd.id, sizeof(sd.id), "SENSOR-L%d-%02d", line + 1, s + 1);
+      sd.line = line + 1;
+      sd.type = (SensorType)s;  // TEMP=0, PRESSURE=1, FLOW=2, VIBRATION=3, POWER=4
 
-// ===== Update all sensors from physics =====
-void sensorsUpdate() {
-  for (int l = 0; l < NUM_LINES; l++) {
-    for (int s = 0; s < SENSORS_PER_LINE; s++) {
-      int idx = l * SENSORS_PER_LINE + s;
-      SensorData& sd = sensorArray[idx];
+      // Base value: random within range for variety between lines
+      float bmin = SENSOR_BASE_MIN[s];
+      float bmax = SENSOR_BASE_MAX[s];
+      sd.baseValue = bmin + ((float)random(0, 100) / 100.0f) * (bmax - bmin);
+      sd.currentValue = sd.baseValue;
 
-      sd.prevValue = sd.value;
-      sd.value     = getPhysicsValue(l + 1, s);
+      // Thresholds
+      sd.minThreshold = bmin * 0.5f;
+      sd.maxThreshold = sd.baseValue + SENSOR_WARN_OFFSET[s];
+      sd.critThreshold = sd.baseValue + SENSOR_CRIT_OFFSET[s];
+
+      sd.faulted = false;
       sd.lastUpdate = millis();
 
-      // Determine status
-      if (isSensorFaulted(l + 1, s)) {
-        strncpy(sd.status, "fault", sizeof(sd.status) - 1);
-      } else if (sd.value >= SENSOR_CRIT_THRESH[s]) {
-        strncpy(sd.status, "critical", sizeof(sd.status) - 1);
-      } else if (sd.value >= SENSOR_HIGH_THRESH[s]) {
-        strncpy(sd.status, "high", sizeof(sd.status) - 1);
-      } else if (sd.value <= SENSOR_LOW_THRESH[s]) {
-        strncpy(sd.status, "low", sizeof(sd.status) - 1);
-      } else {
-        strncpy(sd.status, "normal", sizeof(sd.status) - 1);
-      }
-
-      // Store in ringbuffer
-      JsonDocument entry;
-      entry["id"]        = sd.id;
-      entry["value"]     = round(sd.value * 100.0f) / 100.0f;
-      entry["status"]    = sd.status;
-      entry["timestamp"] = getISOTimestamp();
-      String json;
-      serializeJson(entry, json);
-      sensorBuffer.push(json);
+      // Clear history
+      SensorHistory &h = sensorHistory[idx];
+      h.writeIndex = 0;
+      h.count = 0;
+      memset(h.values, 0, sizeof(h.values));
+      memset(h.timestamps, 0, sizeof(h.timestamps));
     }
   }
 
-  // Broadcast via WebSocket
-  wsBroadcastSensorData();
+  Serial.printf("[SENSORS] Initialized %d sensors across %d lines\n", TOTAL_SENSORS, NUM_LINES);
 }
 
-// ===== WebSocket broadcast =====
-void wsBroadcastSensorData() {
-  // TEMPORARILY DISABLED FOR STABILITY TESTING
-  return;
-  
-  JsonDocument doc;
-  doc["type"] = "sensors";
-  JsonArray arr = doc["data"].to<JsonArray>();
+// Determine sensor status string based on thresholds
+static const char* getSensorStatus(const SensorData &s) {
+  if (s.faulted) return "FAULT";
+  if (s.currentValue >= s.critThreshold) return "CRITICAL";
+  if (s.currentValue >= s.maxThreshold) return "WARNING";
+  if (s.currentValue <= s.minThreshold) return "LOW";
+  return "NORMAL";
+}
 
-  for (int i = 0; i < NUM_LINES * SENSORS_PER_LINE; i++) {
-    JsonObject s = arr.add<JsonObject>();
-    s["id"]     = sensorArray[i].id;
-    s["value"]  = round(sensorArray[i].value * 100.0f) / 100.0f;
-    s["status"] = sensorArray[i].status;
-    s["type"]   = SENSOR_TYPES[sensorArray[i].typeIdx];
-    s["unit"]   = SENSOR_UNITS[sensorArray[i].typeIdx];
-    s["line"]   = sensorArray[i].line;
+String getSensorListJSON() {
+  DynamicJsonDocument doc(4096);
+  JsonArray arr = doc.to<JsonArray>();
+
+  for (int i = 0; i < TOTAL_SENSORS; i++) {
+    const SensorData &s = sensors[i];
+    JsonObject obj = arr.createNestedObject();
+    obj["id"] = s.id;
+    obj["line"] = s.line;
+    obj["type"] = SENSOR_TYPE_NAMES[s.type];
+    obj["value"] = serialized(String(s.currentValue, 2));
+    obj["unit"] = SENSOR_UNITS[s.type];
+    obj["status"] = getSensorStatus(s);
+    obj["base"] = serialized(String(s.baseValue, 2));
+    obj["warn"] = serialized(String(s.maxThreshold, 2));
+    obj["crit"] = serialized(String(s.critThreshold, 2));
   }
 
-  String out;
-  serializeJson(doc, out);
-  wsBroadcast(out);
+  String output;
+  serializeJson(doc, output);
+  doc.clear();
+  return output;
 }
 
-// ===== Get sensor readings for API =====
-String getSensorReadings(const String& sensorId, int limit) {
-  JsonDocument doc;
-  doc["sensor_id"] = sensorId;
-
-  // Find the sensor
-  int found = -1;
-  for (int i = 0; i < NUM_LINES * SENSORS_PER_LINE; i++) {
-    if (String(sensorArray[i].id) == sensorId) {
-      found = i;
+String getSensorReadingJSON(const char* sensorId, int limit) {
+  // Find sensor index by ID
+  int idx = -1;
+  for (int i = 0; i < TOTAL_SENSORS; i++) {
+    if (strcmp(sensors[i].id, sensorId) == 0) {
+      idx = i;
       break;
     }
   }
 
-  if (found < 0) {
-    doc["error"] = "Sensor not found";
-    String out;
-    serializeJson(doc, out);
-    return out;
+  if (idx < 0) {
+    return "{\"error\":\"Sensor not found\"}";
   }
 
-  SensorData& sd = sensorArray[found];
-  doc["type"]   = SENSOR_TYPES[sd.typeIdx];
-  doc["unit"]   = SENSOR_UNITS[sd.typeIdx];
-  doc["line"]   = sd.line;
-  doc["status"] = sd.status;
+  const SensorData &s = sensors[idx];
+  const SensorHistory &h = sensorHistory[idx];
 
-  JsonObject current = doc["current"].to<JsonObject>();
-  current["value"]     = round(sd.value * 100.0f) / 100.0f;
-  current["timestamp"] = getISOTimestamp();
+  if (limit <= 0 || limit > SENSOR_HISTORY_SIZE) {
+    limit = SENSOR_HISTORY_SIZE;
+  }
+  int count = (h.count < limit) ? h.count : limit;
 
-  JsonObject thresholds = doc["thresholds"].to<JsonObject>();
-  thresholds["low"]      = SENSOR_LOW_THRESH[sd.typeIdx];
-  thresholds["high"]     = SENSOR_HIGH_THRESH[sd.typeIdx];
-  thresholds["critical"] = SENSOR_CRIT_THRESH[sd.typeIdx];
+  DynamicJsonDocument doc(3072);
+  doc["id"] = s.id;
+  doc["line"] = s.line;
+  doc["type"] = SENSOR_TYPE_NAMES[s.type];
+  doc["unit"] = SENSOR_UNITS[s.type];
+  doc["current"] = serialized(String(s.currentValue, 2));
+  doc["status"] = getSensorStatus(s);
 
-  // History from ringbuffer (filter by sensor ID)
-  JsonArray history = doc["history"].to<JsonArray>();
-  int count = 0;
-  for (int i = sensorBuffer.count - 1; i >= 0 && count < limit; i--) {
-    String entry = sensorBuffer.get(i);
-    if (entry.indexOf(sensorId) >= 0) {
-      JsonDocument entryDoc;
-      deserializeJson(entryDoc, entry);
-      history.add(entryDoc);
-      count++;
-    }
+  JsonArray readings = doc.createNestedArray("history");
+
+  // Read from ring buffer, most recent first
+  for (int i = 0; i < count; i++) {
+    int rIdx = (h.writeIndex - 1 - i + SENSOR_HISTORY_SIZE) % SENSOR_HISTORY_SIZE;
+    JsonObject reading = readings.createNestedObject();
+    reading["value"] = serialized(String(h.values[rIdx], 2));
+    reading["time"] = h.timestamps[rIdx];
   }
 
-  // Physics-based hidden flag for IDOR exploit path
-  if (VULN_IDOR_SENSORS && sd.line > 1) {
-    // Embed flag hint in metadata when accessing cross-line sensor
-    doc["_metadata"] = "FLAG{idor_cross_line_access_" + String(sd.line) + "}";
-  }
-
-  String out;
-  serializeJson(doc, out);
-  return out;
+  String output;
+  serializeJson(doc, output);
+  doc.clear();
+  return output;
 }
 
-// ===== Get specific sensor =====
-SensorData* getSensorById(const String& id) {
-  for (int i = 0; i < NUM_LINES * SENSORS_PER_LINE; i++) {
-    if (String(sensorArray[i].id) == id) return &sensorArray[i];
-  }
-  return nullptr;
-}
-
-// ===== Get sensor value =====
-float getSensorValue(int line, int sensorType) {
-  if (line < 1 || line > NUM_LINES || sensorType < 0 || sensorType >= SENSORS_PER_LINE) return 0.0f;
-  int idx = (line - 1) * SENSORS_PER_LINE + sensorType;
-  return sensorArray[idx].value;
-}
-
-// ===== Get dashboard summary =====
-String getDashboardStatus() {
-  JsonDocument doc;
-
-  // Lines overview
-  JsonArray lines = doc["lines"].to<JsonArray>();
-  for (int l = 1; l <= NUM_LINES; l++) {
-    JsonObject line = lines.add<JsonObject>();
-    char lid[4];
-    snprintf(lid, sizeof(lid), "L%d", l);
-    line["id"]     = lid;
-    line["name"]   = LINE_NAMES[l - 1];
-    line["status"] = getLineStatus(l);
-
-    JsonObject metrics = line["metrics"].to<JsonObject>();
-    metrics["output"]     = (int)randomFloat(70.0f, 98.0f);
-    metrics["efficiency"] = (int)randomFloat(85.0f, 99.0f);
-
-    JsonArray sensors = line["sensors"].to<JsonArray>();
-    for (int s = 0; s < SENSORS_PER_LINE; s++) {
-      int idx = (l - 1) * SENSORS_PER_LINE + s;
-      JsonObject sensor = sensors.add<JsonObject>();
-      sensor["id"]     = sensorArray[idx].id;
-      sensor["type"]   = SENSOR_TYPES[s];
-      sensor["value"]  = round(sensorArray[idx].value * 100.0f) / 100.0f;
-      sensor["unit"]   = SENSOR_UNITS[s];
-      sensor["status"] = sensorArray[idx].status;
-    }
-  }
-
-  // Active alarms count
-  doc["active_alarms"] = getActiveAlarmCount();
-
-  // Active incidents count
-  doc["active_incidents"] = getActiveIncidentCount();
-
-  // System info
-  doc["uptime_sec"]  = millis() / 1000;
-  doc["heap_free"]   = ESP.getFreeHeap();
-  doc["timestamp"]   = getISOTimestamp();
-
-  String out;
-  serializeJson(doc, out);
-  return out;
-}
-
-// ===== Get line status =====
-String getLineStatus(int line) {
-  bool hasAlarm = false;
+// Determine overall line status from its sensors
+static const char* getLineStatus(int line) {
   bool hasCritical = false;
+  bool hasWarning = false;
+  int base = (line - 1) * SENSORS_PER_LINE;
 
-  for (int s = 0; s < SENSORS_PER_LINE; s++) {
-    int idx = (line - 1) * SENSORS_PER_LINE + s;
-    if (strcmp(sensorArray[idx].status, "critical") == 0 || strcmp(sensorArray[idx].status, "fault") == 0) hasCritical = true;
-    if (strcmp(sensorArray[idx].status, "high") == 0) hasAlarm = true;
+  for (int i = 0; i < SENSORS_PER_LINE; i++) {
+    const char* st = getSensorStatus(sensors[base + i]);
+    if (strcmp(st, "CRITICAL") == 0 || strcmp(st, "FAULT") == 0) hasCritical = true;
+    else if (strcmp(st, "WARNING") == 0 || strcmp(st, "LOW") == 0) hasWarning = true;
   }
 
-  if (hasCritical) return "alarm";
-  if (hasAlarm) return "warning";
-  if (line == 3) return "stopped";  // Line 3 starts stopped
-  return "running";
+  if (hasCritical) return "CRITICAL";
+  if (hasWarning) return "WARNING";
+  return "NORMAL";
+}
+
+String getDashboardStatusJSON() {
+  DynamicJsonDocument doc(4096);
+
+  // System uptime
+  doc["uptime"] = millis() - systemStartTime;
+
+  // Lines array
+  JsonArray linesArr = doc.createNestedArray("lines");
+  for (int line = 1; line <= NUM_LINES; line++) {
+    JsonObject lineObj = linesArr.createNestedObject();
+    lineObj["line"] = line;
+    lineObj["status"] = getLineStatus(line);
+
+    JsonArray sensArr = lineObj.createNestedArray("sensors");
+    int base = (line - 1) * SENSORS_PER_LINE;
+    for (int s = 0; s < SENSORS_PER_LINE; s++) {
+      const SensorData &sd = sensors[base + s];
+      JsonObject sObj = sensArr.createNestedObject();
+      sObj["id"] = sd.id;
+      sObj["type"] = SENSOR_TYPE_NAMES[sd.type];
+      sObj["value"] = serialized(String(sd.currentValue, 2));
+      sObj["unit"] = SENSOR_UNITS[sd.type];
+      sObj["status"] = getSensorStatus(sd);
+    }
+  }
+
+  // Alarms summary
+  JsonObject alarmsObj = doc.createNestedObject("alarms");
+  int activeCount = 0;
+  int critCount = 0;
+  for (int i = 0; i < alarmCount; i++) {
+    if (!alarms[i].acknowledged) {
+      activeCount++;
+      if (strcmp(alarms[i].level, "CRITICAL") == 0) critCount++;
+    }
+  }
+  alarmsObj["active"] = activeCount;
+  alarmsObj["critical"] = critCount;
+
+  // Actuators summary
+  JsonArray actArr = doc.createNestedArray("actuators");
+  for (int i = 0; i < TOTAL_ACTUATORS; i++) {
+    const ActuatorData &a = actuators[i];
+    JsonObject aObj = actArr.createNestedObject();
+    aObj["id"] = a.id;
+    aObj["type"] = ACTUATOR_TYPE_NAMES[a.type];
+    aObj["state"] = ACTUATOR_STATE_NAMES[a.state];
+    aObj["speed"] = serialized(String(a.speed, 1));
+    aObj["line"] = a.line;
+  }
+
+  String output;
+  serializeJson(doc, output);
+  doc.clear();
+  return output;
 }

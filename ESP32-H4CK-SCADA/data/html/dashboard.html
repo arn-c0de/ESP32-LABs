@@ -1,105 +1,149 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32-SCADA | Dashboard</title>
+  <title>Dashboard - ESP32-H4CK-SCADA</title>
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="stylesheet" href="/css/scada.css">
-  <link rel="stylesheet" href="/css/mobile.css">
 </head>
 <body>
-  <div class="app">
-    <!-- Sidebar -->
-    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
-    <nav class="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">ESP32-SCADA</div>
-        <div class="sidebar-subtitle">Industrial Security Lab</div>
-      </div>
-      <div class="sidebar-nav">
-        <a href="/dashboard" class="nav-item active"><span class="nav-icon">D</span> Dashboard</a>
-        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
-        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
-        <a href="/alarms" class="nav-item"><span class="nav-icon">!</span> Alarms <span class="nav-badge" id="nav-alarm-count">0</span></a>
-        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
-        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
-        <a href="/defense" class="nav-item"><span class="nav-icon">D</span> Defense</a>
-        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
-        <a href="/admin" class="nav-item admin-only"><span class="nav-icon">*</span> Admin</a>
-      </div>
-      <div style="padding:16px;border-top:1px solid var(--border-color)">
-        <div class="text-sm"><span class="user-name"></span> (<span class="user-role"></span>)</div>
-        <button class="btn btn-sm mt-md" onclick="API.logout()" style="width:100%">Logout</button>
-      </div>
-    </nav>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h1>⚡ SCADA Control</h1>
+    </div>
+    <div class="nav-menu">
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/sensors">Sensors</a>
+      <a href="/actuators">Actuators</a>
+      <a href="/alarms">Alarms</a>
+      <span class="nav-user" id="nav-user"></span>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
 
-    <!-- Main -->
-    <main class="main-content">
-      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
-
-      <div class="topbar">
-        <h1 class="topbar-title">SCADA Dashboard</h1>
-        <div class="topbar-actions">
-          <span class="topbar-time" id="clock"></span>
-          <button class="btn btn-sm mode-toggle">Light</button>
-        </div>
+  <div class="container">
+    <div class="page-header">
+      <h2>Production Overview</h2>
+      <div class="system-status" id="system-status">
+        <span class="status-badge status-online">● ONLINE</span>
+        <span id="uptime"></span>
       </div>
+    </div>
 
-      <!-- Stats Row -->
-      <div class="grid grid-4 mb-md">
-        <div class="card text-center">
-          <div class="metric-value text-green" id="uptime">--</div>
-          <div class="metric-label">Uptime</div>
-        </div>
-        <div class="card text-center">
-          <div class="metric-value text-red" id="alarm-count">0</div>
-          <div class="metric-label">Active Alarms</div>
-        </div>
-        <div class="card text-center">
-          <div class="metric-value text-yellow" id="incident-count">0</div>
-          <div class="metric-label">Incidents</div>
-        </div>
-        <div class="card text-center">
-          <div class="metric-value text-blue" id="client-count">--</div>
-          <div class="metric-label">Connected</div>
-        </div>
-      </div>
+    <!-- Production Lines Grid -->
+    <div class="lines-grid" id="lines-grid">
+      <!-- Lines will be populated by JavaScript -->
+    </div>
 
-      <!-- Production Lines -->
-      <div class="grid grid-2" id="line-cards">
-        <div class="card"><p class="text-muted">Loading production lines...</p></div>
+    <!-- System Statistics -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h3>Total Sensors</h3>
+        <div class="stat-value" id="total-sensors">--</div>
       </div>
-
-      <!-- P&ID Mimic Panel -->
-      <div class="card mt-md">
-        <div class="card-header">
-          <span class="card-title">P&ID Mimic Panel</span>
-          <div class="mimic-controls">
-            <select id="line-filter" onchange="dashboard.refresh()">
-              <option value="all">All Lines</option>
-              <option value="1">Line 1</option>
-              <option value="2">Line 2</option>
-              <option value="3">Line 3</option>
-              <option value="4">Line 4</option>
-            </select>
-          </div>
-        </div>
-        <div class="mimic-panel">
-          <canvas id="pid-canvas"></canvas>
-        </div>
+      <div class="stat-card">
+        <h3>Active Actuators</h3>
+        <div class="stat-value" id="active-actuators">--</div>
       </div>
-    </main>
+      <div class="stat-card">
+        <h3>Active Alarms</h3>
+        <div class="stat-value alarm-count" id="alarm-count">--</div>
+      </div>
+      <div class="stat-card">
+        <h3>System Load</h3>
+        <div class="stat-value" id="system-load">--</div>
+      </div>
+    </div>
   </div>
 
-  <script src="/js/api.js"></script>
   <script src="/js/auth-sync.js"></script>
-  <script src="/js/mode.js"></script>
-  <script src="/js/notifications.js"></script>
-  <script src="/js/dashboard.js"></script>
+  <script src="/js/navbar.js"></script>
   <script>
-    Auth.requireAuth();
-    Auth.updateUI();
+    requireAuth();
+    
+    let updateInterval;
+    
+    async function loadDashboard() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch('/api/dashboard/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load dashboard');
+        }
+        
+        const data = await response.json();
+        
+        // Update system info
+        document.getElementById('uptime').textContent = formatUptime(data.uptime);
+        document.getElementById('total-sensors').textContent = data.total_sensors;
+        document.getElementById('active-actuators').textContent = data.active_actuators;
+        document.getElementById('alarm-count').textContent = data.active_alarms;
+        document.getElementById('system-load').textContent = `${data.cpu_usage}%`;
+        
+        // Update production lines
+        const linesGrid = document.getElementById('lines-grid');
+        linesGrid.innerHTML = '';
+        
+        data.lines.forEach(line => {
+          const lineCard = document.createElement('div');
+          lineCard.className = `line-card line-status-${line.status}`;
+          lineCard.innerHTML = `
+            <div class="line-header">
+              <h3>Production Line ${line.number}</h3>
+              <span class="status-badge status-${line.status}">${line.status.toUpperCase()}</span>
+            </div>
+            <div class="line-metrics">
+              <div class="metric">
+                <span class="metric-label">Temperature:</span>
+                <span class="metric-value">${line.temp.toFixed(1)}°C</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Pressure:</span>
+                <span class="metric-value">${line.pressure.toFixed(1)} bar</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Flow:</span>
+                <span class="metric-value">${line.flow.toFixed(1)} L/min</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Motor:</span>
+                <span class="metric-value">${line.motor_state} (${line.motor_speed.toFixed(0)}%)</span>
+              </div>
+            </div>
+            ${line.alarms > 0 ? `<div class="line-alarms">⚠️ ${line.alarms} alarm(s)</div>` : ''}
+          `;
+          linesGrid.appendChild(lineCard);
+        });
+        
+      } catch (error) {
+        console.error('Dashboard error:', error);
+      }
+    }
+    
+    function formatUptime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m`;
+    }
+    
+    // Initial load
+    loadDashboard();
+    
+    // Auto-refresh every 3 seconds
+    updateInterval = setInterval(loadDashboard, 3000);
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (updateInterval) clearInterval(updateInterval);
+    });
   </script>
 </body>
 </html>

@@ -1,124 +1,206 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32-SCADA | Alarms</title>
+  <title>Alarms - ESP32-H4CK-SCADA</title>
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="stylesheet" href="/css/scada.css">
-  <link rel="stylesheet" href="/css/mobile.css">
 </head>
 <body>
-  <div class="app">
-    <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
-    <nav class="sidebar">
-      <div class="sidebar-header"><div class="sidebar-logo">ESP32-SCADA</div><div class="sidebar-subtitle">Industrial Security Lab</div></div>
-      <div class="sidebar-nav">
-        <a href="/dashboard" class="nav-item"><span class="nav-icon">D</span> Dashboard</a>
-        <a href="/sensors" class="nav-item"><span class="nav-icon">S</span> Sensors</a>
-        <a href="/actuators" class="nav-item"><span class="nav-icon">A</span> Actuators</a>
-        <a href="/alarms" class="nav-item active"><span class="nav-icon">!</span> Alarms</a>
-        <a href="/incidents" class="nav-item"><span class="nav-icon">I</span> Incidents</a>
-        <a href="/flags" class="nav-item"><span class="nav-icon">F</span> Flags</a>
-        <a href="/leaderboard" class="nav-item"><span class="nav-icon">L</span> Leaderboard</a>
-      </div>
-      <div style="padding:16px;border-top:1px solid var(--border-color)"><button class="btn btn-sm" onclick="API.logout()" style="width:100%">Logout</button></div>
-    </nav>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h1>⚡ SCADA Control</h1>
+    </div>
+    <div class="nav-menu">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/sensors">Sensors</a>
+      <a href="/actuators">Actuators</a>
+      <a href="/alarms" class="active">Alarms</a>
+      <span class="nav-user" id="nav-user"></span>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </nav>
 
-    <main class="main-content">
-      <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">Menu</button>
-      <div class="topbar">
-        <h1 class="topbar-title">Alarms</h1>
-        <div class="topbar-actions">
-          <span class="badge badge-red" id="alarm-total">0 Active</span>
-          <button class="btn btn-sm mode-toggle">Light</button>
-        </div>
+  <div class="container">
+    <div class="page-header">
+      <h2>Alarm History</h2>
+      <div class="filter-controls">
+        <label>Filter by Line:</label>
+        <select id="line-filter" onchange="loadAlarms()">
+          <option value="0">All Lines</option>
+          <option value="1">Line 1</option>
+          <option value="2">Line 2</option>
+          <option value="3">Line 3</option>
+          <option value="4">Line 4</option>
+        </select>
+        <label>Limit:</label>
+        <select id="limit-filter" onchange="loadAlarms()">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
       </div>
+    </div>
 
-      <!-- Active Alarms -->
-      <div class="card alarm-panel">
-        <div class="card-header">
-          <span class="card-title">Active Alarms</span>
-        </div>
-        <div class="alarm-list" id="active-alarms">
-          <p class="text-muted text-center">Loading...</p>
-        </div>
+    <div class="alarms-summary">
+      <div class="alarm-stat critical">
+        <h4>Critical</h4>
+        <div class="alarm-stat-count" id="critical-count">0</div>
       </div>
+      <div class="alarm-stat high">
+        <h4>High</h4>
+        <div class="alarm-stat-count" id="high-count">0</div>
+      </div>
+      <div class="alarm-stat medium">
+        <h4>Medium</h4>
+        <div class="alarm-stat-count" id="medium-count">0</div>
+      </div>
+      <div class="alarm-stat low">
+        <h4>Low</h4>
+        <div class="alarm-stat-count" id="low-count">0</div>
+      </div>
+    </div>
 
-      <!-- Alarm History -->
-      <div class="card mt-md">
-        <div class="card-header">
-          <span class="card-title">Alarm History</span>
-          <select class="form-select" style="width:auto" id="history-line" onchange="loadHistory()">
-            <option value="">All Lines</option>
-            <option value="1">Line 1</option><option value="2">Line 2</option>
-            <option value="3">Line 3</option><option value="4">Line 4</option>
-          </select>
-        </div>
-        <div class="table-wrapper" id="alarm-history">
-          <p class="text-muted text-center">Loading...</p>
-        </div>
-      </div>
-    </main>
+    <div class="alarms-table-container">
+      <table class="alarms-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Sensor</th>
+            <th>Line</th>
+            <th>Level</th>
+            <th>Value</th>
+            <th>Threshold</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="alarms-tbody">
+          <!-- Alarms will be populated by JavaScript -->
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <script src="/js/api.js"></script>
   <script src="/js/auth-sync.js"></script>
-  <script src="/js/mode.js"></script>
-  <script src="/js/notifications.js"></script>
+  <script src="/js/navbar.js"></script>
   <script>
-    Auth.requireAuth(); Auth.updateUI();
-
+    requireAuth();
+    
+    let alarms = [];
+    let updateInterval;
+    const userRole = localStorage.getItem('role');
+    const canAcknowledge = ['admin', 'operator', 'maintenance'].includes(userRole);
+    
     async function loadAlarms() {
       try {
-        const data = await API.get('/api/alarms/active');
-        const alarms = data.alarms || [];
-        document.getElementById('alarm-total').textContent = (data.count || 0) + ' Active';
-        document.getElementById('active-alarms').innerHTML = alarms.length ? alarms.map(a => `
-          <div class="alarm-item alarm-${a.severity.toLowerCase()}">
-            <div class="alarm-indicator"></div>
-            <div class="alarm-content">
-              <div class="alarm-title">${a.message}</div>
-              <div class="alarm-details">
-                ${a.sensor} | ${a.value} (threshold: ${a.threshold})
-              </div>
-              <div class="alarm-meta">
-                <span>${a.age_sec}s ago</span>
-                <span>Line ${a.line}</span>
-                <span class="badge badge-${a.severity==='CRITICAL'?'red':a.severity==='HIGH'?'orange':'yellow'}">${a.severity}</span>
-              </div>
-            </div>
-          </div>
-        `).join('') : '<p class="text-muted text-center" style="padding:16px">No active alarms</p>';
-      } catch (err) { /* silent */ }
+        const token = localStorage.getItem('jwt_token');
+        const line = document.getElementById('line-filter').value;
+        const limit = document.getElementById('limit-filter').value;
+        
+        const url = `/api/alarms?line=${line}&limit=${limit}`;
+        
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load alarms');
+        }
+        
+        alarms = await response.json();
+        renderAlarms();
+        updateSummary();
+        
+      } catch (error) {
+        console.error('Alarms error:', error);
+      }
     }
-
-    async function loadHistory() {
-      const line = document.getElementById('history-line').value;
+    
+    function renderAlarms() {
+      const tbody = document.getElementById('alarms-tbody');
+      
+      if (alarms.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No alarms</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = alarms.map((alarm, idx) => `
+        <tr class="alarm-row alarm-level-${alarm.level.toLowerCase()} ${alarm.acknowledged ? 'alarm-ack' : ''}">
+          <td>${new Date(alarm.timestamp).toLocaleString()}</td>
+          <td>${alarm.sensor_id}</td>
+          <td>Line ${alarm.line}</td>
+          <td><span class="alarm-badge alarm-badge-${alarm.level.toLowerCase()}">${alarm.level}</span></td>
+          <td>${alarm.value.toFixed(2)}</td>
+          <td>${alarm.threshold.toFixed(2)}</td>
+          <td>${alarm.acknowledged ? '✓ ACK' : '⚠ ACTIVE'}</td>
+          <td>
+            ${!alarm.acknowledged && canAcknowledge ? 
+              `<button class="btn btn-sm btn-primary" onclick="acknowledgeAlarm(${idx})">Acknowledge</button>` : 
+              '-'}
+          </td>
+        </tr>
+      `).join('');
+    }
+    
+    function updateSummary() {
+      const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+      
+      alarms.forEach(alarm => {
+        if (!alarm.acknowledged) {
+          counts[alarm.level] = (counts[alarm.level] || 0) + 1;
+        }
+      });
+      
+      document.getElementById('critical-count').textContent = counts.CRITICAL || 0;
+      document.getElementById('high-count').textContent = counts.HIGH || 0;
+      document.getElementById('medium-count').textContent = counts.MEDIUM || 0;
+      document.getElementById('low-count').textContent = counts.LOW || 0;
+    }
+    
+    async function acknowledgeAlarm(index) {
+      if (!canAcknowledge) {
+        alert('Insufficient permissions');
+        return;
+      }
+      
       try {
-        const data = await API.get(`/api/alarms/history?line=${line}&limit=30`);
-        const history = data.history ? (typeof data.history === 'string' ? JSON.parse(data.history) : data.history) : [];
-        document.getElementById('alarm-history').innerHTML = history.length ? `
-          <table>
-            <tr><th>ID</th><th>Sensor</th><th>Severity</th><th>Value</th><th>Message</th><th>Time</th></tr>
-            ${history.map(h => `
-              <tr>
-                <td class="text-mono text-xs">${h.id||''}</td>
-                <td class="text-mono">${h.sensor||''}</td>
-                <td><span class="badge badge-${h.severity==='CRITICAL'?'red':'yellow'}">${h.severity||''}</span></td>
-                <td class="text-mono">${h.value||''}</td>
-                <td class="text-sm">${h.message||''}</td>
-                <td class="text-xs">${h.timestamp||''}</td>
-              </tr>
-            `).join('')}
-          </table>
-          ${data._access_note ? '<div class="text-mono text-sm text-green mt-md">' + data._access_note + '</div>' : ''}
-        ` : '<p class="text-muted text-center" style="padding:16px">No history</p>';
-      } catch (err) { /* silent */ }
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch(`/api/alarms/${index}/ack`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          alert(data.error || 'Failed to acknowledge alarm');
+          return;
+        }
+        
+        // Immediate refresh
+        await loadAlarms();
+        
+      } catch (error) {
+        console.error('Acknowledge error:', error);
+        alert('Network error');
+      }
     }
-
-    loadAlarms(); loadHistory();
-    setInterval(loadAlarms, 5000);
+    
+    // Initial load
+    loadAlarms();
+    
+    // Auto-refresh every 5 seconds
+    updateInterval = setInterval(loadAlarms, 5000);
+    
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      if (updateInterval) clearInterval(updateInterval);
+    });
   </script>
 </body>
 </html>

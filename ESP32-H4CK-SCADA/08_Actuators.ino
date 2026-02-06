@@ -1,288 +1,268 @@
-// ============================================================
-// 08_Actuators.ino — Command Execution + State Machine
-// Motors, Valves, Pumps across 4 production lines
-// ============================================================
+/*
+ * Actuator Control Module
+ *
+ * State machine for motors and valves across 4 production lines.
+ * Includes intentional command injection vulnerability.
+ */
 
-#include "include/common.h"
+void initActuators() {
+  for (int line = 0; line < NUM_LINES; line++) {
+    int base = line * ACTUATORS_PER_LINE;
 
-#define MAX_ACTUATORS 20  // 4 lines × (2 motors + 2 valves + 1 pump)
-Actuator actuators[MAX_ACTUATORS];
-int actuatorCount = 0;
+    // First actuator per line: MOTOR
+    ActuatorData &motor = actuators[base];
+    snprintf(motor.id, sizeof(motor.id), "MOTOR-L%d-01", line + 1);
+    motor.line = line + 1;
+    motor.type = MOTOR;
+    motor.state = ACT_STOPPED;
+    motor.speed = 0.0f;
+    motor.targetSpeed = 0.0f;
+    motor.stateChangeTime = millis();
+    motor.locked = false;
 
-void actuatorsInit() {
-  Serial.println("[ACTUATORS] Initializing actuators...");
-  actuatorCount = 0;
-
-  for (int l = 1; l <= NUM_LINES; l++) {
-    // 2 Motors per line
-    for (int m = 1; m <= 2; m++) {
-      Actuator& a = actuators[actuatorCount++];
-      snprintf(a.id, sizeof(a.id), "MOTOR-L%d-%02d", l, m);
-      a.line  = l;
-      a.type  = ACT_MOTOR;
-      a.state = (l == 3) ? STATE_STOPPED : STATE_RUNNING;
-      a.speed = (l == 3) ? 0.0f : 75.0f;
-      a.rpm   = (l == 3) ? 0.0f : 1500.0f;
-      a.flow  = 0;
-      a.commandCount = 0;
-      a.lastCommand  = 0;
-      a.locked = false;
-    }
-    // 2 Valves per line
-    for (int v = 1; v <= 2; v++) {
-      Actuator& a = actuators[actuatorCount++];
-      snprintf(a.id, sizeof(a.id), "VALVE-L%d-%02d", l, v);
-      a.line  = l;
-      a.type  = ACT_VALVE;
-      a.state = STATE_OPEN;
-      a.speed = 0;
-      a.rpm   = 0;
-      a.flow  = 0;
-      a.commandCount = 0;
-      a.lastCommand  = 0;
-      a.locked = false;
-    }
-    // 1 Pump per line
-    {
-      Actuator& a = actuators[actuatorCount++];
-      snprintf(a.id, sizeof(a.id), "PUMP-L%d-01", l);
-      a.line  = l;
-      a.type  = ACT_PUMP;
-      a.state = (l == 3) ? STATE_STOPPED : STATE_RUNNING;
-      a.speed = (l == 3) ? 0.0f : 80.0f;
-      a.rpm   = 0;
-      a.flow  = (l == 3) ? 0.0f : 120.0f;
-      a.commandCount = 0;
-      a.lastCommand  = 0;
-      a.locked = false;
-    }
+    // Second actuator per line: VALVE
+    ActuatorData &valve = actuators[base + 1];
+    snprintf(valve.id, sizeof(valve.id), "VALVE-L%d-02", line + 1);
+    valve.line = line + 1;
+    valve.type = VALVE;
+    valve.state = ACT_RUNNING;   // Valves start open
+    valve.speed = 100.0f;        // 100% = fully open
+    valve.targetSpeed = 100.0f;
+    valve.stateChangeTime = millis();
+    valve.locked = false;
   }
 
-  Serial.printf("[ACTUATORS] %d actuators initialized.\n", actuatorCount);
+  Serial.printf("[ACTUATORS] Initialized %d actuators across %d lines\n", TOTAL_ACTUATORS, NUM_LINES);
 }
 
-// ===== Find actuator by ID =====
-Actuator* getActuatorById(const String& id) {
-  for (int i = 0; i < actuatorCount; i++) {
-    if (String(actuators[i].id) == id) return &actuators[i];
+String getActuatorListJSON() {
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.to<JsonArray>();
+
+  for (int i = 0; i < TOTAL_ACTUATORS; i++) {
+    const ActuatorData &a = actuators[i];
+    JsonObject obj = arr.createNestedObject();
+    obj["id"] = a.id;
+    obj["line"] = a.line;
+    obj["type"] = ACTUATOR_TYPE_NAMES[a.type];
+    obj["state"] = ACTUATOR_STATE_NAMES[a.state];
+    obj["speed"] = serialized(String(a.speed, 1));
+    obj["targetSpeed"] = serialized(String(a.targetSpeed, 1));
+    obj["locked"] = a.locked;
   }
-  return nullptr;
+
+  String output;
+  serializeJson(doc, output);
+  doc.clear();
+  return output;
 }
 
-// ===== Get motor speed for a line (for physics cross-correlation) =====
-float getLineMotorSpeed(int line) {
-  for (int i = 0; i < actuatorCount; i++) {
-    if (actuators[i].line == line && actuators[i].type == ACT_MOTOR) {
-      return actuators[i].speed;
+// Find actuator index by ID, returns -1 if not found
+static int findActuatorByID(const char* actuatorId) {
+  for (int i = 0; i < TOTAL_ACTUATORS; i++) {
+    if (strcmp(actuators[i].id, actuatorId) == 0) {
+      return i;
     }
   }
-  return 0.0f;
+  return -1;
 }
 
-// ===== Execute actuator command =====
-String executeActuatorCommand(const String& actuatorId, const String& cmd,
-                              JsonVariant params) {
-  Actuator* act = getActuatorById(actuatorId);
-  if (!act) return jsonError("Actuator not found: " + actuatorId, 404);
-
-  if (act->locked) return jsonError("Actuator locked by safety interlock", 423);
-
-  act->commandCount++;
-  act->lastCommand = millis();
-
-  JsonDocument result;
-  result["actuator_id"] = actuatorId;
-  result["command"]     = cmd;
-  result["timestamp"]   = getISOTimestamp();
-
-  // Command Injection vulnerability (Path 2)
-  if (VULN_COMMAND_INJECT && params.is<JsonObject>()) {
-    String speedStr = params["speed"] | "";
-
-    // Check for injection pattern: "value;simulate:command"
-    int injectIdx = speedStr.indexOf(";simulate:");
-    if (injectIdx >= 0) {
-      String simCmd = speedStr.substring(injectIdx + 10);
-      debugLogf("VULN", "Command injection detected: %s", simCmd.c_str());
-
-      logDefenseEvent("COMMAND_INJECTION", "", "Injected: " + simCmd);
-
-      // Simulate command execution (no real shell!)
-      String simResult = simulateCommand(simCmd);
-      result["sim_output"]    = simResult;
-      result["_debug"]        = "Command executed in simulation sandbox";
-      result["vulnerability"] = "COMMAND_INJECTION";
-
-      // Extract actual speed value
-      speedStr = speedStr.substring(0, injectIdx);
-    }
-
-    // Apply speed if valid
-    float newSpeed = speedStr.toFloat();
-    if (newSpeed >= 0 && newSpeed <= 100) {
-      act->speed = newSpeed;
-      act->rpm   = newSpeed * 18.0f;  // RPM = speed% × 18
-    }
-  }
-
-  if (cmd == "start") {
-    act->state = STATE_RUNNING;
-    act->speed = params["speed"] | 75.0f;
-    act->rpm   = act->speed * 18.0f;
-    result["status"] = "started";
-  } else if (cmd == "stop") {
-    act->state = STATE_STOPPED;
-    act->speed = 0;
-    act->rpm   = 0;
-    result["status"] = "stopped";
-  } else if (cmd == "set") {
-    if (act->type == ACT_VALVE) {
-      String pos = params["position"] | "open";
-      act->state = (pos == "open") ? STATE_OPEN : STATE_CLOSED;
-      result["state"] = (act->state == STATE_OPEN) ? "open" : "closed";
-    }
-    result["status"] = "updated";
-  } else if (cmd == "emergency_stop") {
-    act->state = STATE_STOPPED;
-    act->speed = 0;
-    act->rpm   = 0;
-    act->locked = true;
-    result["status"] = "emergency_stopped";
-    result["locked"] = true;
-  } else {
-    result["error"] = "Unknown command: " + cmd;
-  }
-
-  result["current_state"]  = stateToString(act->state);
-  result["current_speed"]  = act->speed;
-  result["command_count"]  = act->commandCount;
-
-  act->lastCommandResult = cmd;
-
-  String out;
-  serializeJson(result, out);
-  return out;
+// Build a JSON result string using snprintf (low memory)
+static String makeResult(bool success, const char* message, const ActuatorData &a) {
+  char buf[256];
+  snprintf(buf, sizeof(buf),
+    "{\"success\":%s,\"message\":\"%s\","
+    "\"actuator\":{\"id\":\"%s\",\"type\":\"%s\","
+    "\"state\":\"%s\",\"speed\":%.1f,\"line\":%d}}",
+    success ? "true" : "false",
+    message,
+    a.id,
+    ACTUATOR_TYPE_NAMES[a.type],
+    ACTUATOR_STATE_NAMES[a.state],
+    a.speed,
+    a.line);
+  return String(buf);
 }
 
-// ===== Simulate shell command (for injection vuln) =====
-String simulateCommand(const String& cmd) {
-  // Read simulated files from LittleFS
-  if (cmd.startsWith("cat ")) {
-    String path = cmd.substring(4);
-    path.trim();
-    // Map simulated paths to LittleFS paths
-    if (path.indexOf("maintenance") >= 0) {
-      return dbGetMaintenance();
+String executeActuatorCommand(const char* actuatorId, const char* cmd, float param) {
+
+  // ===== VULNERABILITY: Command Injection =====
+  // If VULN_COMMAND_INJECT is enabled, check if the actuatorId or cmd
+  // contains a ";simulate:" payload and return simulated file contents.
+  if (VULN_COMMAND_INJECT) {
+    // Check actuatorId for injection
+    const char* injectA = strstr(actuatorId, ";simulate:");
+    const char* injectC = strstr(cmd, ";simulate:");
+    const char* payload = injectA ? injectA : injectC;
+
+    if (payload) {
+      const char* filename = payload + 10;  // skip ";simulate:"
+      // Simulated file system responses (no real FS access)
+      char response[512];
+
+      if (strstr(filename, "/etc/passwd") || strstr(filename, "passwd")) {
+        snprintf(response, sizeof(response),
+          "{\"output\":\"root:x:0:0:root:/root:/bin/bash\\n"
+          "scada:x:1000:1000:SCADA Service:/home/scada:/bin/bash\\n"
+          "plc:x:1001:1001:PLC Controller:/home/plc:/usr/sbin/nologin\\n"
+          "hmi:x:1002:1002:HMI Interface:/home/hmi:/bin/bash\","
+          "\"flag\":\"FLAG{cmd_injection_scada_0x41}\"}");
+      } else if (strstr(filename, "shadow")) {
+        snprintf(response, sizeof(response),
+          "{\"output\":\"root:$6$rounds=5000$salt$hash:18000:0:99999:7:::\\n"
+          "scada:$6$rounds=5000$weak$hash:18000:0:99999:7:::\","
+          "\"flag\":\"FLAG{shadow_file_accessed_0x42}\"}");
+      } else if (strstr(filename, "config") || strstr(filename, ".env")) {
+        snprintf(response, sizeof(response),
+          "{\"output\":\"DB_HOST=192.168.1.100\\n"
+          "DB_USER=scada_admin\\n"
+          "DB_PASS=Pr0duct10n!\\n"
+          "PLC_KEY=A1B2C3D4E5F6\","
+          "\"flag\":\"FLAG{config_leak_scada_0x43}\"}");
+      } else {
+        snprintf(response, sizeof(response),
+          "{\"output\":\"cat: %s: simulated access\\n"
+          "Contents would appear here in a real system.\","
+          "\"flag\":\"FLAG{arbitrary_read_scada_0x44}\"}", filename);
+      }
+
+      return String(response);
     }
-    if (path.indexOf("equipment") >= 0) {
-      return dbGetEquipment();
+  }
+  // ===== END VULNERABILITY =====
+
+  // Find actuator
+  int idx = findActuatorByID(actuatorId);
+  if (idx < 0) {
+    char buf[128];
+    snprintf(buf, sizeof(buf),
+      "{\"success\":false,\"message\":\"Actuator '%s' not found\"}", actuatorId);
+    return String(buf);
+  }
+
+  ActuatorData &a = actuators[idx];
+
+  // Check if locked
+  if (a.locked) {
+    return makeResult(false, "Actuator is locked by safety system", a);
+  }
+
+  unsigned long now = millis();
+
+  // === COMMAND: start ===
+  if (strcmp(cmd, "start") == 0) {
+    if (a.state == ACT_RUNNING) {
+      return makeResult(false, "Already running", a);
     }
-    if (path.indexOf("sensors") >= 0) {
-      return dbGetSensors();
+    if (a.state == ACT_STARTING) {
+      return makeResult(false, "Already starting", a);
     }
-    if (path.indexOf("logs") >= 0) {
-      return dbGetLogs();
+    if (a.state == ACT_FAULT) {
+      return makeResult(false, "Clear fault before starting", a);
     }
-    return "cat: " + path + ": No such file. FLAG{command_injection_cat_" +
-           sha256Hash(path).substring(0, 8) + "}";
-  }
 
-  if (cmd == "ls" || cmd.startsWith("ls ")) {
-    return "equipment.json\nsensors.json\nactuators.json\nalarms.json\n"
-           "maintenance.json\nincidents.json\nlogs.json\n"
-           "FLAG{command_injection_ls_enumeration}";
-  }
+    a.state = ACT_STARTING;
+    a.stateChangeTime = now;
 
-  if (cmd == "whoami") {
-    return "scada-operator\nFLAG{command_injection_whoami}";
-  }
-
-  if (cmd == "id") {
-    return "uid=1000(scada) gid=1000(scada) groups=1000(scada),27(operator)";
-  }
-
-  if (cmd == "env" || cmd == "printenv") {
-    return "SCADA_SECRET=" + String(SECRET_KEY) + "\n"
-           "JWT_KEY=" + String(JWT_SECRET) + "\n"
-           "FLAG{command_injection_env_leak}";
-  }
-
-  return "simulate: command not found: " + cmd;
-}
-
-// ===== Race condition trigger =====
-String triggerRaceCondition(const String& actuatorId, int count) {
-  Actuator* act = getActuatorById(actuatorId);
-  if (!act) return jsonError("Actuator not found", 404);
-
-  JsonDocument doc;
-  doc["actuator"]  = actuatorId;
-  doc["commands"]  = count;
-  doc["vulnerability"] = "RACE_CONDITION";
-
-  // Simulate rapid concurrent state changes
-  String stateLog = "";
-  for (int i = 0; i < count; i++) {
-    // Toggle state rapidly
-    if (act->state == STATE_RUNNING) {
-      act->state = STATE_STOPPED;
+    if (a.type == MOTOR) {
+      a.targetSpeed = (param > 0.0f && param <= 100.0f) ? param : 75.0f;
     } else {
-      act->state = STATE_RUNNING;
+      // Valve: start means open (100%)
+      a.targetSpeed = 100.0f;
     }
-    act->commandCount++;
 
-    // Intentional race: on specific iteration, corrupt state
-    if (i == count / 2) {
-      act->lastCommandResult = "RUNNING;FLAG{race_condition_" +
-        String(actuatorId) + "_corrupted}";
+    return makeResult(true, "Starting", a);
+  }
+
+  // === COMMAND: stop ===
+  if (strcmp(cmd, "stop") == 0) {
+    if (a.state == ACT_STOPPED) {
+      return makeResult(false, "Already stopped", a);
+    }
+    if (a.state == ACT_STOPPING) {
+      return makeResult(false, "Already stopping", a);
+    }
+
+    a.state = ACT_STOPPING;
+    a.targetSpeed = 0.0f;
+    a.stateChangeTime = now;
+
+    return makeResult(true, "Stopping", a);
+  }
+
+  // === COMMAND: set (speed/position) ===
+  if (strcmp(cmd, "set") == 0) {
+    if (a.type == MOTOR) {
+      // Motor: speed 0-100
+      if (param < 0.0f) param = 0.0f;
+      if (param > 100.0f) param = 100.0f;
+
+      if (a.state != ACT_RUNNING && param > 0.0f) {
+        // Auto-start if setting speed > 0
+        a.state = ACT_STARTING;
+        a.stateChangeTime = now;
+      } else if (param == 0.0f && a.state == ACT_RUNNING) {
+        a.state = ACT_STOPPING;
+        a.stateChangeTime = now;
+      }
+
+      a.targetSpeed = param;
+      if (a.state == ACT_RUNNING) {
+        a.speed = param;  // immediate for running motors
+      }
+
+      char msg[64];
+      snprintf(msg, sizeof(msg), "Speed set to %.1f%%", param);
+      return makeResult(true, msg, a);
+    } else {
+      // Valve: binary 0 (closed) or 100 (open)
+      float pos = (param >= 50.0f) ? 100.0f : 0.0f;
+
+      if (pos > 0.0f && a.state != ACT_RUNNING) {
+        a.state = ACT_STARTING;
+        a.stateChangeTime = now;
+      } else if (pos == 0.0f && a.state == ACT_RUNNING) {
+        a.state = ACT_STOPPING;
+        a.stateChangeTime = now;
+      }
+
+      a.targetSpeed = pos;
+      if (a.state == ACT_RUNNING) {
+        a.speed = pos;
+      }
+
+      char msg[64];
+      snprintf(msg, sizeof(msg), "Valve %s", pos > 0.0f ? "opening" : "closing");
+      return makeResult(true, msg, a);
     }
   }
 
-  doc["final_state"]    = stateToString(act->state);
-  doc["corrupted_field"] = act->lastCommandResult;
-  doc["total_commands"]  = act->commandCount;
-  doc["warning"]         = "State may be corrupted due to concurrent access";
+  // === COMMAND: emergency_stop ===
+  if (strcmp(cmd, "emergency_stop") == 0) {
+    a.state = ACT_STOPPED;
+    a.speed = 0.0f;
+    a.targetSpeed = 0.0f;
+    a.stateChangeTime = now;
 
-  String out;
-  serializeJson(doc, out);
-  return out;
-}
-
-// ===== State to string =====
-const char* stateToString(ActuatorState state) {
-  switch (state) {
-    case STATE_STOPPED: return "stopped";
-    case STATE_RUNNING: return "running";
-    case STATE_OPEN:    return "open";
-    case STATE_CLOSED:  return "closed";
-    case STATE_STUCK:   return "stuck";
-    case STATE_ERROR:   return "error";
-    default:            return "unknown";
+    return makeResult(true, "Emergency stop executed", a);
   }
-}
 
-// ===== Update actuators (periodic maintenance) =====
-void actuatorsUpdate() {
-  for (int i = 0; i < actuatorCount; i++) {
-    Actuator& a = actuators[i];
-
-    // Update RPM based on speed for motors
-    if (a.type == ACT_MOTOR && a.state == STATE_RUNNING) {
-      a.rpm = a.speed * 18.0f + randomFloat(-10.0f, 10.0f);
+  // === COMMAND: clear_fault ===
+  if (strcmp(cmd, "clear_fault") == 0) {
+    if (a.state != ACT_FAULT) {
+      return makeResult(false, "No fault to clear", a);
     }
+    a.state = ACT_STOPPED;
+    a.speed = 0.0f;
+    a.targetSpeed = 0.0f;
+    a.stateChangeTime = now;
 
-    // Update flow for pumps
-    if (a.type == ACT_PUMP && a.state == STATE_RUNNING) {
-      a.flow = a.speed * 1.5f + randomFloat(-5.0f, 5.0f);
-    }
+    return makeResult(true, "Fault cleared", a);
   }
-}
 
-// ===== Set actuator state (for incident engine) =====
-void setActuatorState(const String& id, ActuatorState state) {
-  Actuator* act = getActuatorById(id);
-  if (act) {
-    act->state = state;
-    if (state == STATE_STOPPED) { act->speed = 0; act->rpm = 0; }
-  }
+  // Unknown command
+  char buf[128];
+  snprintf(buf, sizeof(buf),
+    "{\"success\":false,\"message\":\"Unknown command '%s'\"}", cmd);
+  return String(buf);
 }
