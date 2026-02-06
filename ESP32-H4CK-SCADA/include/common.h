@@ -60,7 +60,7 @@ struct SensorData {
   int    typeIdx;
   float  value;
   float  prevValue;
-  String status;
+  char   status[16];
   unsigned long lastUpdate;
 };
 
@@ -91,8 +91,8 @@ struct Alarm {
   AlarmSeverity severity;
   float    value;
   float    threshold;
-  String   message;
-  String   status;
+  char     message[128];
+  char     status[16];
   unsigned long triggeredAt;
   unsigned long clearedAt;
   bool     active;
@@ -102,8 +102,8 @@ struct Alarm {
 struct SafetyInterlock {
   char   id[20];
   int    line;
-  String condition;
-  String action;
+  char   condition[64];
+  char   action[32];
   bool   triggered;
   unsigned long triggeredAt;
 };

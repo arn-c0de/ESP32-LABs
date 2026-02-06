@@ -9,17 +9,21 @@ AsyncWebSocket ws("/ws");
 void onWsEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                AwsEventType type, void* arg, uint8_t* data, size_t len) {
   if (type == WS_EVT_CONNECT) {
-    debugLogf("WS", "Client connected: #%u from %s", client->id(),
-              client->remoteIP().toString().c_str());
+    IPAddress ip = client->remoteIP();
+    debugLogf("WS", "Client connected: #%u from %d.%d.%d.%d", client->id(),
+              ip[0], ip[1], ip[2], ip[3]);
   } else if (type == WS_EVT_DISCONNECT) {
     debugLogf("WS", "Client disconnected: #%u", client->id());
   } else if (type == WS_EVT_DATA) {
     AwsFrameInfo* info = (AwsFrameInfo*)arg;
     if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-      String msg = "";
-      for (size_t i = 0; i < len; i++) msg += (char)data[i];
+      // Use fixed buffer instead of String concatenation
+      char msgBuf[256];
+      size_t copyLen = min(len, sizeof(msgBuf) - 1);
+      memcpy(msgBuf, data, copyLen);
+      msgBuf[copyLen] = '\0';
       // Handle incoming WS messages (e.g., subscribe to specific data)
-      debugLogf("WS", "Message from #%u: %s", client->id(), msg.c_str());
+      debugLogf("WS", "Message from #%u: %s", client->id(), msgBuf);
     }
   }
 }

@@ -18,25 +18,31 @@ void alarmsInit() {
 
 // ===== Check all sensors for threshold violations =====
 void alarmsUpdate() {
+  // TEMPORARILY DISABLED FOR STABILITY TESTING
+  return;
+  
   for (int l = 0; l < NUM_LINES; l++) {
     for (int s = 0; s < SENSORS_PER_LINE; s++) {
       int idx = l * SENSORS_PER_LINE + s;
       float val = sensorArray[idx].value;
-      String status = sensorArray[idx].status;
+      const char* status = sensorArray[idx].status;
+      
+      char msgBuf[128];
 
-      if (status == "critical") {
+      if (strcmp(status, "critical") == 0) {
+        snprintf(msgBuf, sizeof(msgBuf), "%s critical: %.1f%s",
+          SENSOR_TYPES[s], val, SENSOR_UNITS[s]);
         triggerAlarm(sensorArray[idx].id, l + 1, ALM_CRITICAL, val,
-          SENSOR_CRIT_THRESH[s],
-          String(SENSOR_TYPES[s]) + " critical: " +
-          String(val, 1) + SENSOR_UNITS[s]);
-      } else if (status == "high") {
+          SENSOR_CRIT_THRESH[s], msgBuf);
+      } else if (strcmp(status, "high") == 0) {
+        snprintf(msgBuf, sizeof(msgBuf), "%s high: %.1f%s",
+          SENSOR_TYPES[s], val, SENSOR_UNITS[s]);
         triggerAlarm(sensorArray[idx].id, l + 1, ALM_HIGH, val,
-          SENSOR_HIGH_THRESH[s],
-          String(SENSOR_TYPES[s]) + " high: " +
-          String(val, 1) + SENSOR_UNITS[s]);
-      } else if (status == "fault") {
-        triggerAlarm(sensorArray[idx].id, l + 1, ALM_HIGH, val, 0,
-          String(SENSOR_TYPES[s]) + " sensor fault detected");
+          SENSOR_HIGH_THRESH[s], msgBuf);
+      } else if (strcmp(status, "fault") == 0) {
+        snprintf(msgBuf, sizeof(msgBuf), "%s sensor fault detected",
+          SENSOR_TYPES[s]);
+        triggerAlarm(sensorArray[idx].id, l + 1, ALM_HIGH, val, 0, msgBuf);
       } else {
         // Clear alarm if sensor returned to normal
         clearAlarmForSensor(sensorArray[idx].id);
@@ -46,7 +52,7 @@ void alarmsUpdate() {
 
   // Escalation: alarms active > 60s escalate severity
   for (int i = 0; i < alarmCount; i++) {
-    if (activeAlarms[i].active && activeAlarms[i].status == "active") {
+    if (activeAlarms[i].active && strcmp(activeAlarms[i].status, "active") == 0) {
       unsigned long age = millis() - activeAlarms[i].triggeredAt;
       if (age > 120000 && activeAlarms[i].severity < ALM_CRITICAL) {
         activeAlarms[i].severity = (AlarmSeverity)(activeAlarms[i].severity + 1);
@@ -62,7 +68,7 @@ void alarmsUpdate() {
 
 // ===== Trigger alarm =====
 void triggerAlarm(const char* sensorId, int line, AlarmSeverity severity,
-                  float value, float threshold, const String& message) {
+                  float value, float threshold, const char* message) {
   // Check if alarm already exists for this sensor
   for (int i = 0; i < alarmCount; i++) {
     if (activeAlarms[i].active && strcmp(activeAlarms[i].sensorId, sensorId) == 0) {
@@ -96,8 +102,9 @@ void triggerAlarm(const char* sensorId, int line, AlarmSeverity severity,
   alm.severity    = severity;
   alm.value       = value;
   alm.threshold   = threshold;
-  alm.message     = message;
-  alm.status      = "active";
+  strncpy(alm.message, message, sizeof(alm.message) - 1);
+  alm.message[sizeof(alm.message) - 1] = '\0';
+  strncpy(alm.status, "active", sizeof(alm.status) - 1);
   alm.triggeredAt = millis();
   alm.clearedAt   = 0;
   alm.active      = true;
@@ -117,7 +124,7 @@ void triggerAlarm(const char* sensorId, int line, AlarmSeverity severity,
   serializeJson(entry, json);
   alarmBuffer.push(json);
 
-  debugLogf("ALARMS", "Alarm %s: %s [%s]", alm.id, message.c_str(),
+  debugLogf("ALARMS", "Alarm %s: %s [%s]", alm.id, message,
     severityToString(severity));
 }
 
@@ -126,7 +133,7 @@ void clearAlarmForSensor(const char* sensorId) {
   for (int i = 0; i < alarmCount; i++) {
     if (activeAlarms[i].active && strcmp(activeAlarms[i].sensorId, sensorId) == 0) {
       activeAlarms[i].active    = false;
-      activeAlarms[i].status    = "cleared";
+      strncpy(activeAlarms[i].status, "cleared", sizeof(activeAlarms[i].status) - 1);
       activeAlarms[i].clearedAt = millis();
     }
   }
@@ -136,7 +143,7 @@ void clearAlarmForSensor(const char* sensorId) {
 bool acknowledgeAlarm(const String& alarmId) {
   for (int i = 0; i < alarmCount; i++) {
     if (String(activeAlarms[i].id) == alarmId && activeAlarms[i].active) {
-      activeAlarms[i].status = "acknowledged";
+      strncpy(activeAlarms[i].status, "acknowledged", sizeof(activeAlarms[i].status) - 1);
       return true;
     }
   }
@@ -209,6 +216,9 @@ const char* severityToString(AlarmSeverity sev) {
 
 // ===== WebSocket broadcast =====
 void wsBroadcastAlarms() {
+  // TEMPORARILY DISABLED FOR STABILITY TESTING
+  return;
+  
   if (getActiveAlarmCount() == 0) return;
 
   JsonDocument doc;
