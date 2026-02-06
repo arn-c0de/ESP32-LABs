@@ -9,20 +9,31 @@ cd "$PROJECT_DIR"
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "🔧 Creating Python virtual environment..."
-    python3 -m venv .venv
+    # Prefer creating venv with --upgrade-deps when available so pip/setuptools/wheel are bootstrapped
+    if python3 -m venv --help 2>/dev/null | grep -q -- '--upgrade-deps'; then
+        python3 -m venv --upgrade-deps .venv
+    else
+        python3 -m venv .venv
+    fi
     echo "✅ Virtual environment created"
 fi
 
 # Activate virtual environment
+# shellcheck source=/dev/null
 source .venv/bin/activate
 
-# Upgrade pip
-echo "🔄 Upgrading pip..."
-pip install --upgrade pip 2>/dev/null || true
+# Use explicit venv python/pip to avoid OS-managed pip (PEP 668) errors
+VENV_PY="$PROJECT_DIR/.venv/bin/python"
+VENV_PIP="$PROJECT_DIR/.venv/bin/pip"
+
+# Ensure pip exists and is up-to-date
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+echo "🔄 Upgrading pip in virtualenv..."
+$VENV_PY -m pip install --upgrade pip setuptools wheel 2>/dev/null || true
 
 # Install requirements
-echo "📦 Installing Python requirements..."
-pip install -q -r requirements.txt
+echo "📦 Installing Python requirements into virtualenv..."
+$VENV_PY -m pip install -q -r requirements.txt || true
 
 # Check dependencies first
 echo "🔍 Checking dependencies..."

@@ -1,0 +1,28 @@
+# Root .gitignore for ESP32-LABs
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Packaging / build
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
