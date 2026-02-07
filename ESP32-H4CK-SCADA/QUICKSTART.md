@@ -102,6 +102,9 @@ You'll see:
 
 ## 🔑 Default Credentials
 
+<details>
+  <summary><strong>⚠️ SPOILER: Default Credentials - Click to reveal</strong></summary>
+
 | Username | Password | Role | Access |
 |----------|----------|------|--------|
 | **admin** | **admin** | admin | Full access, all APIs |
@@ -109,9 +112,14 @@ You'll see:
 | **maintenance** | **maint456** | maintenance | Maintenance APIs |
 | **viewer** | **viewer** | viewer | Read-only monitoring |
 
+</details>
+
 ---
 
 ## 🌐 Available Pages
+
+<details>
+  <summary><strong>⚠️ SPOILER: Available Pages & URLs - Click to reveal</strong></summary>
 
 | Page | URL | Description |
 |------|-----|-------------|
@@ -124,9 +132,14 @@ You'll see:
 | Admin | `/admin` | Admin controls & configuration |
 | Defense | `/defense` | Defense system status |
 
+</details>
+
 ---
 
 ## 🔌 Web APIs
+
+<details>
+  <summary><strong>⚠️ SPOILER: API Endpoints & Examples - Click to reveal</strong></summary>
 
 ### Authentication
 
@@ -182,9 +195,14 @@ curl -X POST 'http://192.168.4.1/api/alarms/acknowledge' \
   -d '{"alarm_id":"ALARM-0001"}'
 ```
 
+</details>
+
 ---
 
 ## 🐛 Exploit Paths (6 Vectors)
+
+<details>
+  <summary><strong>⚠️ SPOILER: Contains Vulnerable Endpoints & Exploit Techniques - Click to reveal</strong></summary>
 
 ### Path 1: IDOR (Insecure Direct Object Reference)
 **Vulnerability:** Sensor readings lack per-line access control  
@@ -221,6 +239,8 @@ curl -X POST 'http://192.168.4.1/api/alarms/acknowledge' \
 **Endpoint:** `/api/login` with hardcoded user/password pairs  
 **Learning:** Credential discovery, default password exploitation  
 **Exploit:** Use `admin/admin` or `operator/operator123` credentials
+
+</details>
 
 ---
 
