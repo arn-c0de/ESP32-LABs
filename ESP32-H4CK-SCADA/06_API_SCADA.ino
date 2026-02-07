@@ -76,6 +76,12 @@ void setupSCADARoutes() {
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
       handleSensorControlBody(request, data, len, index, total);
     });
+
+  // Sensor reset (clears 'faulted' flag) - accessible to Operator+Admin
+  server.on("/api/sensors/reset", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      handleSensorResetBody(request, data, len, index, total);
+    });
   
   // ===== ACTUATOR APIs =====
   

@@ -29,6 +29,9 @@ static float gaussianNoise() {
 void updatePhysics() {
   unsigned long now = millis();
 
+  // Don't inject faults during startup (first 60 seconds) to allow system stabilization
+  bool allowFaults = (now >= 60000);
+
   // Pre-compute which lines have a running motor
   bool motorRunning[NUM_LINES];
   float motorSpeed[NUM_LINES];
@@ -77,9 +80,9 @@ void updatePhysics() {
     // Compute new value
     float newVal = s.baseValue + noise + driftAccum[i] + crossEffect;
 
-    // Fault injection
-    if (ENABLE_SENSOR_FAULTS && !s.faulted) {
-      if ((int)random(0, 100) < FAULT_PROBABILITY_PERCENT) {
+    // Fault injection (only after startup period)
+    if (allowFaults && ENABLE_SENSOR_FAULTS && !s.faulted) {
+      if ((int)random(0, 10000) < (FAULT_PROBABILITY_PERCENT * 100)) {
         s.faulted = true;
         // 50/50: stuck value or spike
         if (random(0, 2) == 0) {
@@ -92,13 +95,13 @@ void updatePhysics() {
     }
 
     // If sensor is faulted and stuck, keep previous value
-    if (s.faulted && random(0, 100) < 80) {
-      // 80% chance stuck sensor stays stuck, 20% chance it recovers
+    if (s.faulted && random(0, 100) < 70) {
+      // 70% chance stuck sensor stays stuck, 30% chance it recovers
       // (keep currentValue unchanged for stuck)
       // But allow occasional recovery
     } else {
-      if (s.faulted && random(0, 100) < 20) {
-        s.faulted = false;  // recover from fault
+      if (s.faulted && random(0, 100) < 30) {
+        s.faulted = false;  // recover from fault (30% recovery chance)
         driftAccum[i] = 0.0f;
       }
       s.currentValue = newVal;

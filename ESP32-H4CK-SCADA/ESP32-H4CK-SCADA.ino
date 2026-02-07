@@ -97,7 +97,7 @@ bool VULN_LOGIC_FLAWS = true;
 float SENSOR_NOISE_AMPLITUDE = 0.03;  // 3% noise (proportional to sensor value)
 float SENSOR_DRIFT_RATE = 0.01;
 bool ENABLE_SENSOR_FAULTS = true;
-int FAULT_PROBABILITY_PERCENT = 5;
+int FAULT_PROBABILITY_PERCENT = 0.2;  // 0.2% = ~1 fault per 10-20 minutes (much more realistic)
 
 // Production Lines
 #define NUM_LINES 4
