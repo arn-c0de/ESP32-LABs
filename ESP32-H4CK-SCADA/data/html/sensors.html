@@ -262,7 +262,7 @@
     let sensorChart = null;
     let sensorsLoading = false; // Polling guard
     function startPolling() {
-      if (!updateInterval) updateInterval = setInterval(loadSensors, 15000);
+      if (!updateInterval) updateInterval = setInterval(loadSensors, 5000);
     }
     function stopPolling() {
       if (updateInterval) {
@@ -705,7 +705,7 @@
     // Initial load
     loadSensors();
 
-    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    // Auto-refresh every 5 seconds (pause when tab is hidden)
     startPolling();
 
     document.addEventListener('visibilitychange', () => {

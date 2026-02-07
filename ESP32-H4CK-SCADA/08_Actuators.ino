@@ -174,7 +174,22 @@ String executeActuatorCommand(const char* actuatorId, const char* cmd, float par
       return makeResult(false, "Already starting", a);
     }
     if (a.state == ACT_FAULT) {
-      return makeResult(false, "Clear fault before starting", a);
+      // Check if there's an approved repair request
+      bool hasApprovedRepair = false;
+      for (int i = 0; i < repairRequestCount && i < MAX_REPAIR_REQUESTS; i++) {
+        if (strcmp(repairRequests[i].actuatorId, actuatorId) == 0 &&
+            repairRequests[i].status == REQ_APPROVED) {
+          hasApprovedRepair = true;
+          // Clear fault after approved repair
+          a.state = ACT_STOPPED;
+          a.stateChangeTime = now;
+          break;
+        }
+      }
+      
+      if (!hasApprovedRepair) {
+        return makeResult(false, "Fault state - repair request required", a);
+      }
     }
 
     a.state = ACT_STARTING;

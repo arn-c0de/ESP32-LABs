@@ -137,7 +137,7 @@
     </div>
 
     <!-- IP Block Management (Operator/Admin) -->
-    <div class="defense-actions operator-only">
+    <div class="defense-actions operator-only" style="display: none;">
       <h3>🚧 IP Block Management</h3>
       <div class="actions-grid">
         <div class="action-card">
@@ -207,14 +207,38 @@
       </table>
     </div>
 
+    <!-- Repair Request Management (Admin Only) -->
+    <div class="defense-actions admin-only" style="display: none;">
+      <h3>🔧 Repair Request Approvals</h3>
+      <div class="active-rules">
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Actuator</th>
+              <th>Line</th>
+              <th>Reason</th>
+              <th>Requested By</th>
+              <th>Time</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="repair-requests-tbody">
+            <tr><td colspan="8" style="text-align: center;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Incident Management -->
     <div class="incident-management">
       <h3>🎯 Incident Management</h3>
       <div class="actions-grid">
-        <div class="action-card">
+        <div class="action-card admin-only" style="display: none;">
           <h4>📍 Spawn Incident</h4>
           <p>Manually trigger incidents for testing (security, operational, equipment)</p>
-          <div class="action-input">
+          <div class="action-input;">
             <select id="incident-type">
               <optgroup label="🔒 Security Incidents">
                 <option value="failed-login">Failed Login Attempt</option>
@@ -283,7 +307,7 @@
           <p class="hint">Failed login attempts, suspicious activity, and attacks will appear here</p>
         </div>
       </div>
-      <div class="operator-only" style="margin-top: 12px;">
+      <div class="operator-only" style="margin-top: 12px; display: none;">
         <div class="action-input">
           <input type="text" id="alert-block-ip" placeholder="IP from alert (e.g. 192.168.1.100)" />
           <button class="btn btn-danger" onclick="blockPresetFromAlert(300)">Block 5m</button>
@@ -798,20 +822,130 @@
       }
     }
     
+    async function loadRepairRequests() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/repair-requests', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to load repair requests');
+        }
+        
+        const requests = await response.json();
+        const tbody = document.getElementById('repair-requests-tbody');
+        
+        if (!requests || requests.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No repair requests</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = requests.map(req => {
+          const time = new Date(req.timestamp).toLocaleString();
+          const statusClass = req.status === 'pending' ? 'badge-warning' : 
+                            req.status === 'approved' ? 'badge-success' : 'badge-danger';
+          const statusText = req.status.toUpperCase();
+          
+          let actions = '-';
+          if (req.status === 'pending') {
+            actions = `
+              <button class="btn btn-sm btn-success" onclick="reviewRepairRequest(${req.id}, 'approve')">✓ Approve</button>
+              <button class="btn btn-sm btn-danger" onclick="reviewRepairRequest(${req.id}, 'decline')">✗ Decline</button>
+            `;
+          } else if (req.status !== 'pending') {
+            actions = `<small>By: ${req.reviewed_by || 'N/A'}</small>`;
+          }
+          
+          return `
+            <tr>
+              <td><code>${req.id}</code></td>
+              <td><code>${req.actuator_id}</code></td>
+              <td>Line ${req.line}</td>
+              <td>${req.reason}</td>
+              <td>${req.requested_by}</td>
+              <td>${time}</td>
+              <td><span class="badge ${statusClass}">${statusText}</span></td>
+              <td>${actions}</td>
+            </tr>
+          `;
+        }).join('');
+        
+      } catch (error) {
+        console.error('Load repair requests error:', error);
+        document.getElementById('repair-requests-tbody').innerHTML = 
+          '<tr><td colspan="8" style="text-align: center; color: red;">Error loading requests</td></tr>';
+      }
+    }
+    
+    async function reviewRepairRequest(requestId, action) {
+      const actionText = action === 'approve' ? 'approve' : 'decline';
+      if (!confirm(`${actionText.toUpperCase()} repair request #${requestId}?`)) {
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/repair-requests/review', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            request_id: requestId,
+            action: action
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          alert(data.message || `Request ${actionText}d`);
+          loadRepairRequests();
+        } else {
+          alert(data.error || `Failed to ${actionText} request`);
+        }
+        
+      } catch (error) {
+        console.error('Review repair request error:', error);
+        alert('Network error');
+      }
+    }
+    
     // Auto-refresh
     document.addEventListener('DOMContentLoaded', () => {
+      // Show/hide admin-only and operator-only sections
+      const role = localStorage.getItem('role') || '';
+      if (role === 'admin') {
+        document.querySelectorAll('.admin-only').forEach(el => {
+          el.style.display = 'block';
+        });
+      }
+      if (role === 'admin' || role === 'operator') {
+        document.querySelectorAll('.operator-only').forEach(el => {
+          el.style.display = 'block';
+        });
+      }
+      
       loadDefenseState();
       loadAdminDefenseStatus();
       loadLogs();
       loadDefenseAlerts();
       loadWiFiClients();
+      if (role === 'admin') {
+        loadRepairRequests();
+      }
       function startPolling() {
         if (!updateInterval) updateInterval = setInterval(() => {
           loadDefenseState();
           loadAdminDefenseStatus();
           loadDefenseAlerts();
           loadWiFiClients();
-        }, 15000);
+          if (role === 'admin') {
+            loadRepairRequests();
+          }
+        }, 5000);
       }
       function stopPolling() {
         if (updateInterval) {

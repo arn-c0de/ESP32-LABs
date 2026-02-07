@@ -296,6 +296,7 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 .badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:.85em;font-weight:600}
 .badge-success{background:#d1fae5;color:#065f46}
 .badge-warning{background:#fef3c7;color:#92400e}
+.badge-danger{background:#fee2e2;color:#991b1b}
 
 /* Alarms */
 .alarms-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}

@@ -225,7 +225,7 @@
     loadAlarms();
     
     function startPolling() {
-      if (!updateInterval) updateInterval = setInterval(loadAlarms, 15000);
+      if (!updateInterval) updateInterval = setInterval(loadAlarms, 5000);
     }
     function stopPolling() {
       if (updateInterval) {
@@ -233,7 +233,7 @@
         updateInterval = null;
       }
     }
-    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    // Auto-refresh every 5 seconds (pause when tab is hidden)
     startPolling();
 
     document.addEventListener('visibilitychange', () => {
