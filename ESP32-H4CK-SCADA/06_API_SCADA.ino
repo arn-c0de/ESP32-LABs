@@ -191,6 +191,42 @@ void setupSCADARoutes() {
       handleAlarmAckBody(request, data, len, index, total);
     });
   
+  // ===== REPAIR REQUEST APIs =====
+  
+  // Get all repair requests
+  server.on("/api/repair-requests", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    totalRequests++;
+    
+    if (!isAuthenticated(request)) {
+      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+      return;
+    }
+    
+    String json = getRepairRequestsJSON();
+    request->send(200, "application/json", json);
+  });
+  
+  // Create repair request (operator+)
+  server.on("/api/repair-requests/create", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      handleRepairRequestCreateBody(request, data, len, index, total);
+    });
+  
+  // Review repair request (admin only) - approve or decline
+  server.on("/api/repair-requests/review", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      handleRepairRequestReviewBody(request, data, len, index, total);
+    });
+  
   // ===== SYSTEM INFO API =====
   
   server.on("/api/info", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -616,4 +652,235 @@ void setupSCADARoutes() {
   });
   
   Serial.println("[API] SCADA routes configured");
+}
+
+// ===== REPAIR REQUEST HANDLERS =====
+
+String getRepairRequestsJSON() {
+  if (ESP.getFreeHeap() < 20000) {
+    return "{\"error\":\"low memory\"}";
+  }
+  
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.to<JsonArray>();
+  
+  int total = (repairRequestCount < MAX_REPAIR_REQUESTS) ? repairRequestCount : MAX_REPAIR_REQUESTS;
+  for (int i = 0; i < total; i++) {
+    RepairRequest &r = repairRequests[i];
+    JsonObject obj = arr.createNestedObject();
+    obj["id"] = r.id;
+    obj["actuator_id"] = r.actuatorId;
+    obj["line"] = r.line;
+    obj["reason"] = r.reason;
+    obj["timestamp"] = r.timestamp;
+    obj["status"] = (r.status == REQ_PENDING) ? "pending" : 
+                    (r.status == REQ_APPROVED) ? "approved" : "declined";
+    obj["requested_by"] = r.requestedBy;
+    if (r.status != REQ_PENDING) {
+      obj["reviewed_by"] = r.reviewedBy;
+      obj["reviewed_at"] = r.reviewedAt;
+    }
+  }
+  
+  String output;
+  serializeJson(doc, output);
+  return output;
+}
+
+void handleRepairRequestCreateBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) return;
+  if (rejectIfBodyTooLarge(request, total)) return;
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
+  
+  totalRequests++;
+  
+  if (!isAuthenticated(request)) {
+    request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    return;
+  }
+  
+  String username, role;
+  if (!extractSession(request, username, role)) {
+    request->send(401, "application/json", "{\"error\":\"Invalid session\"}");
+    return;
+  }
+  
+  // Require operator or admin
+  if (role != "operator" && role != "admin") {
+    request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+    return;
+  }
+  
+  DynamicJsonDocument doc(512);
+  DeserializationError error = deserializeJson(doc, data, len);
+  if (error) {
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  
+  const char* actuatorId = doc["actuator_id"];
+  const char* reason = doc["reason"] | "Motor fault - requires repair";
+  
+  if (!actuatorId) {
+    request->send(400, "application/json", "{\"error\":\"Missing actuator_id\"}");
+    return;
+  }
+  
+  // Find actuator
+  int actIdx = -1;
+  for (int i = 0; i < TOTAL_ACTUATORS; i++) {
+    if (strcmp(actuators[i].id, actuatorId) == 0) {
+      actIdx = i;
+      break;
+    }
+  }
+  
+  if (actIdx < 0) {
+    request->send(404, "application/json", "{\"error\":\"Actuator not found\"}");
+    return;
+  }
+  
+  ActuatorData &a = actuators[actIdx];
+  
+  // Check if already has pending or approved request
+  for (int i = 0; i < repairRequestCount && i < MAX_REPAIR_REQUESTS; i++) {
+    if (strcmp(repairRequests[i].actuatorId, actuatorId) == 0 &&
+        repairRequests[i].status == REQ_PENDING) {
+      request->send(409, "application/json", "{\"error\":\"Repair request already exists\"}");
+      return;
+    }
+  }
+  
+  // Create new repair request
+  if (repairRequestCount >= MAX_REPAIR_REQUESTS) {
+    // Ring buffer: overwrite oldest
+    repairRequestCount = MAX_REPAIR_REQUESTS - 1;
+  }
+  
+  int idx = repairRequestCount;
+  RepairRequest &r = repairRequests[idx];
+  r.id = nextRepairRequestId++;
+  strncpy(r.actuatorId, actuatorId, sizeof(r.actuatorId) - 1);
+  r.actuatorId[sizeof(r.actuatorId) - 1] = '\0';
+  r.line = a.line;
+  strncpy(r.reason, reason, sizeof(r.reason) - 1);
+  r.reason[sizeof(r.reason) - 1] = '\0';
+  r.timestamp = millis();
+  r.status = REQ_PENDING;
+  strncpy(r.requestedBy, username.c_str(), sizeof(r.requestedBy) - 1);
+  r.requestedBy[sizeof(r.requestedBy) - 1] = '\0';
+  r.reviewedBy[0] = '\0';
+  r.reviewedAt = 0;
+  
+  repairRequestCount++;
+  
+  DynamicJsonDocument response(512);
+  response["success"] = true;
+  response["message"] = "Repair request created";
+  response["request_id"] = r.id;
+  
+  String output;
+  serializeJson(response, output);
+  request->send(200, "application/json", output);
+  
+  Serial.printf("[REPAIR] Request created: ID=%d, Actuator=%s, By=%s\n", 
+                r.id, actuatorId, username.c_str());
+}
+
+void handleRepairRequestReviewBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) return;
+  if (rejectIfBodyTooLarge(request, total)) return;
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
+  
+  totalRequests++;
+  
+  if (!requireAdmin(request)) {
+    return;
+  }
+  
+  String username, role;
+  if (!extractSession(request, username, role)) {
+    request->send(401, "application/json", "{\"error\":\"Invalid session\"}");
+    return;
+  }
+  
+  DynamicJsonDocument doc(512);
+  DeserializationError error = deserializeJson(doc, data, len);
+  if (error) {
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  
+  int requestId = doc["request_id"] | -1;
+  String action = doc["action"] | "";
+  
+  if (requestId < 0 || (action != "approve" && action != "decline")) {
+    request->send(400, "application/json", "{\"error\":\"Invalid request_id or action\"}");
+    return;
+  }
+  
+  // Find request
+  int reqIdx = -1;
+  for (int i = 0; i < repairRequestCount && i < MAX_REPAIR_REQUESTS; i++) {
+    if (repairRequests[i].id == requestId) {
+      reqIdx = i;
+      break;
+    }
+  }
+  
+  if (reqIdx < 0) {
+    request->send(404, "application/json", "{\"error\":\"Request not found\"}");
+    return;
+  }
+  
+  RepairRequest &r = repairRequests[reqIdx];
+  
+  if (r.status != REQ_PENDING) {
+    request->send(409, "application/json", "{\"error\":\"Request already reviewed\"}");
+    return;
+  }
+  
+  // Update status
+  r.status = (action == "approve") ? REQ_APPROVED : REQ_DECLINED;
+  strncpy(r.reviewedBy, username.c_str(), sizeof(r.reviewedBy) - 1);
+  r.reviewedBy[sizeof(r.reviewedBy) - 1] = '\0';
+  r.reviewedAt = millis();
+  
+  // If approved and actuator is in FAULT, reset to STOPPED
+  if (r.status == REQ_APPROVED) {
+    for (int i = 0; i < TOTAL_ACTUATORS; i++) {
+      if (strcmp(actuators[i].id, r.actuatorId) == 0) {
+        if (actuators[i].state == ACT_FAULT) {
+          actuators[i].state = ACT_STOPPED;
+          actuators[i].speed = 0.0f;
+          actuators[i].targetSpeed = 0.0f;
+          actuators[i].stateChangeTime = millis();
+          Serial.printf("[REPAIR] Actuator %s repaired and reset to STOPPED\n", r.actuatorId);
+        }
+        break;
+      }
+    }
+  }
+  
+  DynamicJsonDocument response(512);
+  response["success"] = true;
+  response["message"] = (action == "approve") ? "Request approved" : "Request declined";
+  response["request_id"] = requestId;
+  
+  String output;
+  serializeJson(response, output);
+  request->send(200, "application/json", output);
+  
+  Serial.printf("[REPAIR] Request %d %s by %s\n", 
+                requestId, (action == "approve") ? "APPROVED" : "DECLINED", username.c_str());
 }

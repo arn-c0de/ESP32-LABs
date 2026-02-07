@@ -37,9 +37,9 @@ LoginBackoffEntry loginBackoff[32];
 AlertEntry defenseAlerts[64];
 int defenseAlertIndex = 0;
 
-static const uint16_t TOKEN_BUCKET_RATE = 5;   // requests per second
-static const uint16_t TOKEN_BUCKET_BURST = 10; // burst size
-static const int VIOLATION_THRESHOLD = 3;
+static const uint16_t TOKEN_BUCKET_RATE = 12;   // requests per second
+static const uint16_t TOKEN_BUCKET_BURST = 40;  // burst size (page load = HTML + ~10 API calls + assets)
+static const int VIOLATION_THRESHOLD = 6;
 static const unsigned long VIOLATION_QUIET_MS = 300000; // 5 minutes
 
 // ===== INITIALIZATION =====
@@ -379,19 +379,20 @@ void recordViolation(TokenBucket &bucket, const String &ip) {
   unsigned long now = millis();
   if (bucket.lastViolation > 0 && (now - bucket.lastViolation) > VIOLATION_QUIET_MS) {
     bucket.violations = 0;
+    bucket.blockLevel = 0;
   }
   bucket.lastViolation = now;
   bucket.violations++;
   addDefenseAlert("rate_limit", ip, "token bucket exceeded");
   if (bucket.violations >= VIOLATION_THRESHOLD) {
     if (bucket.blockLevel == 0) {
-      addBlock(ip, 300, false, "system");
+      addBlock(ip, 30, false, "system");
       bucket.blockLevel = 1;
     } else if (bucket.blockLevel == 1) {
-      addBlock(ip, 1800, false, "system");
+      addBlock(ip, 300, false, "system");
       bucket.blockLevel = 2;
     } else {
-      addBlock(ip, 0, true, "system");
+      addBlock(ip, 1800, false, "system");
       bucket.blockLevel = 3;
     }
     bucket.violations = 0;

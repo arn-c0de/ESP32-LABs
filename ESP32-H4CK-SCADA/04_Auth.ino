@@ -608,6 +608,13 @@ String getRequestUsername(AsyncWebServerRequest *request) {
   return "";
 }
 
+// Extract username and role from request (session or JWT)
+bool extractSession(AsyncWebServerRequest *request, String &username, String &role) {
+  username = getRequestUsername(request);
+  role = getRequestRole(request);
+  return (username != "" && role != "guest");
+}
+
 // Check if user has minimum required role
 // Role hierarchy: viewer < maintenance < operator < admin
 bool requireRole(AsyncWebServerRequest *request, const char* minRole) {

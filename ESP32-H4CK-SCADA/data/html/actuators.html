@@ -202,6 +202,9 @@
           </div>
           ${canControl ? `
           <div class="actuator-controls">
+            ${actuator.state === 'FAULT' ? `
+              <button class="btn btn-info btn-sm" onclick="requestRepair('${actuator.id}')" aria-label="Request repair">🔧 Request Repair</button>
+            ` : ''}
             ${actuator.type === 'motor' ? `
               <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="start" data-param="75" aria-label="Start actuator" ${isPending ? 'disabled' : ''}>Start</button>
               <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="stop" data-param="0" aria-label="Stop actuator" ${isPending ? 'disabled' : ''}>Stop</button>
@@ -291,6 +294,39 @@
       return false;
     }
 
+    async function requestRepair(actuatorId) {
+      if (!confirm(`Request repair for ${actuatorId}?\nThis will be sent to an admin for approval.`)) {
+        return;
+      }
+      
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/repair-requests/create', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            actuator_id: actuatorId,
+            reason: 'Motor overheat fault - requires inspection'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showToast(`Repair request created (ID: ${data.request_id})`, 'success');
+          loadActuators();
+        } else {
+          showToast(data.error || 'Failed to create repair request', 'error');
+        }
+      } catch (error) {
+        console.error('Repair request error:', error);
+        showToast('Network error', 'error');
+      }
+    }
+
     // Event delegation for actuator controls
     document.getElementById('actuators-grid').addEventListener('click', function(e) {
       const btn = e.target.closest('button[data-actuator]');
@@ -305,7 +341,7 @@
     loadActuators();
 
     function startPolling() {
-      if (!updateInterval) updateInterval = setInterval(loadActuators, 15000);
+      if (!updateInterval) updateInterval = setInterval(loadActuators, 5000);
     }
     function stopPolling() {
       if (updateInterval) {
@@ -313,7 +349,7 @@
         updateInterval = null;
       }
     }
-    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    // Auto-refresh every 5 seconds (pause when tab is hidden)
     startPolling();
 
     document.addEventListener('visibilitychange', () => {

@@ -33,6 +33,7 @@ String LAB_MODE_STR = "testing"; // will be overridden in initConfig()
 #include <esp_system.h>
 #include <esp_heap_caps.h>
 #include <esp_wifi.h>
+#include <esp_netif.h>
 #include <map>
 
 // ===== WiFi Configuration (set by 01_Config.ino) =====
@@ -179,6 +180,21 @@ struct AlarmEntry {
   bool acknowledged;
 };
 
+// Repair Request structure
+#define MAX_REPAIR_REQUESTS 20
+enum RepairStatus { REQ_PENDING, REQ_APPROVED, REQ_DECLINED };
+struct RepairRequest {
+  int id;                 // Unique ID
+  char actuatorId[20];    // e.g. "MOTOR-L1-01"
+  int line;
+  char reason[50];        // e.g. "Motor overheat fault"
+  unsigned long timestamp;
+  RepairStatus status;
+  char requestedBy[20];   // Username who requested
+  char reviewedBy[20];    // Admin who approved/declined
+  unsigned long reviewedAt;
+};
+
 // WiFi Client History (for AP mode)
 #define MAX_WIFI_CLIENTS 50
 struct WiFiClientEntry {
@@ -211,6 +227,9 @@ uint8_t sensorActuatorMask[TOTAL_SENSORS];
 float motorTemp[NUM_LINES];
 float lastLineEffState[NUM_LINES];
 AlarmEntry alarms[MAX_ALARMS];
+RepairRequest repairRequests[MAX_REPAIR_REQUESTS];
+int repairRequestCount = 0;
+int nextRepairRequestId = 1;
 WiFiClientEntry wifiClients[MAX_WIFI_CLIENTS];
 int wifiClientCount = 0;
 int alarmCount = 0;
@@ -383,6 +402,7 @@ bool requireRole(AsyncWebServerRequest *request, const char* minRole);
 String getUserRole(String token);
 String getRequestRole(AsyncWebServerRequest *request);
 String getRequestUsername(AsyncWebServerRequest *request);
+bool extractSession(AsyncWebServerRequest *request, String &username, String &role);
 void handleLogin(AsyncWebServerRequest *request);
 void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t total);
 void handleLogout(AsyncWebServerRequest *request);
@@ -437,6 +457,7 @@ void addBlock(const String &ip, unsigned long seconds, bool permanent, String by
 void removeBlock(const String &ip);
 void rateLimitedLog(const String &message);
 String getDefenseAlertsJSON();
+void addDefenseAlert(const String &type, const String &ip, const String &details);
 
 struct ConnectionGuard {
   bool active;
@@ -606,8 +627,16 @@ void loop() {
     }
     
     // Reset activeConnections counter periodically to prevent drift
+    // Only reset if counter seems stuck (> half max for extended time)
+    static unsigned long lastNonZero = 0;
     if (activeConnections > 0) {
-      activeConnections = 0;  // Reset for clean state
+      if (lastNonZero == 0) lastNonZero = millis();
+      if (millis() - lastNonZero > 30000) {
+        activeConnections = 0;
+        lastNonZero = 0;
+      }
+    } else {
+      lastNonZero = 0;
     }
     
     lastMemCheck = millis();
