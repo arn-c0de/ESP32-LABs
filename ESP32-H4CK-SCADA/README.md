@@ -10,11 +10,11 @@
 
 ## Overview
 
+<img src="images/h4ck-SCADA-dashboard.png" alt="ESP32-LAB - SCADA Industrial" style="float:left; margin:0 1rem 1rem 0; width:300px;">
+
 ESP32 Industrial SCADA Lab is a red team-oriented training environment for industrial control systems (ICS/SCADA), implemented for the ESP32 platform. The project provides a realistic simulation of a multi-line production facility and six independent exploit paths to support hands-on cybersecurity exercises.
 
 **GitHub Repository**: https://github.com/arn-c0de/ESP32-LABs
-
-<img src="images/h4ck-SCADA-dashboard.png" alt="ESP32-LAB - SCADA Industrial width="50%">
 
 ### Key Features
 

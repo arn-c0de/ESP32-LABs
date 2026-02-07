@@ -22,11 +22,11 @@ Always obtain permission before performing security testing on systems you do no
 - Common utilities and helper scripts may be available at the repository root for convenience (e.g., build/upload helpers, environment templates).
 
 ## LABs
-<img src="ESP32-H4CK-SNS/images/sns-productshop.png" alt="ESP32-LAB - SecureNet Solutions" width="50%">
+<img src="ESP32-H4CK-SNS/images/sns-productshop.png" alt="ESP32-LAB - SecureNet Solutions" style="float:left; margin:0 1rem 1rem 0; width:300px;">
 
 - **ESP32-H4CK — SecureNet Lab**: A vulnerable "SecureNet Solutions" lab designed for hands-on penetration testing exercises and learning. See the lab documentation and exercises in [ESP32-H4CK-SNS/README.md](ESP32-H4CK/README.md) and the quick start guide: [ESP32-H4CK-SNS/QUICKSTART.md](ESP32-H4CK/QUICKSTART.md).
 
-<img src="ESP32-H4CK-SCADA/images/h4ck-SCADA-dashboard.png" alt="ESP32-LAB - SCADA Industrial width="50%">
+<img src="ESP32-H4CK-SCADA/images/h4ck-SCADA-dashboard.png" alt="ESP32-LAB - SCADA Industrial" style="float:left; margin:0 1rem 1rem 0; width:300px;">
 
 - **ESP32-H4CK-SCADA — Industrial SCADA Lab**: A red team-oriented SCADA training environment simulating multi-line production with realistic sensor physics and six independent exploit paths. See the lab documentation and exercises in [ESP32-H4CK-SCADA/README.md](ESP32-H4CK-SCADA/README.md).
 
