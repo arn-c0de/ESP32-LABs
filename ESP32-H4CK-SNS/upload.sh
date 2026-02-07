@@ -16,13 +16,22 @@ fi
 # Activate virtual environment
 source .venv/bin/activate
 
+# Verify pip is the venv pip and not system-managed (PEP 668)
+PIP_INFO=$(python3 -m pip -V 2>/dev/null || true)
+if echo "$PIP_INFO" | grep -q "/usr/lib/python3/dist-packages"; then
+    echo "⚠️  Detected system-managed pip inside .venv. Recreating virtualenv to fix PEP 668..."
+    rm -rf .venv
+    python3 -m venv --upgrade-deps .venv
+    source .venv/bin/activate
+fi
+
 # Upgrade pip
 echo "🔄 Upgrading pip..."
 pip install --upgrade pip 2>/dev/null || true
 
 # Install requirements
 echo "📦 Installing Python requirements..."
-pip install -q -r requirements.txt
+pip install -q -r requirements.txt || { echo "❌ Failed to install Python requirements. Try recreating the venv manually: rm -rf .venv && python3 -m venv --upgrade-deps .venv"; exit 1; }
 
 # Check dependencies first
 echo "🔍 Checking dependencies..."

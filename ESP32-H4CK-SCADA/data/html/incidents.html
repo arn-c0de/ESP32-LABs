@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incidents & Defense - ESP32-H4CK-SCADA</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h1>⚡ SCADA Control</h1>
+    </div>
+    <div class="nav-menu">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/sensors">Sensors</a>
+      <a href="/actuators">Actuators</a>
+      <a href="/alarms">Alarms</a>
+      <a href="/vulnerabilities">Vulnerabilities</a>
+      <a href="/incidents" class="active">Incidents</a>
+      <div class="user-dropdown" id="nav-user">
+        <button class="user-dropdown-toggle" id="user-dropdown-toggle">
+          <span class="user-name" id="user-name">User</span>
+          <span class="user-role" id="user-role">ROLE</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="user-dropdown-menu">
+          <div class="dropdown-header">
+            <div class="dropdown-name" id="dropdown-name">User</div>
+            <div class="dropdown-role" id="dropdown-role">role</div>
+          </div>
+          <a href="#" class="dropdown-item danger logout-item" onclick="logout(); return false;">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>🛡️ Defense & Incident Management</h2>
+      <div class="system-status">
+        <span class="status-badge status-online">● DEFENSE ACTIVE</span>
+      </div>
+    </div>
+
+    <!-- Defense Resources -->
+    <div class="defense-resources">
+      <div class="resource-card">
+        <h3>Defense Points (DP)</h3>
+        <div class="resource-bar">
+          <div class="resource-fill dp-fill" id="dp-fill" style="width: 100%"></div>
+        </div>
+        <div class="resource-value" id="dp-value">100 / 100</div>
+        <p class="resource-desc">Cost to activate defenses</p>
+      </div>
+      
+      <div class="resource-card">
+        <h3>Action Points (AP)</h3>
+        <div class="resource-bar">
+          <div class="resource-fill ap-fill" id="ap-fill" style="width: 100%"></div>
+        </div>
+        <div class="resource-value" id="ap-value">10 / 10</div>
+        <p class="resource-desc">Number of simultaneous actions</p>
+      </div>
+      
+      <div class="resource-card">
+        <h3>System Stability</h3>
+        <div class="resource-bar">
+          <div class="resource-fill stability-fill" id="stability-fill" style="width: 100%"></div>
+        </div>
+        <div class="resource-value" id="stability-value">100 / 100</div>
+        <p class="resource-desc">System health and reliability</p>
+      </div>
+    </div>
+
+    <!-- Defense Actions -->
+    <div class="defense-actions">
+      <h3>🛡️ Available Defenses</h3>
+      <div class="actions-grid">
+        <div class="action-card">
+          <h4>🚫 IP Block</h4>
+          <div class="action-cost">
+            <span>DP: <strong>15</strong></span>
+            <span>AP: <strong>1</strong></span>
+            <span class="cost-negative">Stability: <strong>-5</strong></span>
+          </div>
+          <p>Block an IP address from accessing the system</p>
+          <div class="action-input">
+            <input type="text" id="ipblock-target" placeholder="192.168.1.100" />
+            <input type="number" id="ipblock-duration" placeholder="Duration (s)" value="300" />
+          </div>
+          <button class="btn btn-danger" onclick="activateDefense('ipblock')">Activate</button>
+          <div class="cooldown" id="ipblock-cooldown"></div>
+        </div>
+
+        <div class="action-card">
+          <h4>⏱️ Rate Limit</h4>
+          <div class="action-cost">
+            <span>DP: <strong>10</strong></span>
+            <span>AP: <strong>1</strong></span>
+            <span class="cost-negative">Stability: <strong>-3</strong></span>
+          </div>
+          <p>Limit request rate from an IP</p>
+          <div class="action-input">
+            <input type="text" id="ratelimit-target" placeholder="192.168.1.100" />
+            <input type="number" id="ratelimit-maxreq" placeholder="Max req/min" value="60" />
+          </div>
+          <button class="btn btn-warning" onclick="activateDefense('ratelimit')">Activate</button>
+          <div class="cooldown" id="ratelimit-cooldown"></div>
+        </div>
+
+        <div class="action-card">
+          <h4>🔄 Session Reset</h4>
+          <div class="action-cost">
+            <span>DP: <strong>25</strong></span>
+            <span>AP: <strong>1</strong></span>
+            <span class="cost-negative">Stability: <strong>-10</strong></span>
+          </div>
+          <p>Reset all active user sessions</p>
+          <button class="btn btn-danger" onclick="activateDefense('sessionreset')">Activate</button>
+          <div class="cooldown" id="sessionreset-cooldown"></div>
+        </div>
+
+        <div class="action-card">
+          <h4>🔒 Mistrust Mode</h4>
+          <div class="action-cost">
+            <span>DP: <strong>40</strong></span>
+            <span>AP: <strong>2</strong></span>
+            <span class="cost-negative">Stability: <strong>-20</strong></span>
+          </div>
+          <p>Require re-authentication for all actions</p>
+          <input type="number" id="mistrust-duration" placeholder="Duration (s)" value="600" />
+          <button class="btn btn-danger" onclick="activateDefense('mistrust')">Activate</button>
+          <div class="cooldown" id="mistrust-cooldown"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Defense Rules -->
+    <div class="active-rules">
+      <h3>📋 Active Defense Rules</h3>
+      <table class="rules-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Target</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th>Cost</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rules-tbody">
+          <tr><td colspan="7" style="text-align: center;">No active rules</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Incident Management -->
+    <div class="incident-management">
+      <h3>🎯 Incident Management</h3>
+      <div class="actions-grid">
+        <div class="action-card">
+          <h4>📍 Spawn Incident</h4>
+          <p>Manually trigger incidents for testing (security, operational, equipment)</p>
+          <div class="action-input">
+            <select id="incident-type">
+              <optgroup label="🔒 Security Incidents">
+                <option value="failed-login">Failed Login Attempt</option>
+                <option value="unauthorized-access">Unauthorized Access</option>
+                <option value="injection-attempt">Injection Attack Attempt</option>
+                <option value="brute-force">Brute Force Attack</option>
+                <option value="data-exfil">Data Exfiltration Attempt</option>
+                <option value="privilege-escalation">Privilege Escalation</option>
+              </optgroup>
+              <optgroup label="⚙️ Equipment Failures">
+                <option value="sensor-fault">Sensor Fault / Failure</option>
+                <option value="motor-failure">Motor Failure</option>
+                <option value="valve-stuck">Valve Stuck / Malfunction</option>
+                <option value="power-loss">Power Loss / Brownout</option>
+                <option value="communication-loss">Communication Loss</option>
+              </optgroup>
+              <optgroup label="🏭 Process Incidents">
+                <option value="pressure-spike">Pressure Spike</option>
+                <option value="temperature-runaway">Temperature Runaway</option>
+                <option value="flow-anomaly">Flow Rate Anomaly</option>
+                <option value="vibration-alert">Excessive Vibration</option>
+                <option value="line-shutdown">Production Line Shutdown</option>
+              </optgroup>
+              <optgroup label="🔧 Maintenance Events">
+                <option value="calibration-required">Calibration Required</option>
+                <option value="scheduled-maintenance">Scheduled Maintenance</option>
+                <option value="emergency-stop">Emergency Stop Triggered</option>
+              </optgroup>
+            </select>
+            <input type="text" id="incident-details" placeholder="Additional details (optional)" />
+          </div>
+          <button class="btn btn-warning" onclick="spawnIncident()">Spawn Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WiFi Client History -->
+    <div class="wifi-clients-section">
+      <h3>📡 Connected WiFi Clients (AP Mode)</h3>
+      <div class="log-controls">
+        <button class="btn btn-secondary" onclick="loadWiFiClients()">Refresh</button>
+      </div>
+      <table class="clients-table" id="clients-table">
+        <thead>
+          <tr>
+            <th>MAC Address</th>
+            <th>IP Address</th>
+            <th>Connected At</th>
+            <th>Last Seen</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="clients-tbody">
+          <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
+        </tbody>
+      </table>
+      <div id="wifi-no-clients" style="padding: 20px; text-align: center; color: var(--text-muted);">
+        No connected clients (not in AP mode or no connections yet)
+      </div>
+    </div>
+    <div class="incidents-section">
+      <h3>⚠️ Security Incidents</h3>
+      <div class="incidents-list" id="incidents-list">
+        <div class="incident-placeholder">
+          <p>No recent incidents detected</p>
+          <p class="hint">Failed login attempts, suspicious activity, and attacks will appear here</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Defense Logs -->
+    <div class="defense-logs">
+      <h3>📜 Defense Activity Log</h3>
+      <div class="log-controls">
+        <button class="btn btn-secondary" onclick="loadLogs()">Refresh</button>
+        <button class="btn btn-secondary" onclick="clearLogs()">Clear</button>
+      </div>
+      <pre id="defense-log" class="log-output"></pre>
+    </div>
+  </div>
+
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script>
+    requireAuth();
+    
+    let updateInterval;
+    let defenseState = {};
+    
+    async function loadDefenseState() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch('/api/defense/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load defense state');
+        }
+        
+        defenseState = await response.json();
+        updateResourceDisplay();
+        updateActiveRules();
+        
+      } catch (error) {
+        console.error('Defense state error:', error);
+      }
+    }
+    
+    function updateResourceDisplay() {
+      if (!defenseState.resources) return;
+      
+      const r = defenseState.resources;
+      
+      // Defense Points
+      const dpPercent = (r.current_dp / r.max_dp) * 100;
+      document.getElementById('dp-fill').style.width = dpPercent + '%';
+      document.getElementById('dp-value').textContent = `${r.current_dp} / ${r.max_dp}`;
+      
+      // Action Points
+      const apPercent = (r.current_ap / r.max_ap) * 100;
+      document.getElementById('ap-fill').style.width = apPercent + '%';
+      document.getElementById('ap-value').textContent = `${r.current_ap} / ${r.max_ap}`;
+      
+      // Stability
+      const stabPercent = (r.current_stability / r.max_stability) * 100;
+      document.getElementById('stability-fill').style.width = stabPercent + '%';
+      document.getElementById('stability-value').textContent = `${r.current_stability} / ${r.max_stability}`;
+      
+      // Update fill colors based on percentage
+      updateFillColor('dp-fill', dpPercent);
+      updateFillColor('ap-fill', apPercent);
+      updateFillColor('stability-fill', stabPercent);
+    }
+    
+    function updateFillColor(elementId, percent) {
+      const elem = document.getElementById(elementId);
+      if (percent > 60) {
+        elem.style.background = '#27ae60';
+      } else if (percent > 30) {
+        elem.style.background = '#f39c12';
+      } else {
+        elem.style.background = '#e74c3c';
+      }
+    }
+    
+    function updateActiveRules() {
+      if (!defenseState.rules || defenseState.rules.length === 0) {
+        document.getElementById('rules-tbody').innerHTML = '<tr><td colspan="7" style="text-align: center;">No active rules</td></tr>';
+        return;
+      }
+      
+      const tbody = document.getElementById('rules-tbody');
+      tbody.innerHTML = defenseState.rules.map(rule => `
+        <tr>
+          <td><code>${rule.id}</code></td>
+          <td><span class="rule-type rule-type-${rule.type}">${rule.type}</span></td>
+          <td><code>${rule.target || 'N/A'}</code></td>
+          <td>${new Date(rule.createdAt).toLocaleTimeString()}</td>
+          <td>${new Date(rule.expiresAt).toLocaleTimeString()}</td>
+          <td>DP: ${rule.cost_dp}, AP: ${rule.cost_ap}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" onclick="removeRule('${rule.id}')">Remove</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+    
+    async function activateDefense(type) {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        let payload = { type: type };
+        
+        if (type === 'ipblock') {
+          const target = document.getElementById('ipblock-target').value;
+          const duration = parseInt(document.getElementById('ipblock-duration').value);
+          if (!target) {
+            alert('Please enter target IP');
+            return;
+          }
+          payload.target = target;
+          payload.duration = duration;
+        } else if (type === 'ratelimit') {
+          const target = document.getElementById('ratelimit-target').value;
+          const maxReq = parseInt(document.getElementById('ratelimit-maxreq').value);
+          if (!target) {
+            alert('Please enter target IP');
+            return;
+          }
+          payload.target = target;
+          payload.maxRequests = maxReq;
+        } else if (type === 'mistrust') {
+          const duration = parseInt(document.getElementById('mistrust-duration').value);
+          payload.duration = duration;
+        }
+        
+        const response = await fetch('/api/defense/activate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          alert('Failed: ' + (error.error || 'Unknown error'));
+          return;
+        }
+        
+        const result = await response.json();
+        alert('Defense activated: ' + result.rule_id);
+        
+        // Reload state
+        loadDefenseState();
+        
+      } catch (error) {
+        console.error('Activate defense error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+    
+    async function removeRule(ruleId) {
+      if (!confirm(`Remove defense rule ${ruleId}?`)) return;
+      
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch(`/api/defense/rules/${ruleId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          alert('Failed to remove rule');
+          return;
+        }
+        
+        loadDefenseState();
+        
+      } catch (error) {
+        console.error('Remove rule error:', error);
+      }
+    }
+    
+    async function spawnIncident() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const incidentType = document.getElementById('incident-type').value;
+        const details = document.getElementById('incident-details').value || '';
+        
+        const payload = {
+          type: incidentType,
+          details: details
+        };
+        
+        const response = await fetch('/api/incidents/spawn', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          alert('Failed to spawn incident: ' + (error.error || 'Unknown error'));
+          return;
+        }
+        
+        const result = await response.json();
+        alert('✅ Incident Spawned!\n\nType: ' + result.type + '\n' + result.message);
+        
+        // Clear details input
+        document.getElementById('incident-details').value = '';
+        
+        // Reload incidents and alarms
+        document.getElementById('incident-details').value = '';
+        loadDefenseState();
+        
+      } catch (error) {
+        console.error('Spawn incident error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+    
+    async function loadLogs() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch('/api/defense/logs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load logs');
+        
+        const logs = await response.json();
+        const logOutput = document.getElementById('defense-log');
+        
+        if (logs.length === 0) {
+          logOutput.textContent = 'No defense logs available';
+        } else {
+          logOutput.textContent = logs.map(l => 
+            `[${new Date(l.timestamp).toLocaleString()}] ${l.action}: ${l.details}`
+          ).join('\n');
+        }
+        
+      } catch (error) {
+        console.error('Load logs error:', error);
+      }
+    }
+    
+    async function clearLogs() {
+      if (!confirm('Clear all defense logs?')) return;
+      
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        await fetch('/api/defense/logs', {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        loadLogs();
+        
+      } catch (error) {
+        console.error('Clear logs error:', error);
+      }
+    }
+    
+    async function loadWiFiClients() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch('/api/wifi/clients', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load WiFi clients');
+        }
+        
+        const clients = await response.json();
+        const tbody = document.getElementById('clients-tbody');
+        const noClientsDiv = document.getElementById('wifi-no-clients');
+        
+        if (clients.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No connected clients</td></tr>';
+          noClientsDiv.style.display = 'none';
+        } else {
+          tbody.innerHTML = clients.map(client => {
+            const connectedTime = new Date(client.connected_at).toLocaleTimeString();
+            const lastSeen = new Date(client.last_seen).toLocaleTimeString();
+            const duration = Math.floor(client.duration_ms / 1000);
+            const durationStr = duration < 60 ? `${duration}s` : 
+                               duration < 3600 ? `${Math.floor(duration/60)}m ${duration%60}s` :
+                               `${Math.floor(duration/3600)}h`;
+            
+            return `
+              <tr>
+                <td><code>${client.mac}</code></td>
+                <td><code>${client.ip}</code></td>
+                <td>${connectedTime}</td>
+                <td>${lastSeen}</td>
+                <td>${durationStr}</td>
+              </tr>
+            `;
+          }).join('');
+          noClientsDiv.style.display = 'none';
+        }
+        
+      } catch (error) {
+        console.error('Load WiFi clients error:', error);
+        document.getElementById('clients-tbody').innerHTML = 
+          '<tr><td colspan="5" style="text-align: center; color: red;">Error loading clients</td></tr>';
+      }
+    }
+    
+    // Auto-refresh
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDefenseState();
+      loadLogs();
+      loadWiFiClients();
+      updateInterval = setInterval(() => {
+        loadDefenseState();
+        loadWiFiClients();
+      }, 10000);
+    });
+    
+    window.addEventListener('beforeunload', () => {
+      if (updateInterval) clearInterval(updateInterval);
+    });
+  </script>
+</body>
+</html>

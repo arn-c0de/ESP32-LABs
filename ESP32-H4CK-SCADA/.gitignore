@@ -1,0 +1,13 @@
+# Project specific ignores for ESP32-H4CK-SCADA
+
+# Local Python virtual environment
+.venv/
+
+# Local env file
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+ESP32-H4CK-SCADA/01_Config.ino.bak

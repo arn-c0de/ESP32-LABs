@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alarms - ESP32-H4CK-SCADA</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h1>⚡ SCADA Control</h1>
+    </div>
+    <div class="nav-menu">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/sensors">Sensors</a>
+      <a href="/actuators">Actuators</a>
+      <a href="/alarms" class="active">Alarms</a>
+      <a href="/vulnerabilities">Vulnerabilities</a>
+      <a href="/incidents">Incidents</a>
+      <div class="user-dropdown" id="nav-user">
+        <button class="user-dropdown-toggle" id="user-dropdown-toggle">
+          <span class="user-name" id="user-name">User</span>
+          <span class="user-role" id="user-role">ROLE</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="user-dropdown-menu">
+          <div class="dropdown-header">
+            <div class="dropdown-name" id="dropdown-name">User</div>
+            <div class="dropdown-role" id="dropdown-role">role</div>
+          </div>
+          <a href="#" class="dropdown-item danger logout-item" onclick="logout(); return false;">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>Alarm History</h2>
+      <div class="filter-controls">
+        <label>Filter by Line:</label>
+        <select id="line-filter" onchange="loadAlarms()">
+          <option value="0">All Lines</option>
+          <option value="1">Line 1</option>
+          <option value="2">Line 2</option>
+          <option value="3">Line 3</option>
+          <option value="4">Line 4</option>
+        </select>
+        <label>Limit:</label>
+        <select id="limit-filter" onchange="loadAlarms()">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="alarms-summary">
+      <div class="alarm-stat critical">
+        <h4>Critical</h4>
+        <div class="alarm-stat-count" id="critical-count">0</div>
+      </div>
+      <div class="alarm-stat high">
+        <h4>High</h4>
+        <div class="alarm-stat-count" id="high-count">0</div>
+      </div>
+      <div class="alarm-stat medium">
+        <h4>Medium</h4>
+        <div class="alarm-stat-count" id="medium-count">0</div>
+      </div>
+      <div class="alarm-stat low">
+        <h4>Low</h4>
+        <div class="alarm-stat-count" id="low-count">0</div>
+      </div>
+    </div>
+
+    <div class="alarms-table-container">
+      <table class="alarms-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Sensor</th>
+            <th>Line</th>
+            <th>Level</th>
+            <th>Value</th>
+            <th>Threshold</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="alarms-tbody">
+          <!-- Alarms will be populated by JavaScript -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script>
+    requireAuth();
+    
+    let alarms = [];
+    let updateInterval;
+    const userRole = localStorage.getItem('role');
+    const canAcknowledge = ['admin', 'operator', 'maintenance'].includes(userRole);
+    
+    async function loadAlarms() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const line = document.getElementById('line-filter').value;
+        const limit = document.getElementById('limit-filter').value;
+        
+        const url = `/api/alarms?line=${line}&limit=${limit}`;
+        
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load alarms');
+        }
+        
+        alarms = await response.json();
+        renderAlarms();
+        updateSummary();
+        
+      } catch (error) {
+        console.error('Alarms error:', error);
+      }
+    }
+    
+    function renderAlarms() {
+      const tbody = document.getElementById('alarms-tbody');
+      
+      if (alarms.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No alarms</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = alarms.map((alarm, idx) => `
+        <tr class="alarm-row alarm-level-${alarm.level.toLowerCase()} ${alarm.acknowledged ? 'alarm-ack' : ''}">
+          <td>${new Date(alarm.timestamp).toLocaleString()}</td>
+          <td>${alarm.sensor_id}</td>
+          <td>Line ${alarm.line}</td>
+          <td><span class="alarm-badge alarm-badge-${alarm.level.toLowerCase()}">${alarm.level}</span></td>
+          <td>${alarm.value.toFixed(2)}</td>
+          <td>${alarm.threshold.toFixed(2)}</td>
+          <td>${alarm.acknowledged ? '✓ ACK' : '⚠ ACTIVE'}</td>
+          <td>
+            ${!alarm.acknowledged && canAcknowledge ? 
+              `<button class="btn btn-sm btn-primary" onclick="acknowledgeAlarm('${alarm.sensor_id}', ${alarm.timestamp})">Acknowledge</button>` : 
+              '-'}
+          </td>
+        </tr>
+      `).join('');
+    }
+    
+    function updateSummary() {
+      const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+      
+      alarms.forEach(alarm => {
+        if (!alarm.acknowledged) {
+          counts[alarm.level] = (counts[alarm.level] || 0) + 1;
+        }
+      });
+      
+      document.getElementById('critical-count').textContent = counts.CRITICAL || 0;
+      document.getElementById('high-count').textContent = counts.HIGH || 0;
+      document.getElementById('medium-count').textContent = counts.MEDIUM || 0;
+      document.getElementById('low-count').textContent = counts.LOW || 0;
+    }
+    
+    async function acknowledgeAlarm(sensorId, timestamp) {
+      if (!canAcknowledge) {
+        alert('Insufficient permissions');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('jwt_token');
+
+        const response = await fetch('/api/alarms/ack', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sensor_id: sensorId, timestamp: timestamp })
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          alert(data.error || 'Failed to acknowledge alarm');
+          return;
+        }
+
+        // Immediate refresh
+        await loadAlarms();
+
+      } catch (error) {
+        console.error('Acknowledge error:', error);
+        alert('Network error');
+      }
+    }
+    
+    // Initial load
+    loadAlarms();
+    
+    // Auto-refresh every 10 seconds
+    updateInterval = setInterval(loadAlarms, 10000);
+    
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      if (updateInterval) clearInterval(updateInterval);
+    });
+  </script>
+</body>
+</html>

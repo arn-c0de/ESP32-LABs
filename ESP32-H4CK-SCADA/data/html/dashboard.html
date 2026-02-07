@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ESP32-H4CK-SCADA</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .container {
+      max-width: 100vw;
+      width: 100%;
+      padding: 0 2vw;
+      box-sizing: border-box;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      width: 100%;
+    }
+    .chart-card {
+      width: 100%;
+      min-width: 0;
+    }
+    .lines-section {
+      width: 100%;
+    }
+    .lines-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+    }
+    @media (max-width: 900px) {
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h1>⚡ SCADA Control</h1>
+    </div>
+    <div class="nav-menu">
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/sensors">Sensors</a>
+      <a href="/actuators">Actuators</a>
+      <a href="/alarms">Alarms</a>
+      <a href="/vulnerabilities">Vulnerabilities</a>
+      <a href="/incidents">Incidents</a>
+      <div class="user-dropdown" id="nav-user">
+        <button class="user-dropdown-toggle" id="user-dropdown-toggle">
+          <span class="user-name" id="user-name">User</span>
+          <span class="user-role" id="user-role">ROLE</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="user-dropdown-menu">
+          <div class="dropdown-header">
+            <div class="dropdown-name" id="dropdown-name">User</div>
+            <div class="dropdown-role" id="dropdown-role">role</div>
+          </div>
+          <a href="#" class="dropdown-item danger logout-item" onclick="logout(); return false;">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h2>Production Overview</h2>
+      <div class="system-status" id="system-status">
+        <span class="status-badge status-online">● ONLINE</span>
+        <span id="uptime"></span>
+      </div>
+    </div>
+
+    <!-- System Statistics -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <h3>Total Sensors</h3>
+        <div class="stat-value" id="total-sensors">--</div>
+        <div class="stat-trend">Monitoring all lines</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚙️</div>
+        <h3>Active Actuators</h3>
+        <div class="stat-value" id="active-actuators">--</div>
+        <div class="stat-trend">Currently running</div>
+      </div>
+      <div class="stat-card stat-warning">
+        <div class="stat-icon">⚠️</div>
+        <h3>Active Alarms</h3>
+        <div class="stat-value alarm-count" id="alarm-count">--</div>
+        <div class="stat-trend">Requires attention</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💻</div>
+        <h3>System Load</h3>
+        <div class="stat-value" id="system-load">--</div>
+        <div class="stat-trend" id="memory-usage">Memory: --</div>
+      </div>
+    </div>
+
+    <!-- Overall Efficiency Chart -->
+    <div class="chart-card">
+      <h3>Overall Equipment Effectiveness (OEE)</h3>
+      <div class="chart-container">
+        <canvas id="oeeChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Production Lines Grid -->
+    <div class="lines-section">
+      <h3>Production Lines Status</h3>
+      <div class="lines-grid" id="lines-grid">
+        <!-- Lines will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Recent Activity & Metrics -->
+    <div class="grid-2">
+      <div class="activity-card">
+        <h3>📈 Production Metrics</h3>
+        <div class="metrics-list" id="metrics-list">
+          <div class="metric-row">
+            <span class="metric-label">Total Output:</span>
+            <span class="metric-value" id="total-output">-- units</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Average Efficiency:</span>
+            <span class="metric-value" id="avg-efficiency">--%</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Energy Consumption:</span>
+            <span class="metric-value" id="energy-consumption">-- kW</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Network Requests:</span>
+            <span class="metric-value" id="network-requests">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="activity-card">
+        <h3>🔔 Recent Events</h3>
+        <div class="events-list" id="events-list">
+          <div class="event-item">
+            <span class="event-time">System started</span>
+            <span class="event-desc">Initializing...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script>
+    requireAuth();
+    
+    let updateInterval;
+    let oeeChart;
+    let eventLog = [];
+    let lastData = null;
+    let productionCounter = 0;
+    
+    // Initialize OEE Chart
+    function initCharts() {
+      const ctx = document.getElementById('oeeChart').getContext('2d');
+      oeeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: Array.from({length: 4}, (_, i) => ({
+            label: `Line ${i+1}`,
+            data: [],
+            borderColor: [
+              'rgb(59, 130, 246)',
+              'rgb(16, 185, 129)',
+              'rgb(245, 158, 11)',
+              'rgb(239, 68, 68)'
+            ][i],
+            backgroundColor: [
+              'rgba(59, 130, 246, 0.1)',
+              'rgba(16, 185, 129, 0.1)',
+              'rgba(245, 158, 11, 0.1)',
+              'rgba(239, 68, 68, 0.1)'
+            ][i],
+            tension: 0.4
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: value => value + '%'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              callbacks: {
+                label: context => `${context.dataset.label}: ${context.parsed.y}%`
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    function updateChart(data) {
+      const now = new Date();
+      const timeLabel = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+      
+      // Keep only last 20 data points
+      if (oeeChart.data.labels.length >= 20) {
+        oeeChart.data.labels.shift();
+        oeeChart.data.datasets.forEach(dataset => dataset.data.shift());
+      }
+      oeeChart.data.labels.push(timeLabel);
+      data.lines.forEach((line, idx) => {
+        if (idx < oeeChart.data.datasets.length) {
+          oeeChart.data.datasets[idx].data.push(line.efficiency || 0);
+        }
+      });
+      oeeChart.update('none');
+    }
+    
+    function addEvent(description, type = 'info') {
+      const now = new Date();
+      const timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+      
+      eventLog.unshift({ time: timeStr, desc: description, type: type });
+      if (eventLog.length > 10) eventLog.pop();
+      
+      const eventsList = document.getElementById('events-list');
+      eventsList.innerHTML = eventLog.map(e => `
+        <div class="event-item event-${e.type}">
+          <span class="event-time">${e.time}</span>
+          <span class="event-desc">${e.desc}</span>
+        </div>
+      `).join('');
+    }
+    
+    async function loadDashboard() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch('/api/dashboard/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load dashboard');
+        }
+        
+        const data = await response.json();
+        
+        // Detect changes and add events
+        if (lastData) {
+          // Check for state changes
+          data.lines.forEach((line, idx) => {
+            const oldLine = lastData.lines[idx];
+            if (oldLine && line.status !== oldLine.status) {
+              addEvent(`Line ${line.number} changed to ${line.status.toUpperCase()}`, 
+                       line.status === 'CRITICAL' ? 'error' : 
+                       line.status === 'WARNING' ? 'warning' : 'info');
+            }
+          });
+          
+          if (data.active_alarms > lastData.active_alarms) {
+            addEvent(`New alarm triggered! Total: ${data.active_alarms}`, 'warning');
+          }
+        }
+        
+        lastData = data;
+        
+        // Update system info
+        document.getElementById('uptime').textContent = formatUptime(data.uptime);
+        document.getElementById('total-sensors').textContent = data.total_sensors;
+        document.getElementById('active-actuators').textContent = data.active_actuators;
+        document.getElementById('alarm-count').textContent = data.active_alarms;
+        document.getElementById('system-load').textContent = `${data.cpu_usage}%`;
+        document.getElementById('memory-usage').textContent = `Memory: ${data.memory_usage}%`;
+        document.getElementById('network-requests').textContent = data.total_requests || 0;
+        
+        // Calculate production metrics
+        let totalEfficiency = 0;
+        let activeLines = 0;
+        let totalPower = 0;
+        
+        data.lines.forEach(line => {
+          // Check if motor is running (not sensor status)
+          if (line.motor_state === 'RUNNING' && line.motor_speed > 0) {
+            activeLines++;
+            totalEfficiency += line.efficiency || 0;
+            totalPower += parseFloat(line.power) || 0;
+            productionCounter += line.efficiency / 100;  // Simulate production
+          }
+        });
+        
+        const avgEfficiency = activeLines > 0 ? (totalEfficiency / activeLines).toFixed(1) : 0;
+        document.getElementById('avg-efficiency').textContent = avgEfficiency + '%';
+        document.getElementById('total-output').textContent = Math.floor(productionCounter) + ' units';
+        document.getElementById('energy-consumption').textContent = totalPower.toFixed(1) + ' kW';
+        
+        // Update production lines
+        const linesGrid = document.getElementById('lines-grid');
+        linesGrid.innerHTML = '';
+        
+        data.lines.forEach(line => {
+          // Status badge based on sensor status (NORMAL, WARNING, CRITICAL)
+          const statusClass = line.status === 'CRITICAL' ? 'status-fault' : 
+                            line.status === 'WARNING' ? 'status-warning' : 'status-running';
+          
+          const efficiencyColor = line.efficiency >= 80 ? '#10b981' : 
+                                 line.efficiency >= 60 ? '#f59e0b' : '#ef4444';
+          
+          const lineCard = document.createElement('div');
+          lineCard.className = `line-card line-status-${line.status.toLowerCase()}`;
+          lineCard.innerHTML = `
+            <div class="line-header">
+              <h3>Production Line ${line.number}</h3>
+              <span class="status-badge ${statusClass}">${line.status.toUpperCase()}</span>
+            </div>
+            <div class="line-efficiency">
+              <div class="efficiency-label">Efficiency</div>
+              <div class="efficiency-value" style="color: ${efficiencyColor}">${line.efficiency}%</div>
+              <div class="efficiency-bar">
+                <div class="efficiency-fill" style="width: ${line.efficiency}%; background: ${efficiencyColor}"></div>
+              </div>
+            </div>
+            <div class="line-metrics">
+              <div class="metric">
+                <span class="metric-icon" aria-label="Temperature">🌡️</span>
+                <span class="metric-label">Temperature:</span>
+                <span class="metric-value">${parseFloat(line.temp).toFixed(1)}°C</span>
+              </div>
+              <div class="metric">
+                <span class="metric-icon" aria-label="Pressure">📊</span>
+                <span class="metric-label">Pressure:</span>
+                <span class="metric-value">${parseFloat(line.pressure).toFixed(1)} bar</span>
+              </div>
+              <div class="metric">
+                <span class="metric-icon" aria-label="Flow">💧</span>
+                <span class="metric-label">Flow:</span>
+                <span class="metric-value">${parseFloat(line.flow).toFixed(1)} L/min</span>
+              </div>
+              <div class="metric">
+                <span class="metric-icon" aria-label="Power">⚡</span>
+                <span class="metric-label">Power:</span>
+                <span class="metric-value">${parseFloat(line.power).toFixed(1)} kW</span>
+              </div>
+              <div class="metric">
+                <span class="metric-icon" aria-label="Vibration">📳</span>
+                <span class="metric-label">Vibration:</span>
+                <span class="metric-value">${parseFloat(line.vibration).toFixed(2)} mm/s</span>
+              </div>
+              <div class="metric">
+                <span class="metric-icon" aria-label="Motor">⚙️</span>
+                <span class="metric-label">Motor:</span>
+                <span class="metric-value">${line.motor_state} (${parseFloat(line.motor_speed).toFixed(0)}%)</span>
+              </div>
+            </div>
+            ${line.alarms > 0 ? `<div class="line-alarms">⚠️ ${line.alarms} active alarm(s)</div>` : ''}
+          `;
+          linesGrid.appendChild(lineCard);
+        });
+        
+        // Update chart
+        updateChart(data);
+        
+      } catch (error) {
+        console.error('Dashboard error:', error);
+        addEvent('Failed to update dashboard data', 'error');
+      }
+    }
+    
+    function formatUptime(seconds) {
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      
+      if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+      return `${hours}h ${minutes}m`;
+    }
+    
+    // Initialize
+    initCharts();
+    addEvent('Dashboard initialized', 'info');
+    loadDashboard();
+    
+    // Auto-refresh every 10 seconds
+    updateInterval = setInterval(loadDashboard, 10000);
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (updateInterval) clearInterval(updateInterval);
+    });
+  </script>
+</body>
+</html>
