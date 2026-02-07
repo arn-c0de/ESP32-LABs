@@ -20,12 +20,15 @@ bool authenticateUser(String username, String password) {
   
   // Check default users (plaintext passwords - intentional vulnerability)
   for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
-    if (defaultUsers[i].username == username && 
-        defaultUsers[i].password == password) {
-      
-      logInfo("Successful login: " + username);
-      failedLoginAttempts = 0;
-      return true;
+    if (defaultUsers[i].username == username) {
+      if (defaultUsers[i].password == password) {
+        logInfo("Successful login: " + username);
+        failedLoginAttempts = 0;
+        return true;
+      } else {
+        Serial.printf("[AUTH] Default user '%s' provided wrong password\n", username.c_str());
+        // continue to allow checking DB users as well
+      }
     }
   }
   
@@ -40,17 +43,25 @@ bool authenticateUser(String username, String password) {
       String storedPassword = doc["password"].as<String>();
       
       // Intentional vulnerability: Simple string comparison (no hashing in default mode)
-      if (VULN_WEAK_AUTH && password == storedPassword) {
-        logInfo("Successful login from DB: " + username);
-        failedLoginAttempts = 0;
-        return true;
+      if (VULN_WEAK_AUTH) {
+        if (password == storedPassword) {
+          logInfo("Successful login from DB: " + username);
+          failedLoginAttempts = 0;
+          return true;
+        } else {
+          Serial.printf("[AUTH] DB user '%s' provided wrong password (weak auth)\n", username.c_str());
+        }
       }
       
       // Secure path: Use password hashing (when vulnerability mode is off)
-      if (!VULN_WEAK_AUTH && verifyPassword(password, storedPassword)) {
-        logInfo("Successful login (hashed): " + username);
-        failedLoginAttempts = 0;
-        return true;
+      if (!VULN_WEAK_AUTH) {
+        if (verifyPassword(password, storedPassword)) {
+          logInfo("Successful login (hashed): " + username);
+          failedLoginAttempts = 0;
+          return true;
+        } else {
+          Serial.printf("[AUTH] DB user '%s' failed password verify (hashed)\n", username.c_str());
+        }
       }
     }
   }
@@ -159,12 +170,41 @@ bool isAuthenticated(AsyncWebServerRequest *request) {
 }
 
 String getUserRole(String token) {
-  String decoded = base64Decode(token);
+  // Extract payload part based on token format
+  String payload;
+  
+  if (token.indexOf(".unsigned") > 0) {
+    // VULN_WEAK_AUTH format: header.body.unsigned
+    int firstDot = token.indexOf('.');
+    int lastDot = token.lastIndexOf('.');
+    if (firstDot >= 0 && lastDot > firstDot) {
+      payload = token.substring(firstDot + 1, lastDot);
+      Serial.printf("[AUTH] Extracted payload from weak auth token (length: %d)\n", payload.length());
+    }
+  } else {
+    // Secure format: payload.signature
+    int dotPos = token.indexOf('.');
+    if (dotPos > 0) {
+      payload = token.substring(0, dotPos);
+      Serial.printf("[AUTH] Extracted payload from secure token (length: %d)\n", payload.length());
+    } else {
+      payload = token; // fallback
+      Serial.printf("[AUTH] Using entire token as payload (fallback, length: %d)\n", payload.length());
+    }
+  }
+  
+  String decoded = base64Decode(payload);
+  Serial.printf("[AUTH] Decoded payload: %s\n", decoded.c_str());
+  
   DynamicJsonDocument doc(256);
   DeserializationError error = deserializeJson(doc, decoded);
   
   if (!error) {
-    return doc["role"].as<String>();
+    String role = doc["role"].as<String>();
+    Serial.printf("[AUTH] Parsed role from JSON: %s\n", role.c_str());
+    return role;
+  } else {
+    Serial.printf("[AUTH] JSON parse error: %s\n", error.c_str());
   }
   
   return "guest";
@@ -180,7 +220,9 @@ String getRequestRole(AsyncWebServerRequest *request) {
       String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
       
       if (activeSessions.find(sessionId) != activeSessions.end()) {
-        return activeSessions[sessionId].role;
+        String role = activeSessions[sessionId].role;
+        Serial.printf("[AUTH] Role from session: %s\n", role.c_str());
+        return role;
       }
     }
   }
@@ -190,8 +232,13 @@ String getRequestRole(AsyncWebServerRequest *request) {
     String authHeader = request->header("Authorization");
     if (authHeader.startsWith("Bearer ")) {
       String token = authHeader.substring(7);
+      Serial.printf("[AUTH] JWT token length: %d\n", token.length());
       if (validateJWT(token)) {
-        return getUserRole(token);
+        String role = getUserRole(token);
+        Serial.printf("[AUTH] Role from JWT: %s\n", role.c_str());
+        return role;
+      } else {
+        Serial.println("[AUTH] JWT validation failed");
       }
     }
   }
@@ -202,10 +249,13 @@ String getRequestRole(AsyncWebServerRequest *request) {
     int pos = cookies.indexOf("auth_role=");
     if (pos >= 0) {
       int endPos = cookies.indexOf(';', pos);
-      return cookies.substring(pos + 10, endPos > 0 ? endPos : cookies.length());
+      String role = cookies.substring(pos + 10, endPos > 0 ? endPos : cookies.length());
+      Serial.printf("[AUTH] Role from cookie: %s\n", role.c_str());
+      return role;
     }
   }
   
+  Serial.println("[AUTH] No role found, defaulting to guest");
   return "guest";
 }
 

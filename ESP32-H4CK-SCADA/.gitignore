@@ -9,3 +9,5 @@
 # Python cache
 __pycache__/
 *.py[cod]
+
+ESP32-H4CK-SCADA/01_Config.ino.bak

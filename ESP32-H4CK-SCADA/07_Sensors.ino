@@ -28,14 +28,29 @@ void initSensors() {
       float bmin = SENSOR_BASE_MIN[s];
       float bmax = SENSOR_BASE_MAX[s];
       sd.baseValue = bmin + ((float)random(0, 100) / 100.0f) * (bmax - bmin);
-      sd.currentValue = sd.baseValue;
+      
+      // FIXED: Initialize currentValue to account for normal motor operation (75% speed)
+      // so VIBRATION and POWER don't immediately trigger alarms
+      float normalOpAdjustment = 0.0f;
+      if (s == VIBRATION) {
+        // Motors at 75% -> crossEffect = baseValue * 1.5 * 0.75 = baseValue * 1.125
+        normalOpAdjustment = sd.baseValue * 1.125f;
+      } else if (s == POWER) {
+        // Motors at 75% -> crossEffect = baseValue * 0.8 * 0.75 = baseValue * 0.6
+        normalOpAdjustment = sd.baseValue * 0.6f;
+      } else if (s == TEMP) {
+        // Motors at 75% -> crossEffect = 5.0 * 0.75 = 3.75
+        normalOpAdjustment = 3.75f;
+      }
+      sd.currentValue = sd.baseValue + normalOpAdjustment;
 
-      // Thresholds
+      // Thresholds - adjusted to account for normal motor operation cross-effects
       sd.minThreshold = bmin * 0.5f;
-      sd.maxThreshold = sd.baseValue + SENSOR_WARN_OFFSET[s];
-      sd.critThreshold = sd.baseValue + SENSOR_CRIT_OFFSET[s];
+      sd.maxThreshold = sd.currentValue + SENSOR_WARN_OFFSET[s];
+      sd.critThreshold = sd.currentValue + SENSOR_CRIT_OFFSET[s];
 
       sd.faulted = false;
+      sd.enabled = true;
       sd.lastUpdate = millis();
 
       // Clear history
@@ -69,12 +84,15 @@ String getSensorListJSON() {
     obj["id"] = s.id;
     obj["line"] = s.line;
     obj["type"] = SENSOR_TYPE_NAMES[s.type];
-    obj["value"] = serialized(String(s.currentValue, 2));
+    obj["value"] = s.currentValue;
     obj["unit"] = SENSOR_UNITS[s.type];
     obj["status"] = getSensorStatus(s);
-    obj["base"] = serialized(String(s.baseValue, 2));
-    obj["warn"] = serialized(String(s.maxThreshold, 2));
-    obj["crit"] = serialized(String(s.critThreshold, 2));
+    obj["base"] = s.baseValue;
+    obj["min_threshold"] = s.minThreshold;
+    obj["max_threshold"] = s.maxThreshold;
+    obj["crit_threshold"] = s.critThreshold;
+    obj["faulted"] = s.faulted;
+    obj["enabled"] = s.enabled;
   }
 
   String output;
@@ -106,20 +124,13 @@ String getSensorReadingJSON(const char* sensorId, int limit) {
   int count = (h.count < limit) ? h.count : limit;
 
   DynamicJsonDocument doc(3072);
-  doc["id"] = s.id;
-  doc["line"] = s.line;
-  doc["type"] = SENSOR_TYPE_NAMES[s.type];
-  doc["unit"] = SENSOR_UNITS[s.type];
-  doc["current"] = serialized(String(s.currentValue, 2));
-  doc["status"] = getSensorStatus(s);
-
-  JsonArray readings = doc.createNestedArray("history");
+  JsonArray readings = doc.to<JsonArray>();
 
   // Read from ring buffer, most recent first
   for (int i = 0; i < count; i++) {
     int rIdx = (h.writeIndex - 1 - i + SENSOR_HISTORY_SIZE) % SENSOR_HISTORY_SIZE;
     JsonObject reading = readings.createNestedObject();
-    reading["value"] = serialized(String(h.values[rIdx], 2));
+    reading["value"] = h.values[rIdx];
     reading["time"] = h.timestamps[rIdx];
   }
 
@@ -208,18 +219,18 @@ String getDashboardStatusJSON() {
       else if (sd.type == POWER) power = sd.currentValue;
     }
     
-    lineObj["temp"] = serialized(String(temp, 1));
-    lineObj["pressure"] = serialized(String(pressure, 1));
-    lineObj["flow"] = serialized(String(flow, 1));
-    lineObj["vibration"] = serialized(String(vibration, 1));
-    lineObj["power"] = serialized(String(power, 1));
+    lineObj["temp"] = temp;
+    lineObj["pressure"] = pressure;
+    lineObj["flow"] = flow;
+    lineObj["vibration"] = vibration;
+    lineObj["power"] = power;
     
     // Get motor state for this line (first actuator is motor)
     int motorIdx = (line - 1) * ACTUATORS_PER_LINE;
     if (motorIdx < TOTAL_ACTUATORS) {
       const ActuatorData &motor = actuators[motorIdx];
       lineObj["motor_state"] = ACTUATOR_STATE_NAMES[motor.state];
-      lineObj["motor_speed"] = serialized(String(motor.speed, 0));
+      lineObj["motor_speed"] = motor.speed;
     } else {
       lineObj["motor_state"] = "UNKNOWN";
       lineObj["motor_speed"] = 0;

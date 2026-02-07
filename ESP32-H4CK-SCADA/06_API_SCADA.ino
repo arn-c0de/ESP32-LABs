@@ -72,6 +72,9 @@ void setupSCADARoutes() {
   // Handled by custom SensorReadingsHandler
   server.addHandler(new SensorReadingsHandler());
   
+  // Sensor control (enable/disable)
+  server.addHandler(new SensorControlHandler());
+  
   // ===== ACTUATOR APIs =====
   
   // Get all actuators

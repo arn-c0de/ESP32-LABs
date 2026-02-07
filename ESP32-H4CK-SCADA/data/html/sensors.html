@@ -5,6 +5,127 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sensors - ESP32-H4CK-SCADA</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .container {
+      max-width: 100vw;
+      width: 100%;
+      padding: 0 2vw;
+      box-sizing: border-box;
+    }
+    .sensors-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      margin-top: 2rem;
+    }
+    .sensor-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      padding: 1.2rem;
+      cursor: pointer;
+      transition: box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .sensor-card:hover {
+      box-shadow: 0 4px 16px rgba(30,58,138,0.13);
+    }
+    .sensor-header {
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+      display: flex;
+      gap: 1rem;
+    }
+    .sensor-icon-display {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+    }
+    .sensor-value {
+      font-size: 1.2rem;
+      margin-bottom: 0.3rem;
+    }
+    .sensor-status-text {
+      font-size: 0.95rem;
+      margin-bottom: 0.3rem;
+      font-weight: 500;
+    }
+    .sensor-thresholds {
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+    .threshold-bar {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 0.2rem;
+    }
+    .threshold-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+    .threshold-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .sensor-fault {
+      color: #ef4444;
+      font-weight: bold;
+      margin-bottom: 0.3rem;
+    }
+    .sensor-line-label {
+      font-size: 0.85rem;
+      color: #374151;
+      margin-top: 0.2rem;
+    }
+    .sensor-toggle-btn {
+      margin-top: 0.8rem;
+      padding: 0.4rem 0.8rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .sensor-toggle-btn.enabled {
+      background: #10b981;
+      color: white;
+    }
+    .sensor-toggle-btn.enabled:hover {
+      background: #059669;
+    }
+    .sensor-toggle-btn.disabled {
+      background: #6b7280;
+      color: white;
+    }
+    .sensor-toggle-btn.disabled:hover {
+      background: #4b5563;
+    }
+    .sensor-card.sensor-disabled {
+      opacity: 0.6;
+      border: 2px dashed #9ca3af;
+    }
+    .empty-msg {
+      grid-column: 1/-1;
+      text-align: center;
+      color: #6b7280;
+      font-size: 1.1rem;
+      margin-top: 2rem;
+    }
+    @media (max-width: 900px) {
+      .sensors-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body>
@@ -90,19 +211,22 @@
   <script src="/js/navbar.js"></script>
   <script>
     requireAuth();
-    
+
     let allSensors = [];
     let updateInterval;
     let sensorChart = null;
-    
+    let sensorsLoading = false; // Polling guard
+
     async function loadSensors() {
+      // Pause polling if modal is open
+      if (document.getElementById('sensor-modal').style.display === 'flex') return;
+      if (sensorsLoading) return;
+      sensorsLoading = true;
       try {
         const token = localStorage.getItem('jwt_token');
-        
         const response = await fetch('/api/sensors', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
         if (!response.ok) {
           if (response.status === 401) {
             logout();
@@ -110,61 +234,62 @@
           }
           throw new Error('Failed to load sensors');
         }
-        
         allSensors = await response.json();
         filterSensors();
-        
       } catch (error) {
         console.error('Sensors error:', error);
+      } finally {
+        sensorsLoading = false;
       }
     }
-    
+
     function filterSensors() {
       const lineFilter = parseInt(document.getElementById('line-filter').value);
       const typeFilter = document.getElementById('type-filter').value;
-      
+
       let filtered = allSensors;
-      
+
       if (lineFilter !== 0) {
         filtered = filtered.filter(s => s.line === lineFilter);
       }
-      
+
       if (typeFilter !== 'all') {
         filtered = filtered.filter(s => s.type === typeFilter);
       }
-      
+
       const grid = document.getElementById('sensors-grid');
       grid.innerHTML = '';
-      
+
       if (filtered.length === 0) {
         grid.innerHTML = '<div class="empty-msg">No sensors match the filter criteria</div>';
         return;
       }
-      
+
       filtered.forEach(sensor => {
         const card = document.createElement('div');
-        const statusClass = getSensorStatus(sensor);
+        const statusClass = sensor.enabled ? getSensorStatus(sensor) : 'disabled';
         card.className = `sensor-card sensor-${statusClass}`;
-        card.onclick = () => showSensorDetail(sensor);
-        
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Sensor ${sensor.id} ${sensor.type}`);
+
         // Get appropriate icon based on sensor type
         const icon = getSensorIcon(sensor.type);
-        
+
         // Calculate percentage for threshold bar
         const percent = getThresholdPercent(sensor);
         const barColor = getBarColor(statusClass);
-        
+
         card.innerHTML = `
-          <div class="sensor-header">
+          <div class="sensor-header" onclick="showSensorDetail('${sensor.id}')">
             <span class="sensor-id">${sensor.id}</span>
             <span class="sensor-type">${sensor.type}</span>
           </div>
-          <div class="sensor-icon-display">${icon}</div>
-          <div class="sensor-value">
+          <div class="sensor-icon-display" onclick="showSensorDetail('${sensor.id}')">${icon}</div>
+          <div class="sensor-value" onclick="showSensorDetail('${sensor.id}')">
             ${sensor.value.toFixed(2)} <span class="sensor-unit">${sensor.unit}</span>
           </div>
-          <div class="sensor-status-text">${statusClass.toUpperCase()}</div>
-          <div class="sensor-thresholds">
+          <div class="sensor-status-text" onclick="showSensorDetail('${sensor.id}')">${statusClass.toUpperCase()}</div>
+          <div class="sensor-thresholds" onclick="showSensorDetail('${sensor.id}')">
             <div class="threshold-bar">
               <div class="threshold-fill" style="width: ${percent}%; background: ${barColor}"></div>
             </div>
@@ -173,14 +298,18 @@
               <span>MAX: ${sensor.max_threshold.toFixed(1)}</span>
             </div>
           </div>
-          ${sensor.faulted ? '<div class="sensor-fault">⚠️ FAULT</div>' : ''}
-          <div class="sensor-line-label">Line ${sensor.line}</div>
+          ${sensor.faulted ? '<div class="sensor-fault" onclick="showSensorDetail(\'' + sensor.id + '\')">⚠️ FAULT</div>' : ''}
+          <div class="sensor-line-label" onclick="showSensorDetail('${sensor.id}')">Line ${sensor.line}</div>
+          <button class="sensor-toggle-btn ${sensor.enabled ? 'enabled' : 'disabled'}" 
+                  onclick="event.stopPropagation(); toggleSensor('${sensor.id}', ${!sensor.enabled})">
+            ${sensor.enabled ? '✓ Enabled' : '✗ Disabled'}
+          </button>
         `;
-        
+
         grid.appendChild(card);
       });
     }
-    
+
     function getSensorIcon(type) {
       const icons = {
         'TEMP': '🌡️',
@@ -191,7 +320,7 @@
       };
       return icons[type] || '📡';
     }
-    
+
     function getSensorStatus(sensor) {
       if (sensor.faulted) return 'fault';
       if (sensor.value >= sensor.crit_threshold) return 'critical';
@@ -199,14 +328,14 @@
       if (sensor.value <= sensor.min_threshold) return 'warning';
       return 'normal';
     }
-    
+
     function getThresholdPercent(sensor) {
       const range = sensor.crit_threshold - sensor.min_threshold;
       if (range <= 0) return 50;
       const value = sensor.value - sensor.min_threshold;
       return Math.min(100, Math.max(0, (value / range) * 100));
     }
-    
+
     function getBarColor(status) {
       const colors = {
         'normal': '#10b981',
@@ -216,35 +345,78 @@
       };
       return colors[status] || '#cbd5e1';
     }
-    
-    async function showSensorDetail(sensor) {
+
+    async function showSensorDetail(sensorId) {
+      // Find sensor in allSensors array
+      const sensor = allSensors.find(s => s.id === sensorId);
+      if (!sensor) {
+        alert('Sensor not found');
+        return;
+      }
+
+      // Show modal immediately as a loading state to prevent polling races
+      document.getElementById('sensor-modal').style.display = 'flex';
+      document.getElementById('modal-sensor-id').textContent = sensorId + ' - Loading...';
+      document.getElementById('modal-sensor-body').innerHTML = '<div class="empty-msg">Loading sensor history…</div>';
+
+      // Pause polling while modal is open
+      clearInterval(updateInterval);
       try {
         const token = localStorage.getItem('jwt_token');
-        
+
         const response = await fetch(`/api/sensors/${sensor.id}/readings?limit=30`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'same-origin'
         });
-        
-        if (!response.ok) throw new Error('Failed to load sensor history');
-        
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Don't auto-logout — show explicit message and let user choose
+            document.getElementById('modal-sensor-body').innerHTML = `
+              <div class="warning">Session expired or unauthorized. Please log in again.</div>
+              <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+                <button class="btn btn-outline" onclick="closeSensorModal()">Close</button>
+                <button class="btn btn-danger" onclick="logout()">Go to Login</button>
+              </div>`;
+            return;
+          }
+          throw new Error('Failed to load sensor history');
+        }
+
         const data = await response.json();
-        
+
+        // Populate header and details
         document.getElementById('modal-sensor-id').textContent = sensor.id + ' - ' + sensor.type;
-        document.getElementById('detail-value').textContent = sensor.value.toFixed(2) + ' ' + sensor.unit;
-        document.getElementById('detail-status').textContent = getSensorStatus(sensor).toUpperCase();
-        document.getElementById('detail-min').textContent = sensor.min_threshold.toFixed(2);
-        document.getElementById('detail-max').textContent = sensor.max_threshold.toFixed(2);
-        
+        document.getElementById('modal-sensor-body').innerHTML = `
+          <div class="sensor-detail-stats">
+            <div class="detail-stat">
+              <strong>Value:</strong> <span id="detail-value">${sensor.value.toFixed(2)} ${sensor.unit}</span>
+            </div>
+            <div class="detail-stat">
+              <strong>Status:</strong> <span id="detail-status">${getSensorStatus(sensor).toUpperCase()}</span>
+            </div>
+            <div class="detail-stat">
+              <strong>Min:</strong> <span id="detail-min">${sensor.min_threshold.toFixed(2)}</span>
+            </div>
+            <div class="detail-stat">
+              <strong>Max:</strong> <span id="detail-max">${sensor.max_threshold.toFixed(2)}</span>
+            </div>
+          </div>
+          <div class="chart-container" style="height:250px;margin-top:20px;">
+            <canvas id="sensor-chart"></canvas>
+          </div>
+        `;
+
         // Create or update chart
         const ctx = document.getElementById('sensor-chart').getContext('2d');
-        
+
         if (sensorChart) {
           sensorChart.destroy();
         }
-        
+
         const labels = data.map((r, i) => i + 1);
         const values = data.map(r => r.value);
-        
+
         sensorChart = new Chart(ctx, {
           type: 'line',
           data: {
@@ -301,23 +473,67 @@
             }
           }
         });
-        
-        document.getElementById('sensor-modal').style.display = 'flex';
-        
+
       } catch (error) {
         console.error('Sensor detail error:', error);
-        alert('Failed to load sensor history');
+        document.getElementById('modal-sensor-body').innerHTML = '<div class="warning">Failed to load sensor history. Network error.</div>';
       }
     }
-    
+
     function closeSensorModal() {
       document.getElementById('sensor-modal').style.display = 'none';
       if (sensorChart) {
         sensorChart.destroy();
         sensorChart = null;
       }
+      // Resume polling
+      updateInterval = setInterval(loadSensors, 5000);
     }
-    
+
+    async function toggleSensor(sensorId, enable) {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        console.log('[SENSORS] toggleSensor token length:', token ? token.length : 0);
+        if (!token) {
+          alert('No authentication token found — please log in');
+          return;
+        }
+        
+        const response = await fetch(`/api/sensors/${sensorId}/control`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ enabled: enable })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          if (response.status === 401) {
+            alert('Session expired. Please log in again.');
+            logout();
+            return;
+          } else if (response.status === 403) {
+            alert('Insufficient permissions to control sensors. Role: ' + (localStorage.getItem('role') || 'unknown'));
+            return;
+          }
+          throw new Error(errorData.error || 'Failed to toggle sensor');
+        }
+        
+        const result = await response.json();
+        console.log('Sensor toggled:', result);
+        
+        // Immediately reload sensors to show change
+        await loadSensors();
+        
+      } catch (error) {
+        console.error('Toggle sensor error:', error);
+        alert('Failed to toggle sensor: ' + error.message);
+      }
+    }
+
     // Close modal on outside click
     window.onclick = function(event) {
       const modal = document.getElementById('sensor-modal');
@@ -325,27 +541,13 @@
         closeSensorModal();
       }
     }
-    
+
     // Initial load
     loadSensors();
-    
+
     // Auto-refresh every 5 seconds
     updateInterval = setInterval(loadSensors, 5000);
-    
-    // Cleanup
-    window.addEventListener('beforeunload', () => {
-      if (updateInterval) clearInterval(updateInterval);
-    });
-  </script>
-</body>
-</html>
-    
-    // Initial load
-    loadSensors();
-    
-    // Auto-refresh every 3 seconds
-    updateInterval = setInterval(loadSensors, 3000);
-    
+
     // Cleanup
     window.addEventListener('beforeunload', () => {
       if (updateInterval) clearInterval(updateInterval);

@@ -5,6 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - ESP32-H4CK-SCADA</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .container {
+      max-width: 100vw;
+      width: 100%;
+      padding: 0 2vw;
+      box-sizing: border-box;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      width: 100%;
+    }
+    .chart-card {
+      width: 100%;
+      min-width: 0;
+    }
+    .lines-section {
+      width: 100%;
+    }
+    .lines-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+    }
+    @media (max-width: 900px) {
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body>
@@ -131,36 +172,23 @@
         type: 'line',
         data: {
           labels: [],
-          datasets: [
-            {
-              label: 'Line 1',
-              data: [],
-              borderColor: 'rgb(59, 130, 246)',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              tension: 0.4
-            },
-            {
-              label: 'Line 2',
-              data: [],
-              borderColor: 'rgb(16, 185, 129)',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              tension: 0.4
-            },
-            {
-              label: 'Line 3',
-              data: [],
-              borderColor: 'rgb(245, 158, 11)',
-              backgroundColor: 'rgba(245, 158, 11, 0.1)',
-              tension: 0.4
-            },
-            {
-              label: 'Line 4',
-              data: [],
-              borderColor: 'rgb(239, 68, 68)',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              tension: 0.4
-            }
-          ]
+          datasets: Array.from({length: 4}, (_, i) => ({
+            label: `Line ${i+1}`,
+            data: [],
+            borderColor: [
+              'rgb(59, 130, 246)',
+              'rgb(16, 185, 129)',
+              'rgb(245, 158, 11)',
+              'rgb(239, 68, 68)'
+            ][i],
+            backgroundColor: [
+              'rgba(59, 130, 246, 0.1)',
+              'rgba(16, 185, 129, 0.1)',
+              'rgba(245, 158, 11, 0.1)',
+              'rgba(239, 68, 68, 0.1)'
+            ][i],
+            tension: 0.4
+          }))
         },
         options: {
           responsive: true,
@@ -170,9 +198,7 @@
               beginAtZero: true,
               max: 100,
               ticks: {
-                callback: function(value) {
-                  return value + '%';
-                }
+                callback: value => value + '%'
               }
             }
           },
@@ -183,9 +209,7 @@
             },
             tooltip: {
               callbacks: {
-                label: function(context) {
-                  return context.dataset.label + ': ' + context.parsed.y + '%';
-                }
+                label: context => `${context.dataset.label}: ${context.parsed.y}%`
               }
             }
           }
@@ -198,20 +222,17 @@
       const timeLabel = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
       
       // Keep only last 20 data points
-      if (oeeChart.data.labels.length > 20) {
+      if (oeeChart.data.labels.length >= 20) {
         oeeChart.data.labels.shift();
         oeeChart.data.datasets.forEach(dataset => dataset.data.shift());
       }
-      
       oeeChart.data.labels.push(timeLabel);
-      
       data.lines.forEach((line, idx) => {
         if (idx < oeeChart.data.datasets.length) {
           oeeChart.data.datasets[idx].data.push(line.efficiency || 0);
         }
       });
-      
-      oeeChart.update('none');  // Update without animation for performance
+      oeeChart.update('none');
     }
     
     function addEvent(description, type = 'info') {
@@ -321,32 +342,32 @@
             </div>
             <div class="line-metrics">
               <div class="metric">
-                <span class="metric-icon">🌡️</span>
+                <span class="metric-icon" aria-label="Temperature">🌡️</span>
                 <span class="metric-label">Temperature:</span>
                 <span class="metric-value">${parseFloat(line.temp).toFixed(1)}°C</span>
               </div>
               <div class="metric">
-                <span class="metric-icon">📊</span>
+                <span class="metric-icon" aria-label="Pressure">📊</span>
                 <span class="metric-label">Pressure:</span>
                 <span class="metric-value">${parseFloat(line.pressure).toFixed(1)} bar</span>
               </div>
               <div class="metric">
-                <span class="metric-icon">💧</span>
+                <span class="metric-icon" aria-label="Flow">💧</span>
                 <span class="metric-label">Flow:</span>
                 <span class="metric-value">${parseFloat(line.flow).toFixed(1)} L/min</span>
               </div>
               <div class="metric">
-                <span class="metric-icon">⚡</span>
+                <span class="metric-icon" aria-label="Power">⚡</span>
                 <span class="metric-label">Power:</span>
                 <span class="metric-value">${parseFloat(line.power).toFixed(1)} kW</span>
               </div>
               <div class="metric">
-                <span class="metric-icon">📳</span>
+                <span class="metric-icon" aria-label="Vibration">📳</span>
                 <span class="metric-label">Vibration:</span>
                 <span class="metric-value">${parseFloat(line.vibration).toFixed(2)} mm/s</span>
               </div>
               <div class="metric">
-                <span class="metric-icon">⚙️</span>
+                <span class="metric-icon" aria-label="Motor">⚙️</span>
                 <span class="metric-label">Motor:</span>
                 <span class="metric-value">${line.motor_state} (${parseFloat(line.motor_speed).toFixed(0)}%)</span>
               </div>
@@ -379,8 +400,8 @@
     addEvent('Dashboard initialized', 'info');
     loadDashboard();
     
-    // Auto-refresh every 3 seconds
-    updateInterval = setInterval(loadDashboard, 3000);
+    // Auto-refresh every 5 seconds
+    updateInterval = setInterval(loadDashboard, 5000);
     
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {

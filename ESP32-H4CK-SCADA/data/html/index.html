@@ -125,7 +125,7 @@
           submitBtn.style.background = '#10b981';
           
           setTimeout(() => {
-            window.location.href = '/dashboard';
+            location.replace('/dashboard');
           }, 500);
         } else {
           errorMsg.textContent = '❌ ' + (data.error || 'Login failed');
@@ -143,13 +143,15 @@
     
     // Auto-focus username field
     document.getElementById('username').focus();
-  </script>
-</body>
-</html>
-    
-    // Auto-redirect if already logged in
-    if (localStorage.getItem('jwt_token')) {
-      window.location.href = '/dashboard';
+
+    // Safer auto-redirect if already logged in
+    if (
+      localStorage.getItem('jwt_token') &&
+      (location.pathname === '/' ||
+       location.pathname === '/index.html' ||
+       location.pathname === '/login')
+    ) {
+      location.replace('/dashboard');
     }
   </script>
 </body>
