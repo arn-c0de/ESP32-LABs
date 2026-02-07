@@ -13,7 +13,7 @@ bool        WIFI_STA_MODE = false;
 
 // Security Configuration (injected by upload.sh from .env)
 const char* JWT_SECRET              = "weak_secret_key_123";
-const char* LAB_MODE                = "pentest";
+const char* LAB_MODE                = "testing";
 const char* TELNET_ADMIN_PASSWORD   = "admin";
 const char* TELNET_GUEST_PASSWORD   = "guest";
 const char* TELNET_ROOT_PASSWORD    = "toor";
