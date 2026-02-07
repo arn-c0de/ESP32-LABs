@@ -28,7 +28,7 @@ Always obtain permission before performing security testing on systems you do no
 
 <img src="ESP32-H4CK-SCADA/images/h4ck-SCADA-dashboard.png" alt="ESP32-LAB - SCADA Industrial" style="float:left; margin:0 1rem 1rem 0; width:300px;">
 
-- **ESP32-H4CK-SCADA — Industrial SCADA Lab**: A red team-oriented SCADA training environment simulating multi-line production with realistic sensor physics and six independent exploit paths. See the lab documentation and exercises in [ESP32-H4CK-SCADA/README.md](ESP32-H4CK-SCADA/README.md).
+- **ESP32-H4CK-SCADA — Industrial SCADA Lab**: A red team-oriented SCADA training environment simulating multi-line production with realistic sensor physics and six independent exploit paths. See the lab documentation and exercises in [ESP32-H4CK-SCADA/README.md](ESP32-H4CK-SCADA/README.md) and the quick start guide: [ESP32-H4CK-SCADA/QUICKSTART.md](ESP32-H4CK-SCADA/QUICKSTART.md).
 
 - More labs will be added over time — check each subfolder for its README or QUICKSTART.
 
