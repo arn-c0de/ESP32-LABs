@@ -143,36 +143,57 @@ void trackConnectedClients() {
     if (numStations > 0) {
       wifi_sta_list_t stationList = {0};
       esp_wifi_ap_get_sta_list(&stationList);
-      
-      for (int i = 0; i < numStations && i < stationList.num; i++) {
+
+      // Get actual DHCP-assigned IPs via esp_netif
+      esp_netif_sta_list_t netifStaList = {0};
+      esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+      bool hasNetifList = false;
+      if (ap_netif) {
+        hasNetifList = (esp_netif_get_sta_list(&stationList, &netifStaList) == ESP_OK);
+      }
+
+      int count = hasNetifList ? netifStaList.num : stationList.num;
+      for (int i = 0; i < count; i++) {
+        // Get MAC from the appropriate list
+        uint8_t *mac = hasNetifList ? netifStaList.sta[i].mac : stationList.sta[i].mac;
+
         // Check if client is already recorded
         bool found = false;
         for (int j = 0; j < wifiClientCount; j++) {
-          if (memcmp(wifiClients[j].mac, stationList.sta[i].mac, 6) == 0) {
-            // Update lastSeen
+          if (memcmp(wifiClients[j].mac, mac, 6) == 0) {
+            // Update lastSeen and refresh IP (DHCP may reassign)
             wifiClients[j].lastSeen = millis();
+            if (hasNetifList) {
+              char ipStr[16];
+              esp_ip4addr_ntoa(&netifStaList.sta[i].ip, ipStr, sizeof(ipStr));
+              strncpy(wifiClients[j].ip, ipStr, 15);
+              wifiClients[j].ip[15] = '\0';
+            }
             found = true;
             break;
           }
         }
-        
+
         if (!found && wifiClientCount < MAX_WIFI_CLIENTS) {
-          // Add new client
-          IPAddress clientIP = WiFi.softAPIP();
-          clientIP[3] = 100 + i;  // Simple IP assignment guess
-          
-          snprintf(wifiClients[wifiClientCount].ip, 16, "%s", clientIP.toString().c_str());
-          sprintf(wifiClients[wifiClientCount].mac, "%02X:%02X:%02X:%02X:%02X:%02X",
-                  stationList.sta[i].mac[0], stationList.sta[i].mac[1],
-                  stationList.sta[i].mac[2], stationList.sta[i].mac[3],
-                  stationList.sta[i].mac[4], stationList.sta[i].mac[5]);
+          // Get real IP from DHCP lease table
+          if (hasNetifList) {
+            char ipStr[16];
+            esp_ip4addr_ntoa(&netifStaList.sta[i].ip, ipStr, sizeof(ipStr));
+            strncpy(wifiClients[wifiClientCount].ip, ipStr, 15);
+            wifiClients[wifiClientCount].ip[15] = '\0';
+          } else {
+            snprintf(wifiClients[wifiClientCount].ip, 16, "0.0.0.0");
+          }
+
+          snprintf(wifiClients[wifiClientCount].mac, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
           wifiClients[wifiClientCount].connectedTime = millis();
           wifiClients[wifiClientCount].lastSeen = millis();
-          
-          Serial.printf("[WIFI] New client connected: %s (%s)\n", 
-                        wifiClients[wifiClientCount].mac, 
+
+          Serial.printf("[WIFI] New client connected: %s (%s)\n",
+                        wifiClients[wifiClientCount].mac,
                         wifiClients[wifiClientCount].ip);
-          
+
           wifiClientCount++;
         }
       }

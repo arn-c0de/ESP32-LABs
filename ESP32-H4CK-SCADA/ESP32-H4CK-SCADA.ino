@@ -33,6 +33,7 @@ String LAB_MODE_STR = "testing"; // will be overridden in initConfig()
 #include <esp_system.h>
 #include <esp_heap_caps.h>
 #include <esp_wifi.h>
+#include <esp_netif.h>
 #include <map>
 
 // ===== WiFi Configuration (set by 01_Config.ino) =====
@@ -456,6 +457,7 @@ void addBlock(const String &ip, unsigned long seconds, bool permanent, String by
 void removeBlock(const String &ip);
 void rateLimitedLog(const String &message);
 String getDefenseAlertsJSON();
+void addDefenseAlert(const String &type, const String &ip, const String &details);
 
 struct ConnectionGuard {
   bool active;

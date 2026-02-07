@@ -139,6 +139,14 @@ void addAlarm(const char* sensorId, int line, const char* level, float value, fl
   }
   // When alarmCount >= MAX_ALARMS the oldest entry has been overwritten.
   // We keep alarmCount clamped at MAX_ALARMS so iteration stays bounded.
+
+  // Log CRITICAL alarms as security incidents so they persist in the
+  // Incidents page even after acknowledgment
+  if (strcmp(level, "CRITICAL") == 0) {
+    String details = String(sensorId) + " Line " + String(line) +
+                     " val=" + String(value, 2) + " thresh=" + String(threshold, 2);
+    addDefenseAlert("CRITICAL_ALARM", "system", details);
+  }
 }
 
 // ===== ALARM HISTORY JSON =====

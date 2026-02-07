@@ -736,15 +736,18 @@
         const time = new Date(a.timestamp).toLocaleTimeString();
         const ip = a.ip || 'unknown';
         const details = a.details || '';
-        const actions = canBlock ? `
+        const isCriticalAlarm = (a.type === 'CRITICAL_ALARM');
+        const typeLabel = isCriticalAlarm ? '🚨 CRITICAL ALARM' : a.type;
+        const cardStyle = isCriticalAlarm ? 'border-left: 4px solid #e74c3c;' : '';
+        const actions = (!isCriticalAlarm && canBlock) ? `
           <div class="action-input" style="margin-top:8px;">
             <button class="btn btn-sm btn-danger" onclick="blockIp('${ip}', 300, false)">Block 5m</button>
             <button class="btn btn-sm btn-danger" onclick="blockIp('${ip}', 1800, false)">Block 30m</button>
             <button class="btn btn-sm btn-danger" onclick="blockIp('${ip}', 0, true)">Block Permanent</button>
           </div>` : '';
         return `
-          <div class="incident-card">
-            <strong>${a.type}</strong> from <code>${ip}</code> at ${time}<br/>
+          <div class="incident-card" style="${cardStyle}">
+            <strong>${typeLabel}</strong>${isCriticalAlarm ? '' : ' from <code>' + ip + '</code>'} at ${time}<br/>
             <span class="hint">${details}</span>
             ${actions}
           </div>
