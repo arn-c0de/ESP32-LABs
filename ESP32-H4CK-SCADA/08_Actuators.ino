@@ -14,9 +14,9 @@ void initActuators() {
     snprintf(motor.id, sizeof(motor.id), "MOTOR-L%d-01", line + 1);
     motor.line = line + 1;
     motor.type = MOTOR;
-    motor.state = ACT_STOPPED;
-    motor.speed = 0.0f;
-    motor.targetSpeed = 0.0f;
+    motor.state = ACT_RUNNING;  // FIXED: Start motors running for normal production simulation
+    motor.speed = 75.0f;        // 75% speed
+    motor.targetSpeed = 75.0f;
     motor.stateChangeTime = millis();
     motor.locked = false;
 
@@ -46,8 +46,8 @@ String getActuatorListJSON() {
     obj["line"] = a.line;
     obj["type"] = ACTUATOR_TYPE_NAMES[a.type];
     obj["state"] = ACTUATOR_STATE_NAMES[a.state];
-    obj["speed"] = serialized(String(a.speed, 1));
-    obj["targetSpeed"] = serialized(String(a.targetSpeed, 1));
+    obj["speed"] = a.speed;
+    obj["targetSpeed"] = a.targetSpeed;
     obj["locked"] = a.locked;
   }
 

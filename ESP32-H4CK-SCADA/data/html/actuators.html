@@ -5,6 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Actuators - ESP32-H4CK-SCADA</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .container {
+      max-width: 100vw;
+      width: 100%;
+      padding: 0 2vw;
+      box-sizing: border-box;
+    }
+    .actuators-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+    }
+    @media (max-width: 900px) {
+      .actuators-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
   <nav class="navbar">
@@ -42,10 +61,7 @@
     let actuators = [];
     let updateInterval;
     const userRole = localStorage.getItem('role');
-    
-    // Check permissions
     const canControl = ['admin', 'operator', 'maintenance'].includes(userRole);
-    
     document.getElementById('role-info').innerHTML = canControl 
       ? '<span class="badge badge-success">✓ Control Authorized</span>'
       : '<span class="badge badge-warning">⚠ Read-Only Access</span>';
@@ -77,18 +93,16 @@
     function renderActuators() {
       const grid = document.getElementById('actuators-grid');
       grid.innerHTML = '';
-      
       actuators.forEach(actuator => {
         const card = document.createElement('div');
         card.className = `actuator-card actuator-${actuator.state.toLowerCase()}`;
-        
         card.innerHTML = `
           <div class="actuator-header">
             <span class="actuator-id">${actuator.id}</span>
             <span class="actuator-type">${actuator.type}</span>
           </div>
           <div class="actuator-state">
-            <span class="state-badge state-${actuator.state.toLowerCase()}">${actuator.state}</span>
+            <span class="state-badge state-${actuator.state.toLowerCase()}" aria-label="State">${actuator.state}</span>
           </div>
           <div class="actuator-speed">
             <div class="speed-label">${actuator.type === 'motor' ? 'Speed' : 'Position'}:</div>
@@ -100,18 +114,17 @@
           ${canControl ? `
           <div class="actuator-controls">
             ${actuator.type === 'motor' ? `
-              <button class="btn btn-success btn-sm" onclick="controlActuator('${actuator.id}', 'start', 75)">Start</button>
-              <button class="btn btn-warning btn-sm" onclick="controlActuator('${actuator.id}', 'stop', 0)">Stop</button>
-              <button class="btn btn-danger btn-sm" onclick="controlActuator('${actuator.id}', 'emergency_stop', 0)">E-STOP</button>
+              <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="start" data-param="75" aria-label="Start actuator">Start</button>
+              <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="stop" data-param="0" aria-label="Stop actuator">Stop</button>
+              <button class="btn btn-danger btn-sm" data-actuator="${actuator.id}" data-command="emergency_stop" data-param="0" aria-label="Emergency stop actuator">E-STOP</button>
             ` : `
-              <button class="btn btn-success btn-sm" onclick="controlActuator('${actuator.id}', 'open', 100)">Open</button>
-              <button class="btn btn-warning btn-sm" onclick="controlActuator('${actuator.id}', 'close', 0)">Close</button>
+              <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="open" data-param="100" aria-label="Open actuator">Open</button>
+              <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="close" data-param="0" aria-label="Close actuator">Close</button>
             `}
           </div>
           ` : ''}
           ${actuator.locked ? '<div class="actuator-locked">🔒 LOCKED</div>' : ''}
         `;
-        
         grid.appendChild(card);
       });
     }
@@ -121,45 +134,64 @@
         alert('Insufficient permissions');
         return;
       }
-      
       if (command === 'emergency_stop' && !confirm('Trigger emergency stop?')) {
         return;
       }
-      
       try {
         const token = localStorage.getItem('jwt_token');
-        
+        console.log('[ACTUATORS] controlActuator token length:', token ? token.length : 0);
+        if (!token) {
+          alert('No authentication token found — please log in');
+          return;
+        }
         const response = await fetch(`/api/actuators/${actuatorId}/control`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
+          credentials: 'same-origin',
           body: JSON.stringify({ command, param })
         });
         
-        const data = await response.json();
+        const data = await response.json().catch(() => ({ error: 'Unknown error' }));
         
         if (!response.ok) {
-          alert(data.error || 'Command failed');
+          if (response.status === 401) {
+            alert('Session expired. Please log in again.');
+            logout();
+            return;
+          } else if (response.status === 403) {
+            alert('Insufficient permissions. Role: ' + (localStorage.getItem('role') || 'unknown') + '. Error: ' + (data.error || 'Access denied'));
+            return;
+          }
+          alert(data.error || 'Command failed (HTTP ' + response.status + ')');
           return;
         }
         
-        // Immediate refresh to show change
         await loadActuators();
-        
       } catch (error) {
         console.error('Control error:', error);
-        alert('Network error');
+        alert('Network error: ' + error.message);
       }
     }
+
+    // Event delegation for actuator controls
+    document.getElementById('actuators-grid').addEventListener('click', function(e) {
+      const btn = e.target.closest('button[data-actuator]');
+      if (!btn) return;
+      const actuatorId = btn.getAttribute('data-actuator');
+      const command = btn.getAttribute('data-command');
+      const param = parseInt(btn.getAttribute('data-param'), 10);
+      controlActuator(actuatorId, command, param);
+    });
     
     // Initial load
     loadActuators();
-    
-    // Auto-refresh every 2 seconds
-    updateInterval = setInterval(loadActuators, 2000);
-    
+
+    // Auto-refresh every 5 seconds
+    updateInterval = setInterval(loadActuators, 5000);
+
     // Cleanup
     window.addEventListener('beforeunload', () => {
       if (updateInterval) clearInterval(updateInterval);

@@ -33,3 +33,66 @@
         }
     });
 })();
+
+// Ensure mode.js is available on every page (load if not present)
+(function(){
+    if(!document.querySelector('script[src="/js/mode.js"]')){
+        var s=document.createElement('script');
+        s.src='/js/mode.js';
+        s.defer=true;
+        document.head.appendChild(s);
+    }
+
+    // Provide a minimal fallback theme toggle while mode.js initializes
+    document.addEventListener('DOMContentLoaded', function(){
+        var navMenu=document.querySelector('.nav-menu');
+        if(!navMenu) return;
+        if(!document.getElementById('theme-toggle')){
+            var btn=document.createElement('button');
+            btn.id='theme-toggle';
+            btn.className='btn-nav';
+            btn.title='Toggle theme';
+
+            function updateFallbackBtn(choice, effective){
+                var icon = choice === 'dark' ? '🌙' : (choice === 'light' ? '☀️' : '🖥️');
+                btn.textContent = icon;
+                btn.setAttribute('data-theme-mode', choice);
+                btn.title = choice + ' (effective: ' + effective + ')';
+            }
+
+            var cur = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            var effective = document.documentElement.getAttribute('data-theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            updateFallbackBtn(cur, effective);
+
+            btn.addEventListener('click', function(){
+                var curChoice = window.getTheme ? window.getTheme() : localStorage.getItem('theme') || 'system';
+                var next = curChoice === 'light' ? 'dark' : (curChoice === 'dark' ? 'system' : 'light');
+
+                if (window.setTheme) {
+                    window.setTheme(next);
+                } else {
+                    // Apply immediately and persist
+                    var eff = next === 'system' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : next;
+                    document.documentElement.setAttribute('data-theme', eff);
+                    localStorage.setItem('theme', next);
+                    // Emit themechange for any listeners
+                    window.dispatchEvent(new CustomEvent('themechange', { detail: { choice: next, effective: eff } }));
+                }
+
+                // Update UI
+                var effAfter = next === 'system' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : next;
+                updateFallbackBtn(next, effAfter);
+            });
+
+            var logout = navMenu.querySelector('a[onclick^="logout"], a[href="#"]');
+            if(logout) navMenu.insertBefore(btn, logout);
+            else navMenu.appendChild(btn);
+
+            // Keep the fallback in sync with real changes
+            window.addEventListener('themechange', function(e){
+                var info = e.detail || {};
+                updateFallbackBtn(window.getTheme ? window.getTheme() : localStorage.getItem('theme') || 'system', info.effective || document.documentElement.getAttribute('data-theme'));
+            });
+        }
+    });
+})();

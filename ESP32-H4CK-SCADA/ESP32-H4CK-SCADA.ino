@@ -133,6 +133,7 @@ struct SensorData {
   float maxThreshold;
   float critThreshold;
   bool faulted;
+  bool enabled;       // sensor can be disabled via UI
   unsigned long lastUpdate;
 };
 
@@ -213,7 +214,7 @@ struct DefaultUser {
 DefaultUser defaultUsers[] = {
   {"admin", "admin", "admin", "admin@scada-lab.local"},
   {"operator", "operator123", "operator", "operator@scada-lab.local"},
-  {"maintenance", "m4int3n@nc3", "maintenance", "maintenance@scada-lab.local"},
+  {"maintenance", "maint456", "maintenance", "maintenance@scada-lab.local"},
   {"viewer", "viewer", "viewer", "viewer@scada-lab.local"}
 };
 const int DEFAULT_USERS_COUNT = 4;

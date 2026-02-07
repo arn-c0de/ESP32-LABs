@@ -7,7 +7,17 @@
   --border:#e2e8f0;--border-light:#f1f5f9;
   --running:#10b981;--stopped:#6b7280;--fault:#dc2626;
 }
-body{font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* Dark theme overrides when [data-theme="dark"] is set on <html> */
+[data-theme="dark"] {
+  --primary:#0b1220; --primary-dark:#071028; --accent:#06b6d4;
+  --danger:#ef4444; --critical:#991b1b; --success:#10b981; --warning:#f59e0b;
+  --bg:#0a0e14; --card:#0f1720; --text:#e6eef6; --text-muted:#94a3b8;
+  --border:#24303a; --border-light:#111827;
+  --running:#10b981; --stopped:#6b7280; --fault:#ef4444;
+}
+
+body{font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background-color .25s ease,color .25s ease}
 
 /* Navbar */
 .navbar{background:linear-gradient(135deg,var(--primary) 0%,var(--accent) 100%);color:#fff;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;box-shadow:0 2px 8px rgba(0,0,0,.15);position:sticky;top:0;z-index:100}
