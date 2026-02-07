@@ -479,7 +479,15 @@ Before students use:
 
 ---
 
-## 📞 Support
+## 📞 Support & Issues
+
+<details>
+  <summary><strong>Open an issue or contact the maintainer</strong></summary>
+
+  - For bugs, feature requests, or general support, please open an issue on GitHub: https://github.com/arn-c0de/ESP32-LABs/issues
+  - For security-sensitive reports or private matters, contact the maintainer directly: **arn-c0de@protonmail.com**
+
+</details>
 
 - **Serial Monitor** (115200 baud): Check boot output and debug messages
 - **README.md**: Full technical documentation
