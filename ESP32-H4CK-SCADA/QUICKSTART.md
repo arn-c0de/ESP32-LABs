@@ -6,554 +6,487 @@
 
 All core SCADA modules, physics simulation, exploit paths, and defense system are deployed and ready for hands-on cybersecurity training.
 
-## 📁 Project Structure
+---
 
-```
-ESP32-H4CK-SCADA/
-├── ESP32-H4CK-SCADA.ino     ✓ Main sketch (setup/loop)
-├── 01_Config.ino             ✓ Configuration & globals
-├── 02_WiFi.ino               ✓ WiFi management
-├── 03_WebServer.ino          ✓ HTTP server setup
-├── 03_HttpHelpers.ino        ✓ HTTP helper functions
-├── 04_Auth.ino               ✓ Authentication & authorization
-├── 05_Database.ino           ✓ LittleFS storage
-├── 06_API_SCADA.ino          ✓ SCADA-specific API endpoints
-├── 06_Physics.ino            ✓ Sensor physics simulation (4 production lines)
-├── 07_Sensors.ino            ✓ Sensor management (20+ sensors)
-├── 07_WebSocket.ino          ✓ WebSocket for real-time updates
-├── 08_Actuators.ino          ✓ Actuator control system
-├── 08_Telnet.ino             ✓ Telnet service
-├── 09_Alarms.ino             ✓ Alarm management & history
-├── 09_Vulnerabilities.ino    ✓ Exploit endpoints (6 paths)
-├── 10_Crypto.ino             ✓ Cryptography utilities
-├── 10_Safety.ino             ✓ Safety interlocks & constraints
-├── 11_Incidents.ino          ✓ Incident generation & spawning
-├── 11_Utils.ino              ✓ Helper functions
-├── 12_Debug.ino              ✓ Logging & monitoring
-├── 13_PrivEsc.ino            ✓ Privilege escalation vectors
-├── 14_AdvancedVulns.ino      ✓ Advanced vulnerabilities
-├── 15_Defense.ino            ✓ 🎮 Defense system (IDS/WAF/IP blocking)
-├── partitions.csv            ✓ Partition table (1.2MB LittleFS)
-├── data/                     ✓ Web assets (HTML/CSS/JS)
-│   ├── html/
-│   │   ├── index.html        ✓ Dashboard home
-│   │   ├── dashboard.html    ✓ SCADA mimic panel & P&ID
-│   │   ├── sensors.html      ✓ Sensor trends & data
-│   │   ├── actuators.html    ✓ Actuator controls
-│   │   ├── alarms.html       ✓ Alarm history & acknowledgment
-│   │   ├── incidents.html    ✓ Incident tracking
-│   │   └── vulnerabilities.html ✓ Vulnerability guides (EASY mode)
-│   ├── css/
-│   │   └── style.css         ✓ Stylesheets
-│   └── js/
-│       ├── mode.js           ✓ Dark mode toggle
-│       ├── navbar.js         ✓ Navigation bar
-│       └── auth-sync.js      ✓ Authentication sync
-└── README.md                 ✓ Full documentation
+## 🚀 Installation (Simple)
+
+### Just Run This:
+
+```bash
+cd ESP32-H4CK-SCADA
+./upload.sh
 ```
 
-## 🚀 Next Steps
+The script handles **everything**:
+- ✅ Creates Python virtual environment
+- ✅ Installs dependencies
+- ✅ Compiles the sketch
+- ✅ Builds LittleFS filesystem
+- ✅ Uploads firmware to ESP32
+- ✅ Uploads web assets (HTML/CSS/JS)
 
-### 1. Configure WiFi Settings
+That's it! ✨
 
-Edit `01_Config.ino` or create `.env` file:
+---
 
-```cpp
-// In 01_Config.ino (lines ~10-15)
-String WIFI_SSID = "YourNetworkName";      // Change this
-String WIFI_PASSWORD = "YourPassword";     // Change this
-String AP_SSID = "ESP32-SCADA-LAB";
-String AP_PASSWORD = "vulnerable";
-bool STATION_MODE = false;                 // true = connect to network, false = AP mode
+## 📋 Prerequisites
+
+1. **Hardware:**
+   - ESP32 development board (any variant, ≥4MB flash)
+   - USB-A to Micro-USB cable
+   - Connect to Linux/macOS/Windows machine with Python 3
+
+2. **Software (from your OS package manager):**
+   ```bash
+   # Linux
+   sudo apt-get install python3 python3-pip arduino-cli esptool
+
+   # macOS
+   brew install python3 arduino-cli esptool
+   ```
+
+3. **Arduino IDE or `arduino-cli` configured** (for esp32 board support):
+   ```bash
+   arduino-cli board list                    # Verify ESP32 board is detected
+   arduino-cli core install esp32:esp32      # If not installed yet
+   ```
+
+---
+
+## 🔌 Connect Hardware
+
+1. Plug USB cable into ESP32
+2. Run `./upload.sh`
+3. Select your ESP32 port when prompted (e.g., `/dev/ttyUSB0`)
+4. Watch the upload process in terminal
+
+**Done!** The device will boot automatically.
+
+---
+
+## 📡 Access Your SCADA Lab
+
+### Via Serial Monitor (Debug)
+
+```bash
+# Watch boot sequence
+stty -F /dev/ttyUSB0 115200
+cat /dev/ttyUSB0
 ```
 
-### Configuration Parameters 🔧
-
-You can configure the device at build time (`.env` + `./build.sh`), by editing source defaults in `01_Config.ino`, or at runtime via the API.
-
-**Common parameters:**
-
-- `WIFI_SSID` / `WIFI_PASSWORD` — Station (client) WiFi credentials. Set in `.env` or `01_Config.ino` defaults.
-- `AP_SSID` / `AP_PASSWORD` — Access Point SSID/password when running AP mode.
-- `STATION_MODE` — `true` to connect to existing WiFi (station), `false` for AP-only. **Default:** `false`
-- `DIFFICULTY` — Exploit visibility: `EASY` (hints visible), `NORMAL` (hints via API), `HARD` (zero hints). **Default:** `NORMAL`
-- `ENABLE_EXPLOIT_*` — Toggle individual exploit paths (IDOR, INJECTION, RACE, PHYSICS, FORENSICS, WEAK_AUTH). **Default:** `true`
-- `DEFENSE_ENABLED` — Enable IDS/WAF/IP blocking. **Default:** `true` when DIFFICULTY >= NORMAL
-- `ENABLE_INCIDENTS` — Auto-generate realistic incidents. **Default:** `true`
-- `JWT_SECRET` — JWT signing secret (weak by default for lab).
-- `DEBUG_MODE` — Verbose logging. **Default:** `true`
-
-**How to change values:**
-
-1. **Build time (Recommended for WiFi/secrets):** Create `.env` file (copy from `.env.example`), then run `./build.sh` and `./upload.sh`
-2. **Edit source:** Modify `01_Config.ino` and recompile
-3. **Runtime API (Admin only):** Use `/api/admin/config` endpoint to update settings persistently
-
-**Recommended `.env` snippet:**
-
-```dotenv
-WIFI_SSID=YourLabNetworkSSID
-WIFI_PASSWORD=YourNetworkPassword
-AP_SSID=ESP32-SCADA-LAB
-AP_PASSWORD=vulnerable
-STATION_MODE=false
-DIFFICULTY=NORMAL
-JWT_SECRET=lab_secret_key_scada
-DEBUG_MODE=true
-```
-
-> ⚠️ **Security note:** This lab intentionally uses weak defaults. Never connect to production networks, use real credentials, or expose to the internet.
-
-### 2. Install Required Libraries
-
-Open **Arduino IDE** > **Sketch** > **Include Library** > **Manage Libraries**
-
-Search and install:
-- **ESPAsyncWebServer** (by Me-No-Dev)
-- **AsyncTCP** (by Me-No-Dev)
-- **ArduinoJson** (by Benoit Blanchon)
-
-### 3. Configure Arduino IDE
-
-**Tools Menu Settings:**
-- Board: `ESP32 Dev Module` (or your specific board)
-- Upload Speed: `921600`
-- CPU Frequency: `240MHz`
-- Flash Size: `4MB` or larger
-- Flash Mode: `QIO`
-- Partition Scheme: `Default 4MB with spiffs` (or use custom partitions.csv)
-- PSRAM: `Enabled` (if available)
-- Core Debug Level: `None` (production)
-- Port: (Select your ESP32's COM port)
-
-### 4. Upload Filesystem
-
-**IMPORTANT:** Web assets must be uploaded to LittleFS before first use.
-
-1. **Install Arduino ESP32 filesystem uploader:**
-   - Download: https://github.com/me-no-dev/arduino-esp32fs-plugin
-   - Extract to `Arduino/tools/ESP32FS/tool/esp32fs.jar`
-   - Restart Arduino IDE
-
-2. **Upload filesystem:**
-   - Click **Tools** > **ESP32 Sketch Data Upload**
-   - Wait for "SPIFFS Image Uploaded" message
-
-### 5. Compile and Upload
-
-1. Click **Verify** (checkmark) to compile
-2. Check for errors in console
-3. Click **Upload** (arrow) to flash to ESP32
-4. Open **Serial Monitor** (115200 baud) to monitor boot sequence
-
-### 6. Access Your SCADA Lab
-
-After successful upload, Serial Monitor will display:
+You'll see:
 ```
 ========================================
   ESP32-H4CK-SCADA Lab v2.0
 ========================================
 [SYSTEM] Boot sequence started...
-[WIFI] Access Point Mode: SSID=ESP32-SCADA-LAB
+[WIFI] Access Point Mode: SSID=ESP32-H4CK-AP password=vulnerable
 [WIFI] IP Address: 192.168.4.1
-[DATABASE] Database initialized
 [PHYSICS] Sensor physics simulation active
-[DEFENSE] Defense system ready
+[DEFENSE] Defense system initialized
 [SYSTEM] System Ready! 🚀
 ```
 
-Open browser to: `http://192.168.4.1/` (or your device IP if in station mode)
+### Via Web Browser
+
+**Default AP Mode:**
+- SSID: `ESP32-H4CK-AP`
+- Password: `vulnerable`
+- URL: `http://192.168.4.1/`
+
+**If connected to WiFi:**
+- Find IP in Serial Monitor
+- URL: `http://<your-ip>/`
+
+---
 
 ## 🔑 Default Credentials
 
-<details>
-  <summary><strong>⚠️ SPOILER: Default Credentials - Click to reveal</strong></summary>
+| Username | Password | Role | Access |
+|----------|----------|------|--------|
+| **admin** | **admin** | admin | Full access, all APIs |
+| **operator** | **operator123** | operator | Sensor/actuator control |
+| **maintenance** | **maint456** | maintenance | Maintenance APIs |
+| **viewer** | **viewer** | viewer | Read-only monitoring |
 
-- **admin** / **admin123** (full access, flag submission)
-- **operator** / **operator** (limited access, read-only)
-- **guest** / **guest** (monitoring only)
+---
 
-</details>
+## 🌐 Available Pages
 
-## 🌐 Available Services
+| Page | URL | Description |
+|------|-----|-------------|
+| Dashboard | `http://<ip>/` or `/dashboard` | P&ID mimic panel, status |
+| Sensors | `/sensors` | Real-time sensor trends |
+| Actuators | `/actuators` | Motor/valve control interface |
+| Alarms | `/alarms` | Alarm history & acknowledgment |
+| Incidents | `/incidents` | Incident timeline & analysis |
+| Vulnerabilities | `/vulnerabilities` | (EASY mode only) exploit hints |
+| Admin | `/admin` | Admin controls & configuration |
+| Defense | `/defense` | Defense system status |
 
-<details>
-  <summary><strong>⚠️ SPOILER: Available Services & Pages - Click to reveal</strong></summary>
+---
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| Dashboard | `http://<ip>/` | SCADA mimic panel with P&ID |
-| Sensors | `http://<ip>/sensors` | Real-time sensor trends |
-| Actuators | `http://<ip>/actuators` | Motor & valve controls |
-| Alarms | `http://<ip>/alarms` | Alarm acknowledgment panel |
-| Incidents | `http://<ip>/incidents` | Incident tracking & timeline |
-| Vulnerabilities | `http://<ip>/vulnerabilities` | Exploit guides (EASY mode only) |
-| REST API | `http://<ip>/api/*` | JSON API endpoints |
-| WebSocket | `ws://<ip>/` | Real-time updates |
-| Telnet | `telnet <ip> 23` | Remote terminal |
+## 🔌 Web APIs
 
-</details>
+### Authentication
 
-## 🐛 Exploit Paths (6 Independent Vectors)
+```bash
+# Login
+curl -X POST 'http://192.168.4.1/api/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin"}'
 
-<details>
-  <summary><strong>⚠️ SPOILER: Contains Vulnerable Endpoints - Click to reveal</strong></summary>
+# Returns JWT token in response
+```
 
-| Path # | Vulnerability | Endpoint(s) | OWASP |
-|--------|----------------|------------|-------|
-| **1** | IDOR (Insecure Direct Object Reference) | `GET /api/sensor/reading?sensor_id=SENSOR-*` | A01 |
-| **2** | Command Injection | `POST /api/actuators/control` (unsanitized params) | A03 |
-| **3** | Race Condition | `POST /api/test/race?actuator=*&count=N` | A04 |
-| **4** | Physics-Based Analysis | Sensor anomaly detection & cross-correlation | Logic Flaw |
-| **5** | Forensics | Sensitive data in logs & maintenance records | A02 |
-| **6** | Weak Authentication | Hardcoded credentials in maintenance endpoint | A07 |
+### Sensors
 
-**Learning Focus:**
-- Path 1 (IDOR): Authorization bypass, privilege escalation
-- Path 2 (Injection): Input validation, command execution
-- Path 3 (Race): Concurrency exploits, state manipulation
-- Path 4 (Physics): Anomaly detection, system behavior understanding
-- Path 5 (Forensics): Log analysis, pattern recognition
-- Path 6 (Auth): Credential discovery, social engineering
+```bash
+# List all sensors
+curl 'http://192.168.4.1/api/sensors' -H 'Authorization: Bearer <TOKEN>'
 
-</details>
+# Get sensor readings (IDOR vulnerability - no per-line auth)
+curl 'http://192.168.4.1/api/sensors/readings?sensor_id=TEMP-L1-01&limit=100' \
+  -H 'Authorization: Bearer <TOKEN>'
+
+# Control sensor (enable/disable)
+curl -X POST 'http://192.168.4.1/api/sensors/control' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"sensor_id":"TEMP-L1-01","enabled":false}'
+```
+
+### Actuators
+
+```bash
+# List all actuators
+curl 'http://192.168.4.1/api/actuators' -H 'Authorization: Bearer <TOKEN>'
+
+# Control actuator (INJECTION vulnerability)
+curl -X POST 'http://192.168.4.1/api/actuators/control' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"actuator_id":"MOTOR-L1-01","cmd":"set_speed","value":80}'
+```
+
+### Alarms
+
+```bash
+# Get alarm history
+curl 'http://192.168.4.1/api/alarms' -H 'Authorization: Bearer <TOKEN>'
+
+# Acknowledge alarm
+curl -X POST 'http://192.168.4.1/api/alarms/acknowledge' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"alarm_id":"ALARM-0001"}'
+```
+
+---
+
+## 🐛 Exploit Paths (6 Vectors)
+
+### Path 1: IDOR (Insecure Direct Object Reference)
+**Vulnerability:** Sensor readings lack per-line access control  
+**Endpoint:** `GET /api/sensors/readings?sensor_id=SENSOR-L2-03`  
+**Learning:** Authorization bypass, cross-line data exfiltration  
+**Exploit:** Request sensor IDs from unauthorized production lines
+
+### Path 2: Command Injection
+**Vulnerability:** Actuator commands not sanitized  
+**Endpoint:** `POST /api/actuators/control` (cmd parameter)  
+**Learning:** Input validation, shell injection techniques  
+**Exploit:** Inject commands via `cmd` or `value` parameters
+
+### Path 3: Race Condition
+**Vulnerability:** Actuator state changes without mutex locks  
+**Endpoint:** Rapid sequential actuator control requests  
+**Learning:** Concurrency exploits, state corruption  
+**Exploit:** Send overlapping control requests to corrupt state
+
+### Path 4: Physics-Based Analysis
+**Vulnerability:** Sensor anomaly detection can be inferred  
+**Endpoint:** `GET /api/sensors/readings` (trend analysis)  
+**Learning:** Cross-correlation, system behavior understanding  
+**Exploit:** Correlate patterns across multiple sensors to predict system state
+
+### Path 5: Forensics / Information Disclosure
+**Vulnerability:** Debug endpoints expose internal state  
+**Endpoint:** `/vuln/debug` (when ENABLE_VULNERABILITIES=true)  
+**Learning:** Log analysis, data reconstruction  
+**Exploit:** Extract session tokens, IP addresses, system uptime
+
+### Path 6: Weak Authentication
+**Vulnerability:** Default credentials visible in code/config  
+**Endpoint:** `/api/login` with hardcoded user/password pairs  
+**Learning:** Credential discovery, default password exploitation  
+**Exploit:** Use `admin/admin` or `operator/operator123` credentials
+
+---
 
 ## 🎯 Difficulty Levels
 
-### EASY Mode (Beginners)
-- All vulnerabilities **explicitly visible**
-- Step-by-step hints in web UI
+### EASY Mode
+- **Hints visible** in `/vulnerabilities` page
 - Defense **disabled**
-- Predictable incident patterns
-- **Use Case:** Security awareness, introductory training
+- Default credentials prominently displayed
+- **Use for:** Complete beginners, awareness training
 
-### NORMAL Mode (Balanced)
+### NORMAL Mode (Default)
 - Vulnerabilities require **basic discovery**
-- Hints available via `/api/hints` (must request)
-- Defense **active**
+- Hints available via `/api/hints` API (must request)
+- Defense **enabled**
 - 1-2 realistic incidents per session
-- **Use Case:** CTF-style labs, mid-level training
+- **Use for:** CTF-style labs, hands-on training
 
-### HARD Mode (Advanced)
-- Vulnerabilities **hidden** (discovery required)
+### HARD Mode
+- Vulnerabilities **completely hidden**
 - **Zero hints** available
 - Defense **fully active** with all countermeasures
 - 3+ cascading incidents
-- Forensic evidence minimal
-- **Use Case:** Red team training, expert challenges
+- Minimal forensic evidence
+- **Use for:** Red team exercises, expert challenges
+
+### Change Difficulty At Runtime
+
+```bash
+# Via API (admin only)
+curl -X POST 'http://<ip>/api/admin/difficulty' \
+  -H 'Authorization: Bearer <ADMIN_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"difficulty":"HARD"}'
+
+# Via Serial (115200 baud)
+difficulty HARD
+```
+
+---
+
+## 🎮 Defense System (Instructor Mode)
+
+The defense system responds to instructor commands via Serial:
+
+```bash
+# Block attacker IP (simulated iptables)
+iptables -A INPUT -s 192.168.4.100 -j DROP --duration 120
+
+# Enable rate limiting
+tc qdisc add rate-limit --src 192.168.4.0/24 --duration 60
+
+# Reset student session
+session reset --ip 192.168.4.101
+
+# View current blocks
+iptables -L
+
+# View defense status
+defense status
+```
+
+---
+
+## 🔧 Configuration
+
+### Build-Time Configuration (`.env`)
+
+Create a `.env` file in `ESP32-H4CK-SCADA/`:
+
+```dotenv
+# WiFi (station mode - connect to existing network)
+WIFI_SSID=YourNetworkName
+WIFI_PASSWORD=YourPassword
+STATION_MODE=false
+
+# Lab configuration
+DIFFICULTY=NORMAL
+JWT_SECRET=your_secret_key_here
+DEBUG_MODE=true
+ENABLE_VULNERABILITIES=true
+ENABLE_INCIDENTS=true
+
+# Defense
+DEFENSE_ENABLED=true
+```
+
+Then run `./upload.sh` to apply.
+
+### Runtime Configuration
+
+```bash
+# Via web UI: Login → Admin panel
+# Via API: POST /api/admin/config
+# Via Serial: config set key=value
+```
+
+---
 
 ## 🛠️ Troubleshooting
 
-### Compilation Errors
+### `./upload.sh` Fails with "mklittlefs not found"
 
-**Error: ESPAsyncWebServer.h not found**
-- Install library via Library Manager
+**Solution 1:** Install via Arduino CLI
+```bash
+arduino-cli core install esp32:esp32
+```
 
-**Error: No such file or directory**
-- Check all .ino files are in same folder
-- Folder name must match main .ino filename
+**Solution 2:** Install mklittlefs manually
+```bash
+# Linux
+sudo apt-get install mklittlefs
 
-**Error: Partition size too small**
-- Select larger partition scheme (min 4MB)
-- Or use custom partitions.csv
+# macOS
+brew install mklittlefs
+```
 
-### Upload Errors
+### Can't Find ESP32 Port
 
-**Serial port not found**
-- Check USB cable connection
-- Install CP210x or CH340 drivers (common with ESP32 boards)
-- Check Device Manager for port number
+```bash
+# List available ports
+ls /dev/tty* | grep -E 'USB|ACM'    # Linux/macOS
 
-**Failed to connect to ESP32**
-- Hold **BOOT** button while uploading
-- Try different USB cable
-- Reduce upload speed to 115200
+# If port shows but device doesn't respond:
+# - Hold BOOT button during upload
+# - Check USB cable (try different cable/port)
+```
 
-**Brownout detector triggered**
-- Use quality USB power supply (≥2A recommended)
-- Add capacitor (100µF) across power pins
+### Web Pages Show 404 / Missing CSS/JS
 
-### Runtime Issues
+**This means LittleFS didn't upload!**
 
-**WiFi won't connect**
-- Check SSID/password in `.env` or `01_Config.ino`
-- Try AP mode: Set `STATION_MODE = false` (default)
-- Monitor Serial output: look for `[WIFI]` messages
+The `./upload.sh` script handles this automatically. If it fails:
 
-**Out of memory**
-- Enable PSRAM in Tools menu (if available)
-- Reduce concurrent WebSocket connections
-- Lower feature flags in `01_Config.ino`
+```bash
+# The script includes a data build + upload step
+# Just re-run: ./upload.sh
+```
 
-**Web pages 404 or missing UI**
-- **Upload filesystem** with "ESP32 Sketch Data Upload"
-- Check Serial Monitor: "Filesystem mounted"
-- Verify `data/` folder structure exists
+### WiFi Won't Connect (Station Mode)
 
-**Sensors not updating / Physics frozen**
-- Check Serial Monitor for `[PHYSICS]` errors
-- Verify `ENABLE_PHYSICS = true` in `01_Config.ino`
-- Restart device and check boot sequence
+- Check SSID/password in `.env` and Serial Monitor output
+- Try AP mode instead: `STATION_MODE=false` in `.env`
+- Check WiFi is 2.4GHz (not 5GHz)
 
-**Defense blocking legitimate traffic**
-- Use Serial Monitor to list IP blocks: `iptables -L` (simulated)
-- Clear blocks: `iptables -F` (simulated)
-- Reduce defense aggressiveness in config
+### Sensors Not Updating
 
-## 📊 Memory Requirements
+Check Serial Monitor:
+```
+[PHYSICS] Sensor physics simulation active
+```
 
-| Component | RAM Usage | Flash Usage |
-|-----------|-----------|-------------|
-| Core System | ~100KB | ~1.2MB |
-| SCADA Physics Engine | ~60KB | ~150KB |
-| Sensor Manager (20+) | ~40KB | ~50KB |
-| WebSocket Real-time | ~30KB/client | - |
-| Web Interface | - | ~150KB |
-| Defense System | ~25KB | ~100KB |
-| Database | ~5KB + data | Variable |
+If missing, verify `ENABLE_PHYSICS = true` in `01_Config.ino`
 
-**Recommended:** ESP32 with PSRAM and ≥4MB flash
+---
+
+## 📊 System Specs
+
+| Component | Resource | Typical Usage |
+|-----------|----------|---------------|
+| Flash | 4MB+ | 1.2MB firmware + 1.2MB LittleFS |
+| RAM | 320KB+ | ~200KB in use by default |
+| PSRAM | Optional | Recommended for concurrent WebSockets |
+| LittleFS | 1.2MB | Web assets + database |
+
+---
 
 ## 🔒 Security Warnings
 
-⚠️ **CRITICAL:** This is an **INTENTIONALLY VULNERABLE** SCADA simulator!
+⚠️ **CRITICAL:** This is an **INTENTIONALLY VULNERABLE** educational SCADA simulator!
 
 **DO NOT:**
-- Connect to production ICS/SCADA systems or networks
-- Expose to the internet or untrusted networks
-- Use real company data or credentials
-- Enable outside of controlled lab environments
-- Run alongside critical infrastructure
+- Connect to real production ICS/SCADA networks
+- Use on the internet or untrusted networks
+- Enable without network isolation (firewall/VLAN)
 
 **DO:**
-- Use **isolated lab network** (dedicated VLAN, air-gapped preferred)
-- Implement network firewall rules
-- Document all lab activities and findings
-- Get **written permission** before penetration testing
-- Have incident response and recovery procedures
-- Brief students/participants on lab scope and rules
+- Use **isolated lab network** (preferred: air-gap or VLAN)
+- Document all findings
+- Get written permission before testing
+- Have rollback/recovery procedures
 
-## 📚 Learning Path
+---
 
-### Week 1: Reconnaissance & SCADA Fundamentals
-- Port scanning with nmap
-- Service fingerprinting
-- SCADA protocol discovery
-- Sensor list enumeration: `GET /api/sensors/list`
+## 📚 Learning Projects
 
-### Week 2: Authentication & Authorization
-- Default credentials discovery
-- JWT token analysis
-- Cross-line access control bypass (IDOR)
-- Role-based access testing
+### Week 1-2: Reconnaissance
+- Port scanning: `nmap -sV 192.168.4.1`
+- API enumeration: `curl -v http://192.168.4.1/api/`
+- Identify exploit entry points
 
 ### Week 3: IDOR Exploitation (Path 1)
-- Identify sensor ID patterns
-- Access unauthorized sensor data: `GET /api/sensor/reading?sensor_id=SENSOR-L2-03`
-- Extract historical trends
-- Cross-line data exfiltration
+- Map sensor IDs: `GET /api/sensors`
+- Access cross-line data
+- Export all readings from unauthorized lines
 
 ### Week 4: Command Injection (Path 2)
-- Actuator parameter fuzzing
-- Payload encoding detection
-- Simulate shell command execution
-- Control production lines maliciously
+- Fuzz `/api/actuators/control` endpoint
+- Test payload encoding
+- Simulate malicious device control
 
-### Week 5: Race Condition Attacks (Path 3)
-- Concurrency testing endpoints
-- State corruption techniques
-- Triggering safety bypass
-- Sensor value manipulation
+### Week 5: Race Conditions (Path 3)
+- Rapid-fire control requests
+- Attempt state corruption
+- Trigger safety bypass
 
-### Week 6: Physics-Based Analysis (Path 4)
-- Learn sensor physics behavior
-- Cross-correlation analysis
-- Anomaly pattern detection
-- Inference-based system understanding
+### Week 6-7: Physics & Forensics
+- Analyze sensor patterns for anomalies
+- Extract debug info from `/vuln/debug`
+- Reconstruct historical events
 
-### Week 7: Forensics & Log Analysis (Path 5)
-- Examine system logs
-- Extract maintenance records
-- Find hardcoded secrets
-- Timeline reconstruction
+### Week 8: Defense Evasion
+- Work around IP blocks
+- Bypass rate limiting
+- Adapt under constraints
 
-### Week 8: Weak Authentication (Path 6)
-- Discover weak credentials
-- Maintenance endpoint access
-- Privilege escalation to admin
-- Persistence techniques
-
-### Week 9: Defense & Incident Response
-- Understand defense system constraints
-- IP blocking and rate limiting
-- Session management
-- Resource-aware decision making
-
-### Week 10: Competition & Leaderboard
-- Multi-path exploitation coordination
-- Speed-running challenges
-- Blue team defense strategy
-- Advanced evasion techniques
-
-## 🎮 Defense System Quick Reference
-
-The defense system simulates real ICS/SCADA monitoring with resource management:
-
-**Serial Commands (115200 baud):**
-```bash
-# IP Blocking
-iptables -A INPUT -s 192.168.4.100 -j DROP --duration 120
-iptables -D INPUT -s 192.168.4.100 -j DROP
-iptables -L
-
-# Rate Limiting
-tc qdisc add rate-limit --src 192.168.4.0/24 --duration 60
-tc qdisc del rate-limit
-tc qdisc show
-
-# Session Management
-session reset --ip 192.168.4.101 --reason "breach_detected"
-session list
-
-# Status & Monitoring
-defense status
-defense config show
-defense config set dp=100 ap=10 sensitivity=high
-```
-
-**Resource System (Defaults):**
-- IP Block: DP=15, AP=1, 60s cooldown, 120s duration
-- Rate Limit: DP=10, AP=1, 30s cooldown, 60s duration
-- Session Reset: DP=25, AP=1, 90s cooldown, 5s duration
-
-**Learning Objectives:**
-- Understand defense resource constraints
-- Practice cost/benefit analysis of countermeasures
-- Learn realistic ICS defense command syntax
-- Experience side-effects of aggressive blocking
-- Adapt techniques under defensive pressure
-
-## 🏆 Scoring & Leaderboard
-
-**Metric:** `(exploits_found, time_to_solve)`
-
-- **Primary:** Unique exploit paths discovered (0-6)
-- **Secondary:** Time elapsed in minutes (lower = better)
-- **Bonus:** Sub-flags, incidents resolved, defense evasions
-
-**Formula:**
-```
-score = 100 +
-        (exploit_paths × 500) +           # PRIMARY
-        max(0, 3000 - time_min × 5) +     # SECONDARY
-        (sub_flags × 50) +
-        (incidents_resolved × 25) +
-        (defense_evasions × 100) -
-        (hints_requested × 10)
-```
-
-**Leaderboard Example:**
-```
-Rank | Name    | Difficulty | Exploits | Time (min) | Score
------|---------|------------|----------|------------|-------
-1    | Alice   | HARD       | 6/6      | 45         | 5050
-2    | Bob     | NORMAL     | 5/6      | 38         | 3850
-3    | Charlie | EASY       | 6/6      | 22         | 4100
-```
-
-## 📊 Testing Examples
-
-<details>
-  <summary><strong>⚠️ SPOILER: Contains Exploit Examples - Lab Solutions - Click to reveal</strong></summary>
-
-### Test 1: IDOR (Path 1)
-```bash
-# List available sensors
-curl -s 'http://192.168.4.1/api/sensors/list' | jq .
-
-# Access sensor data (IDOR vector)
-curl -s 'http://192.168.4.1/api/sensor/reading?sensor_id=SENSOR-L2-03&limit=50' | jq .
-```
-
-### Test 2: Command Injection (Path 2)
-```bash
-curl -X POST 'http://192.168.4.1/api/actuators/control' \
-  -H 'Content-Type: application/json' \
-  -d '{"id":"MOTOR-L2-01","cmd":"set","params":{"speed":"80;simulate:cat_/data/db"}}'
-```
-
-### Test 3: Race Condition (Path 3)
-```bash
-curl -s 'http://192.168.4.1/api/test/race?actuator=MOTOR-L2-01&count=50'
-```
-
-### Test 4: Request Hints (NORMAL/EASY modes only)
-```bash
-curl -s 'http://192.168.4.1/api/hints?endpoint=GET_/api/sensor/reading&level=1'
-```
-
-### Test 5: Physics Anomaly Detection
-```bash
-# Monitor sensor trends for anomalies
-curl -s 'http://192.168.4.1/api/sensor/reading?sensor_id=TEMP-L1-01' | jq '.data | map(.value)'
-```
-
-### Test 6: Access Maintenance Log (Weak Auth)
-```bash
-curl -s 'http://192.168.4.1/api/maintenance/log'
-```
-
-</details>
+---
 
 ## ✅ Verification Checklist
 
-Before deploying students, verify:
+Before students use:
 
-- [ ] All .ino files compile without errors
-- [ ] Filesystem uploaded successfully (1.2MB+ LittleFS)
-- [ ] Serial Monitor shows full boot sequence
-- [ ] System displays "System Ready! 🚀" message
-- [ ] `[PHYSICS]` module initialized
-- [ ] `[DEFENSE]` system initialized
-- [ ] Can access web interface (Dashboard loads)
-- [ ] Can login with default credentials (admin/admin123)
-- [ ] Dashboard displays P&ID and sensor values
-- [ ] Sensor trends graph working
-- [ ] Actuator controls responsive
-- [ ] Alarm panel populated
+- [ ] `./upload.sh` completed without errors
+- [ ] Serial Monitor shows "System Ready! 🚀"
+- [ ] Can access `http://192.168.4.1/` in browser
+- [ ] Dashboard loads with P&ID diagram
+- [ ] Can login with `admin/admin`
+- [ ] `/api/sensors` returns valid JSON
+- [ ] `/api/actuators` returns valid JSON
 - [ ] WebSocket real-time updates working
-- [ ] Telnet accepts connections: `telnet <ip> 23`
-- [ ] `/api/sensors/list` returns valid JSON
-- [ ] `/api/actuators/list` returns actuators
-- [ ] Defense commands work via serial
-- [ ] LAB_MODE switching works (EASY/NORMAL/HARD)
-- [ ] Leaderboard endpoint accessible
+- [ ] Difficulty can be changed without recompile
+- [ ] Defense system responds to Serial commands
 - [ ] Network is **isolated** from production
-- [ ] Lab rules and scope documented
-- [ ] Students briefed on objectives
-- [ ] Incident response plan prepared
+- [ ] Lab scope and rules documented
+- [ ] Students briefed before starting
 
-## 📝 Version Information
+---
+
+## 📞 Support
+
+- **Serial Monitor** (115200 baud): Check boot output and debug messages
+- **README.md**: Full technical documentation
+- **Source code** (`*.ino` files): Comment-heavy and well-documented
+- **ESP32 Forums**: https://esp32.com
+
+---
+
+## 📝 Version
 
 - **Version:** 2.0
 - **Release:** February 2026
 - **Platform:** ESP32 (Arduino Framework)
-- **Lab Type:** Red Team (ICS/SCADA)
 - **License:** Educational Use Only
 
 **Key Features:**
-- 6 independent exploit paths
-- 4 production lines with physics simulation
-- 20+ realistic sensors
-- Difficulty-based hint system
-- Dynamic defense system (IDS/WAF/IP blocking)
-- Competitive leaderboard with scoring
-- Forensic incident tracking
+- 6 independent exploit paths (IDOR, Injection, Race, Physics, Forensics, Weak Auth)
+- 4 production lines with 20+ realistic sensors
+- Physics-based sensor simulation
+- Difficulty-based hint system (EASY/NORMAL/HARD)
+- Defense system with IDS/IP blocking
+- Competitive leaderboard scoring
 - WebSocket real-time updates
+- Incident generation and tracking
 
 ---
 
-**Ready to deploy!** Flash the firmware and begin your SCADA penetration testing training! 🚀
+**Ready to start!** Run `./upload.sh` and begin your SCADA penetration testing training. 🚀
 
-For detailed documentation, see [README.md](README.md)
-
+For full documentation, see [README.md](README.md)
