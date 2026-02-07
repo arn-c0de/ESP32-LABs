@@ -308,6 +308,72 @@ void setupSCADARoutes() {
     // Return empty logs for now
     request->send(200, "application/json", "[]");
   });
+
+  // ===== WIFI CLIENT HISTORY (AP Mode) =====
+  server.on("/api/wifi/clients", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (!checkRateLimit(clientIP)) {
+      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
+    
+    totalRequests++;
+    Serial.printf("[API] GET /api/wifi/clients from %s\n", clientIP.c_str());
+    
+    if (!isAuthenticated(request)) {
+      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+      return;
+    }
+    
+    String json = getWiFiClientsJSON();
+    request->send(200, "application/json", json);
+  });
+
+  // ===== INCIDENT SPAWNING =====
+  server.on("/api/incidents/spawn", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (!checkRateLimit(clientIP)) {
+      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
+    
+    totalRequests++;
+    Serial.printf("[API] POST /api/incidents/spawn from %s\n", clientIP.c_str());
+    
+    if (!isAuthenticated(request)) {
+      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+      return;
+    }
+    
+    // Parse JSON body
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, data, len);
+    if (error) {
+      request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
+    }
+    
+    String type = doc["type"] | "unknown";
+    String details = doc["details"] | "";
+    
+    // Trigger incident based on type
+    bool success = triggerIncident(type, details);
+    
+    if (success) {
+      DynamicJsonDocument responseDoc(256);
+      responseDoc["success"] = true;
+      responseDoc["type"] = type;
+      responseDoc["message"] = "Incident spawned successfully";
+      
+      String response;
+      serializeJson(responseDoc, response);
+      request->send(200, "application/json", response);
+      Serial.printf("[INCIDENT] Spawned: %s - %s\n", type.c_str(), details.c_str());
+    } else {
+      request->send(500, "application/json", "{\"error\":\"Failed to spawn incident\"}");
+    }
+  });
   
   Serial.println("[API] SCADA routes configured");
 }

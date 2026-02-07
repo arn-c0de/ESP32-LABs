@@ -6,6 +6,9 @@
  * weak implementations for educational purposes.
  */
 
+// Forward declarations
+String generateSalt();
+
 String hashPassword(String password) {
   // In vulnerable mode, return plaintext (intentional vulnerability)
   if (VULN_WEAK_AUTH) {

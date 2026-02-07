@@ -5,6 +5,10 @@
  * Includes memory monitoring, WiFi diagnostics, and detailed system info.
  */
 
+// Forward declarations
+void printAllServicesStatus();
+void listFilesRecursive(String path, int level);
+
 void initDebug() {
   Serial.println("[DEBUG] Debug system initialized");
   Serial.printf("[DEBUG] Debug mode: %s\n", DEBUG_MODE ? "ENABLED" : "DISABLED");

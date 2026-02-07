@@ -9,6 +9,9 @@
  * are defined in ESP32-H4CK-SCADA.ino.
  */
 
+// Forward declarations
+bool isAlarmActive(const char* sensorId, const char* level);
+
 // ===== ALARM CHECKING =====
 
 void checkAlarms() {

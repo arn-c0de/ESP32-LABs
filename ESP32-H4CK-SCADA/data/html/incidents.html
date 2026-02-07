@@ -157,7 +157,74 @@
       </table>
     </div>
 
-    <!-- Recent Incidents -->
+    <!-- Incident Management -->
+    <div class="incident-management">
+      <h3>🎯 Incident Management</h3>
+      <div class="actions-grid">
+        <div class="action-card">
+          <h4>📍 Spawn Incident</h4>
+          <p>Manually trigger incidents for testing (security, operational, equipment)</p>
+          <div class="action-input">
+            <select id="incident-type">
+              <optgroup label="🔒 Security Incidents">
+                <option value="failed-login">Failed Login Attempt</option>
+                <option value="unauthorized-access">Unauthorized Access</option>
+                <option value="injection-attempt">Injection Attack Attempt</option>
+                <option value="brute-force">Brute Force Attack</option>
+                <option value="data-exfil">Data Exfiltration Attempt</option>
+                <option value="privilege-escalation">Privilege Escalation</option>
+              </optgroup>
+              <optgroup label="⚙️ Equipment Failures">
+                <option value="sensor-fault">Sensor Fault / Failure</option>
+                <option value="motor-failure">Motor Failure</option>
+                <option value="valve-stuck">Valve Stuck / Malfunction</option>
+                <option value="power-loss">Power Loss / Brownout</option>
+                <option value="communication-loss">Communication Loss</option>
+              </optgroup>
+              <optgroup label="🏭 Process Incidents">
+                <option value="pressure-spike">Pressure Spike</option>
+                <option value="temperature-runaway">Temperature Runaway</option>
+                <option value="flow-anomaly">Flow Rate Anomaly</option>
+                <option value="vibration-alert">Excessive Vibration</option>
+                <option value="line-shutdown">Production Line Shutdown</option>
+              </optgroup>
+              <optgroup label="🔧 Maintenance Events">
+                <option value="calibration-required">Calibration Required</option>
+                <option value="scheduled-maintenance">Scheduled Maintenance</option>
+                <option value="emergency-stop">Emergency Stop Triggered</option>
+              </optgroup>
+            </select>
+            <input type="text" id="incident-details" placeholder="Additional details (optional)" />
+          </div>
+          <button class="btn btn-warning" onclick="spawnIncident()">Spawn Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WiFi Client History -->
+    <div class="wifi-clients-section">
+      <h3>📡 Connected WiFi Clients (AP Mode)</h3>
+      <div class="log-controls">
+        <button class="btn btn-secondary" onclick="loadWiFiClients()">Refresh</button>
+      </div>
+      <table class="clients-table" id="clients-table">
+        <thead>
+          <tr>
+            <th>MAC Address</th>
+            <th>IP Address</th>
+            <th>Connected At</th>
+            <th>Last Seen</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="clients-tbody">
+          <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
+        </tbody>
+      </table>
+      <div id="wifi-no-clients" style="padding: 20px; text-align: center; color: var(--text-muted);">
+        No connected clients (not in AP mode or no connections yet)
+      </div>
+    </div>
     <div class="incidents-section">
       <h3>⚠️ Security Incidents</h3>
       <div class="incidents-list" id="incidents-list">
@@ -351,6 +418,48 @@
       }
     }
     
+    async function spawnIncident() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const incidentType = document.getElementById('incident-type').value;
+        const details = document.getElementById('incident-details').value || '';
+        
+        const payload = {
+          type: incidentType,
+          details: details
+        };
+        
+        const response = await fetch('/api/incidents/spawn', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          alert('Failed to spawn incident: ' + (error.error || 'Unknown error'));
+          return;
+        }
+        
+        const result = await response.json();
+        alert('✅ Incident Spawned!\n\nType: ' + result.type + '\n' + result.message);
+        
+        // Clear details input
+        document.getElementById('incident-details').value = '';
+        
+        // Reload incidents and alarms
+        document.getElementById('incident-details').value = '';
+        loadDefenseState();
+        
+      } catch (error) {
+        console.error('Spawn incident error:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+    
     async function loadLogs() {
       try {
         const token = localStorage.getItem('jwt_token');
@@ -395,12 +504,66 @@
       }
     }
     
+    async function loadWiFiClients() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        
+        const response = await fetch('/api/wifi/clients', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to load WiFi clients');
+        }
+        
+        const clients = await response.json();
+        const tbody = document.getElementById('clients-tbody');
+        const noClientsDiv = document.getElementById('wifi-no-clients');
+        
+        if (clients.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No connected clients</td></tr>';
+          noClientsDiv.style.display = 'none';
+        } else {
+          tbody.innerHTML = clients.map(client => {
+            const connectedTime = new Date(client.connected_at).toLocaleTimeString();
+            const lastSeen = new Date(client.last_seen).toLocaleTimeString();
+            const duration = Math.floor(client.duration_ms / 1000);
+            const durationStr = duration < 60 ? `${duration}s` : 
+                               duration < 3600 ? `${Math.floor(duration/60)}m ${duration%60}s` :
+                               `${Math.floor(duration/3600)}h`;
+            
+            return `
+              <tr>
+                <td><code>${client.mac}</code></td>
+                <td><code>${client.ip}</code></td>
+                <td>${connectedTime}</td>
+                <td>${lastSeen}</td>
+                <td>${durationStr}</td>
+              </tr>
+            `;
+          }).join('');
+          noClientsDiv.style.display = 'none';
+        }
+        
+      } catch (error) {
+        console.error('Load WiFi clients error:', error);
+        document.getElementById('clients-tbody').innerHTML = 
+          '<tr><td colspan="5" style="text-align: center; color: red;">Error loading clients</td></tr>';
+      }
+    }
+    
     // Auto-refresh
     document.addEventListener('DOMContentLoaded', () => {
       loadDefenseState();
       loadLogs();
+      loadWiFiClients();
       updateInterval = setInterval(() => {
         loadDefenseState();
+        loadWiFiClients();
       }, 10000);
     });
     

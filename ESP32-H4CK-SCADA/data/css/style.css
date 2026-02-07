@@ -465,6 +465,8 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 
 .defense-actions{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:20px;margin-bottom:24px}
 .defense-actions h3{color:var(--primary);font-size:1.1em;margin-bottom:16px}
+.incident-management{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:20px;margin-bottom:24px}
+.incident-management h3{color:var(--primary);font-size:1.1em;margin-bottom:16px}
 .actions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 
 .action-card{background:#f8fafc;border-radius:8px;padding:16px;border:2px solid #e5e7eb;transition:border-color .2s}
@@ -476,13 +478,18 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 .cost-negative strong{color:var(--danger)}
 .action-card p{font-size:.85em;color:var(--text-muted);margin:8px 0}
 .action-input{margin:10px 0}
-.action-input input{width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.85em;margin-bottom:6px}
+.action-input input,.action-input select{width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.85em;margin-bottom:6px}
+.action-input input:focus,.action-input select:focus{border-color:var(--primary);outline:none}
 .action-card .btn{width:100%;justify-content:center}
 .cooldown{margin-top:8px;font-size:.8em;color:var(--warning);font-weight:600}
 
 .active-rules{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:20px;margin-bottom:24px}
 .active-rules h3{color:var(--primary);font-size:1.1em;margin-bottom:16px}
-.rules-table{width:100%;font-size:.9em}
+.wifi-clients-section{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:20px;margin-bottom:24px}
+.wifi-clients-section h3{color:var(--primary);font-size:1.1em;margin-bottom:16px}
+.clients-table{width:100%;font-size:.9em}
+.clients-table th{background:#f8fafc;padding:10px;text-align:left;font-weight:600;font-size:.85em;color:var(--text-muted)}
+.clients-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9}
 .rules-table th{background:#f8fafc;padding:10px;text-align:left;font-weight:600;font-size:.85em;color:var(--text-muted)}
 .rules-table td{padding:9px 10px;border-bottom:1px solid #f1f5f9}
 
