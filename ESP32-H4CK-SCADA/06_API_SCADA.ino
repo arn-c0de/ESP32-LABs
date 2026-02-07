@@ -69,11 +69,13 @@ void setupSCADARoutes() {
   });
   
   // Get sensor reading history (VULN: IDOR - no access control on sensor ID)
-  // Handled by custom SensorReadingsHandler
   server.addHandler(new SensorReadingsHandler());
-  
-  // Sensor control (enable/disable)
-  server.addHandler(new SensorControlHandler());
+
+  // Sensor control (enable/disable) - flat URL, ID in JSON body
+  server.on("/api/sensors/control", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      handleSensorControlBody(request, data, len, index, total);
+    });
   
   // ===== ACTUATOR APIs =====
   
@@ -101,9 +103,11 @@ void setupSCADARoutes() {
     request->send(200, "application/json", json);
   });
   
-  // Control actuator (requires operator role minimum)
-  // Handled by custom ActuatorControlHandler
-  server.addHandler(new ActuatorControlHandler());
+  // Control actuator (requires operator role minimum) - flat URL, ID in JSON body
+  server.on("/api/actuators/control", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      handleActuatorControlBody(request, data, len, index, total);
+    });
   
   // ===== ALARM APIs =====
   
@@ -143,9 +147,11 @@ void setupSCADARoutes() {
     request->send(200, "application/json", json);
   });
   
-  // Acknowledge alarm (requires operator role minimum)
-  // Handled by custom AlarmAckHandler
-  server.addHandler(new AlarmAckHandler());
+  // Acknowledge alarm (requires operator role minimum) - flat URL, ID in JSON body
+  server.on("/api/alarms/ack", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      handleAlarmAckBody(request, data, len, index, total);
+    });
   
   // ===== SYSTEM INFO API =====
   

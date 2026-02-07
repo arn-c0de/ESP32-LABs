@@ -180,18 +180,18 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 .user-dropdown-toggle .user-role.admin{background:var(--danger);color:#fff}
 .user-dropdown-toggle .dropdown-arrow{font-size:.7em;transition:transform .2s}
 .user-dropdown.open .dropdown-arrow{transform:rotate(180deg)}
-.user-dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);min-width:220px;padding:8px;display:none;z-index:1000}
+.user-dropdown-menu{position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);min-width:220px;padding:8px;display:none;z-index:1000}
 .user-dropdown.open .user-dropdown-menu{display:block}
-.dropdown-header{padding:10px 12px;border-bottom:1px solid #eee;margin-bottom:4px}
+.dropdown-header{padding:10px 12px;border-bottom:1px solid var(--border);margin-bottom:4px}
 .dropdown-header .dropdown-name{font-weight:700;color:var(--text);font-size:.95em}
 .dropdown-header .dropdown-role{color:var(--text-muted);font-size:.75em;text-transform:uppercase;margin-top:2px;letter-spacing:.3px}
 .dropdown-balance{padding:8px 12px;background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;border-radius:6px;text-align:center;font-weight:700;font-size:1.1em;margin:4px 0}
-.dropdown-divider{height:1px;background:#eee;margin:4px 0}
+.dropdown-divider{height:1px;background:var(--border);margin:4px 0}
 .dropdown-item{display:block;padding:8px 12px;color:var(--text);text-decoration:none;border-radius:6px;font-size:.88em;transition:background .2s;border:none;background:none;width:100%;text-align:left;cursor:pointer;font-family:inherit}
-.dropdown-item:hover{background:#f8f9fa}
+.dropdown-item:hover{background:var(--border-light)}
 .dropdown-item.admin-link{color:var(--danger);font-weight:600}
 .dropdown-item.danger{color:var(--danger);font-weight:600}
-.dropdown-item.danger:hover{background:#fde8e8}
+.dropdown-item.danger:hover{background:rgba(220,38,38,.1)}
 
 /* ===== SCADA-SPECIFIC STYLES ===== */
 
@@ -227,11 +227,15 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 .line-card.line-status-running{border-left-color:var(--running)}
 .line-card.line-status-stopped{border-left-color:var(--stopped)}
 .line-card.line-status-fault{border-left-color:var(--fault)}
+.line-card.line-status-normal{border-left-color:var(--success)}
+.line-card.line-status-warning{border-left-color:var(--warning)}
+.line-card.line-status-critical{border-left-color:var(--critical)}
 .line-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .line-header h3{color:var(--text);font-size:1.1em}
 .status-running{background:#d1fae5;color:#065f46}
 .status-stopped{background:#f3f4f6;color:#374151}
 .status-fault{background:#fecaca;color:#991b1b}
+.status-warning{background:#fef3c7;color:#92400e}
 .line-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:.85em}
 .metric{display:flex;flex-direction:column;gap:2px}
 .metric-label{color:var(--text-muted);font-size:.8em}

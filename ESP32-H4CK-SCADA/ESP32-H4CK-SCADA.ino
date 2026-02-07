@@ -17,10 +17,9 @@
 #define CODENAME "SCADA-Lab"
 
 // Lab Mode: "testing" / "pentest" / "realism"
-#ifndef LAB_MODE
-#define LAB_MODE "testing"
-#endif
-String LAB_MODE_STR = LAB_MODE;
+// This will be injected by upload.sh from .env
+// The actual value is set in 01_Config.ino as a variable (LAB_MODE const char*)
+String LAB_MODE_STR = "testing"; // will be overridden in initConfig()
 
 // ===== LIBRARY INCLUDES =====
 #include <WiFi.h>
@@ -95,7 +94,7 @@ bool VULN_HARDCODED_SECRETS = true;
 bool VULN_LOGIC_FLAWS = true;
 
 // Sensor Physics
-float SENSOR_NOISE_AMPLITUDE = 2.5;
+float SENSOR_NOISE_AMPLITUDE = 0.03;  // 3% noise (proportional to sensor value)
 float SENSOR_DRIFT_RATE = 0.01;
 bool ENABLE_SENSOR_FAULTS = true;
 int FAULT_PROBABILITY_PERCENT = 5;
@@ -150,7 +149,7 @@ struct ActuatorData {
 };
 
 // Sensor history ring buffer
-#define SENSOR_HISTORY_SIZE 60
+#define SENSOR_HISTORY_SIZE 30
 struct SensorHistory {
   float values[SENSOR_HISTORY_SIZE];
   unsigned long timestamps[SENSOR_HISTORY_SIZE];
@@ -159,7 +158,7 @@ struct SensorHistory {
 };
 
 // Alarm structure
-#define MAX_ALARMS 50
+#define MAX_ALARMS 30
 struct AlarmEntry {
   char sensorId[20];
   int line;
@@ -486,9 +485,9 @@ void loop() {
 
   // Memory monitoring
   static unsigned long lastMemCheck = 0;
-  if (millis() - lastMemCheck > 5000) {
+  if (millis() - lastMemCheck > 10000) {
     uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < 15000) {
+    if (freeHeap < 30000) {
       Serial.printf("[CRITICAL] Low memory: %d bytes. Restarting...\n", freeHeap);
       delay(1000);
       ESP.restart();

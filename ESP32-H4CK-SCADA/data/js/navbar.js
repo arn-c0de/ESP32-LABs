@@ -1,4 +1,4 @@
-// SCADA Navbar with User Info
+// SCADA Navbar with User Info & Dropdown
 (function(){
     var username = localStorage.getItem('username');
     var role = localStorage.getItem('role');
@@ -6,35 +6,76 @@
     
     if(!navUser) return;
     
-    if(username && role){
-        var roleColor = role === 'admin' ? '#dc2626' : (role === 'operator' ? '#059669' : '#3b82f6');
-        navUser.innerHTML = '<span style="color:rgba(255,255,255,.9);">' + username + 
-            '</span> <span style="background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;font-size:.8em;color:' + roleColor + ';">' + 
-            role.toUpperCase() + '</span>';
-    }
-})();
+    if(username || role){
+        // Set user info in dropdown (support missing username or role)
+        var displayName = username || (role ? role : 'User');
+        var displayRole = role || 'viewer';
 
-            .then(function(r){return r.json()})
-            .then(function(d){updateNavbar(d.balance)})
-            .catch(function(){updateNavbar(null)});
-    } else {
-        navUser.innerHTML='<a href="/login" class="btn-nav solid">Sign In</a>';
-    }
-    
-    // Toggle dropdown on button click
-    document.addEventListener('click',function(e){
-        var toggle=e.target.closest('.user-dropdown-toggle');
-        var dropdown=document.querySelector('.user-dropdown');
-        if(toggle){
-            e.preventDefault();
-            if(dropdown)dropdown.classList.toggle('open');
-        } else if(dropdown && !e.target.closest('.user-dropdown')){
-            dropdown.classList.remove('open');
+        var userName = document.getElementById('user-name');
+        var userRole = document.getElementById('user-role');
+        var dropdownName = document.getElementById('dropdown-name');
+        var dropdownRole = document.getElementById('dropdown-role');
+
+        if(userName) userName.textContent = displayName;
+        if(userRole) {
+            userRole.textContent = displayRole.toUpperCase();
+            if(displayRole === 'admin') {
+                userRole.style.background = '#dc2626';
+                userRole.style.color = '#fff';
+            } else if(displayRole === 'operator') {
+                userRole.style.color = '#059669';
+            } else if(displayRole === 'viewer' || displayRole === 'maintenance') {
+                userRole.style.color = '#3b82f6';
+            } else {
+                userRole.style.color = '#3b82f6';
+            }
         }
-    });
+        if(dropdownName) dropdownName.textContent = displayName;
+        if(dropdownRole) dropdownRole.textContent = displayRole.toUpperCase();
+
+        // Ensure Logout button exists in menu (fallback)
+        var menu = navUser.querySelector('.user-dropdown-menu');
+        if(menu && !menu.querySelector('.logout-item')){
+            var logoutLink = document.createElement('a');
+            logoutLink.href = '#';
+            logoutLink.className = 'dropdown-item danger logout-item';
+            logoutLink.textContent = 'Logout';
+            logoutLink.onclick = function(e){ e.preventDefault(); logout(); return false; };
+            menu.appendChild(logoutLink);
+        }
+
+        // Setup dropdown toggle
+        var toggle = document.getElementById('user-dropdown-toggle');
+        if(toggle) {
+            toggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                navUser.classList.toggle('open');
+            });
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if(!navUser.contains(e.target)) {
+                navUser.classList.remove('open');
+            }
+        });
+    } else {
+        // Not logged in - show sign in button
+        var btn = document.createElement('button');
+        btn.className = 'btn-nav solid';
+        btn.innerHTML = '🔓 Sign In';
+        btn.style.cursor = 'pointer';
+        btn.onclick = function() { location.href = '/login'; };
+        navUser.innerHTML = '';
+        navUser.appendChild(btn);
+    }
 })();
 
-// Ensure mode.js is available on every page (load if not present)
+// Theme toggle is handled by mode.js — navbar.js only needs to ensure
+// the toggle button exists (mode.js creates it on DOMContentLoaded).
+
+// Ensure mode.js is loaded on every page
 (function(){
     if(!document.querySelector('script[src="/js/mode.js"]')){
         var s=document.createElement('script');
@@ -42,57 +83,4 @@
         s.defer=true;
         document.head.appendChild(s);
     }
-
-    // Provide a minimal fallback theme toggle while mode.js initializes
-    document.addEventListener('DOMContentLoaded', function(){
-        var navMenu=document.querySelector('.nav-menu');
-        if(!navMenu) return;
-        if(!document.getElementById('theme-toggle')){
-            var btn=document.createElement('button');
-            btn.id='theme-toggle';
-            btn.className='btn-nav';
-            btn.title='Toggle theme';
-
-            function updateFallbackBtn(choice, effective){
-                var icon = choice === 'dark' ? '🌙' : (choice === 'light' ? '☀️' : '🖥️');
-                btn.textContent = icon;
-                btn.setAttribute('data-theme-mode', choice);
-                btn.title = choice + ' (effective: ' + effective + ')';
-            }
-
-            var cur = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-            var effective = document.documentElement.getAttribute('data-theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-            updateFallbackBtn(cur, effective);
-
-            btn.addEventListener('click', function(){
-                var curChoice = window.getTheme ? window.getTheme() : localStorage.getItem('theme') || 'system';
-                var next = curChoice === 'light' ? 'dark' : (curChoice === 'dark' ? 'system' : 'light');
-
-                if (window.setTheme) {
-                    window.setTheme(next);
-                } else {
-                    // Apply immediately and persist
-                    var eff = next === 'system' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : next;
-                    document.documentElement.setAttribute('data-theme', eff);
-                    localStorage.setItem('theme', next);
-                    // Emit themechange for any listeners
-                    window.dispatchEvent(new CustomEvent('themechange', { detail: { choice: next, effective: eff } }));
-                }
-
-                // Update UI
-                var effAfter = next === 'system' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : next;
-                updateFallbackBtn(next, effAfter);
-            });
-
-            var logout = navMenu.querySelector('a[onclick^="logout"], a[href="#"]');
-            if(logout) navMenu.insertBefore(btn, logout);
-            else navMenu.appendChild(btn);
-
-            // Keep the fallback in sync with real changes
-            window.addEventListener('themechange', function(e){
-                var info = e.detail || {};
-                updateFallbackBtn(window.getTheme ? window.getTheme() : localStorage.getItem('theme') || 'system', info.effective || document.documentElement.getAttribute('data-theme'));
-            });
-        }
-    });
 })();

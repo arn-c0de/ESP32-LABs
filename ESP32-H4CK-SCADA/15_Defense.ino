@@ -226,7 +226,7 @@ void tickDefenseResources() {
   static unsigned long lastRegen = 0;
   unsigned long now = millis();
   
-  if (now - lastRegen > 5000) { // Every 5 seconds
+  if (now - lastRegen > 10000) { // Every 10 seconds
     if (defenseConfig.current_dp < defenseConfig.max_dp) {
       defenseConfig.current_dp += 2;
       if (defenseConfig.current_dp > defenseConfig.max_dp) 

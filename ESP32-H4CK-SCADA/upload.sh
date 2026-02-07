@@ -244,14 +244,30 @@ sed -i "s|^const char\* AP_PASSWORD   = \".*\";|const char* AP_PASSWORD   = \"${
 
 # Update JWT_SECRET if defined in .env
 if [ -n "$JWT_SECRET" ]; then
-  sed -i "s|^const char\* JWT_SECRET              = \".*\";|const char* JWT_SECRET              = \"${JWT_SECRET}\";|" "$CONFIG_FILE"
+  sed -i "s|^const char\* JWT_SECRET *=.*|const char* JWT_SECRET              = \"${JWT_SECRET}\";|" "$CONFIG_FILE"
 fi
 
 # Update WIFI_STA_MODE based on STATION_MODE from .env
 if [ "$STATION_MODE" = "true" ]; then
-  sed -i "s|^bool        WIFI_STA_MODE  = .*;|bool        WIFI_STA_MODE  = true;|" "$CONFIG_FILE"
+  sed -i "s|^bool        WIFI_STA_MODE *=.*|bool        WIFI_STA_MODE = true;|" "$CONFIG_FILE"
 else
-  sed -i "s|^bool        WIFI_STA_MODE  = .*;|bool        WIFI_STA_MODE  = false;|" "$CONFIG_FILE"
+  sed -i "s|^bool        WIFI_STA_MODE *=.*|bool        WIFI_STA_MODE = false;|" "$CONFIG_FILE"
+fi
+
+# Update LAB_MODE if defined in .env
+if [ -n "$LAB_MODE" ]; then
+  sed -i "s|^const char\* LAB_MODE *=.*|const char* LAB_MODE                = \"${LAB_MODE}\";|" "$CONFIG_FILE"
+fi
+
+# Update Telnet credentials if defined in .env
+if [ -n "$TELNET_ADMIN_PASSWORD" ]; then
+  sed -i "s|^const char\* TELNET_ADMIN_PASSWORD   = \".*\";|const char* TELNET_ADMIN_PASSWORD   = \"${TELNET_ADMIN_PASSWORD}\";|" "$CONFIG_FILE"
+fi
+if [ -n "$TELNET_GUEST_PASSWORD" ]; then
+  sed -i "s|^const char\* TELNET_GUEST_PASSWORD   = \".*\";|const char* TELNET_GUEST_PASSWORD   = \"${TELNET_GUEST_PASSWORD}\";|" "$CONFIG_FILE"
+fi
+if [ -n "$TELNET_ROOT_PASSWORD" ]; then
+  sed -i "s|^const char\* TELNET_ROOT_PASSWORD    = \".*\";|const char* TELNET_ROOT_PASSWORD    = \"${TELNET_ROOT_PASSWORD}\";|" "$CONFIG_FILE"
 fi
 
 echo "✅ Configuration injected from .env"

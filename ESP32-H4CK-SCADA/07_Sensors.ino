@@ -9,9 +9,9 @@
 static const float SENSOR_BASE_MIN[] = { 65.0f, 4.0f, 80.0f, 0.3f, 8.0f };
 static const float SENSOR_BASE_MAX[] = { 75.0f, 6.0f, 120.0f, 0.5f, 12.0f };
 
-// Threshold offsets from base value
-static const float SENSOR_WARN_OFFSET[]  = { 15.0f, 2.0f, 30.0f, 0.5f, 5.0f };
-static const float SENSOR_CRIT_OFFSET[]  = { 25.0f, 3.5f, 50.0f, 1.0f, 8.0f };
+// Threshold offsets from normal operating value (more generous to avoid false alarms)
+static const float SENSOR_WARN_OFFSET[]  = { 20.0f, 2.5f, 40.0f, 1.0f, 8.0f };
+static const float SENSOR_CRIT_OFFSET[]  = { 35.0f, 4.5f, 65.0f, 1.8f, 14.0f };
 
 void initSensors() {
   for (int line = 0; line < NUM_LINES; line++) {
@@ -75,6 +75,9 @@ static const char* getSensorStatus(const SensorData &s) {
 }
 
 String getSensorListJSON() {
+  if (ESP.getFreeHeap() < 20000) {
+    return "{\"error\":\"low memory\"}";
+  }
   DynamicJsonDocument doc(4096);
   JsonArray arr = doc.to<JsonArray>();
 
@@ -102,6 +105,9 @@ String getSensorListJSON() {
 }
 
 String getSensorReadingJSON(const char* sensorId, int limit) {
+  if (ESP.getFreeHeap() < 20000) {
+    return "{\"error\":\"low memory\"}";
+  }
   // Find sensor index by ID
   int idx = -1;
   for (int i = 0; i < TOTAL_SENSORS; i++) {
@@ -123,7 +129,7 @@ String getSensorReadingJSON(const char* sensorId, int limit) {
   }
   int count = (h.count < limit) ? h.count : limit;
 
-  DynamicJsonDocument doc(3072);
+  DynamicJsonDocument doc(2048);
   JsonArray readings = doc.to<JsonArray>();
 
   // Read from ring buffer, most recent first
@@ -158,6 +164,9 @@ static const char* getLineStatus(int line) {
 }
 
 String getDashboardStatusJSON() {
+  if (ESP.getFreeHeap() < 20000) {
+    return "{\"error\":\"low memory\"}";
+  }
   DynamicJsonDocument doc(4096);
 
   // System uptime (seconds)
@@ -246,8 +255,16 @@ String getDashboardStatusJSON() {
     lineObj["alarms"] = lineAlarms;
     
     // Production efficiency (simulate based on motor speed and alarms)
-    if (status == "running") {
-      float motorSpeed = motorIdx < TOTAL_ACTUATORS ? actuators[motorIdx].speed : 0;
+    // Check if motor is actually running, not sensor status
+    bool motorRunning = false;
+    float motorSpeed = 0;
+    if (motorIdx < TOTAL_ACTUATORS) {
+      const ActuatorData &motor = actuators[motorIdx];
+      motorRunning = (motor.state == ACT_RUNNING);
+      motorSpeed = motor.speed;
+    }
+    
+    if (motorRunning && motorSpeed > 0) {
       int efficiency = (int)(motorSpeed * 0.85) - (lineAlarms * 10);
       if (efficiency < 0) efficiency = 0;
       if (efficiency > 100) efficiency = 100;

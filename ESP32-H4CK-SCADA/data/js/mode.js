@@ -66,6 +66,56 @@
             });
         }
 
+        // === Vulnerability pages visibility ===
+        // Non-admin users should only see vulnerability sections when labMode === 'testing'
+        var vulnElements = document.querySelectorAll('.vuln-section, .vuln-card, .vuln-category, .tools-section, .tools-grid, .tools-card, .tools-item');
+        if (labMode !== 'testing' && role !== 'admin') {
+            vulnElements.forEach(el => el.style.display = 'none');
+        } else {
+            // show for testing mode or admin users
+            vulnElements.forEach(el => el.style.display = '');
+        }
+
+        // === Incidents visibility ===
+        // Incidents pages and widgets are visible to admin and operator only
+        var incidentsEls = document.querySelectorAll('.incidents-section, .incidents-list, .incident-placeholder, .incidents-placeholder');
+        var incLinks = document.querySelectorAll('a[href="/incidents"], .nav-menu a[href="/incidents"]');
+        if (role !== 'admin' && role !== 'operator') {
+            incidentsEls.forEach(el => el.style.display = 'none');
+            incLinks.forEach(a => a.style.display = 'none');
+        } else {
+            incidentsEls.forEach(el => el.style.display = '');
+            incLinks.forEach(a => a.style.display = '');
+        }
+
+        // === Viewer restrictions ===
+        // Viewers should only see the Dashboard. Hide nav links and sections and redirect if needed.
+        if (role === 'viewer') {
+            // Hide most nav links except Dashboard and Logout (keep user menu & dropdown)
+            document.querySelectorAll('.nav-menu > a').forEach(a => {
+                var href = a.getAttribute('href') || '';
+                if (href !== '/dashboard' && href !== '/login' && href !== '/') {
+                    a.style.display = 'none';
+                }
+            });
+
+            // Hide content sections that viewers should not access
+            var restrictedSelectors = [
+                '.sensors-grid', '.actuators-grid', '.alarms-table-container', '.vuln-container',
+                '.defense-resources', '.defense-actions', '.incidents-section', '.rules-table', '.active-rules'
+            ];
+            restrictedSelectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
+            });
+
+            // If the viewer is on any page other than dashboard or index, redirect to dashboard
+            var p = window.location.pathname || '/';
+            if (!(p.startsWith('/dashboard') || p === '/' || p.startsWith('/index') || p.startsWith('/login'))) {
+                console.log('[MODE] Viewer redirect to /dashboard from', p);
+                window.location.replace('/dashboard');
+            }
+        }
+
         // Update the login security warning depending on mode
         var sec = document.querySelector('.security-warning');
         if (sec) {
@@ -107,117 +157,82 @@
     };
 
     /* ===== Theme / Dark Mode Support ===== */
-    var savedTheme = localStorage.getItem('theme');
-
     function detectSystemTheme() {
         return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
-    function applyTheme(t) {
-        var choice = t || (localStorage.getItem('theme') || 'system');
+    function applyTheme(choice) {
+        choice = choice || localStorage.getItem('theme') || 'light';
         var effective = (choice === 'system') ? detectSystemTheme() : choice;
+        if (effective === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+        localStorage.setItem('theme', choice);
 
-        // Set the effective theme on the document (used by CSS variables)
-        document.documentElement.setAttribute('data-theme', effective);
-
-        // Update toggle UI if present
         var btn = document.getElementById('theme-toggle');
         if (btn) {
             var icon = choice === 'dark' ? '🌙' : (choice === 'light' ? '☀️' : '🖥️');
-            var label = choice === 'dark' ? 'Dark' : (choice === 'light' ? 'Light' : 'System');
             btn.textContent = icon;
-            btn.title = label + ' (effective: ' + effective + ')';
+            btn.title = choice.charAt(0).toUpperCase() + choice.slice(1) + ' mode (effective: ' + effective + ')';
             btn.setAttribute('data-theme-mode', choice);
-            btn.setAttribute('aria-label', 'Theme: ' + label + ' — effective: ' + effective);
-            btn.setAttribute('aria-pressed', effective === 'dark');
         }
-
-        // Broadcast theme change for other listeners
-        window.dispatchEvent(new CustomEvent('themechange', { detail: { choice: choice, effective: effective } }));
-
-        // Log for debugging and verification
-        if (window.console) console.log('[THEME] applied', { choice: choice, effective: effective });
+        console.log('[THEME] Applied:', { choice: choice, effective: effective });
     }
 
     window.setTheme = function(t) {
-        if (!t) return;
         localStorage.setItem('theme', t);
         applyTheme(t);
     };
 
     window.getTheme = function() {
-        return localStorage.getItem('theme') || 'system';
+        return localStorage.getItem('theme') || 'light';
     };
 
-    // Initialize theme on load
-    (function initTheme(){
-        var t = savedTheme || 'system';
-        applyTheme(t);
+    // Apply theme immediately before DOM rendering
+    applyTheme();
 
-        // Listen to system changes when in 'system' mode
-        if (window.matchMedia) {
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-                if (window.getTheme() === 'system') applyTheme('system');
-            });
-        }
+    // Listen to system theme changes
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+            if (window.getTheme() === 'system') applyTheme('system');
+        });
+    }
 
-        // Ensure applyModeVisibility runs again once DOM is ready (so elements like .security-warning exist)
-        document.addEventListener('DOMContentLoaded', function(){
-            applyModeVisibility();
+    // Create theme toggle button in navbar (runs after DOM is ready)
+    document.addEventListener('DOMContentLoaded', function(){
+        applyModeVisibility();
 
-            // Small verification helper for debugging: logs current stored choice and effective theme
-            window.verifyTheme = function(){
-                var stored = window.getTheme();
-                var eff = document.documentElement.getAttribute('data-theme');
-                console.log('[THEME] verify - stored:', stored, 'effective:', eff);
-                return { stored: stored, effective: eff };
-            };
-            // Run verification automatically on page load
-            window.verifyTheme();
+        var navMenu = document.querySelector('.nav-menu');
+        if (!navMenu || document.getElementById('theme-toggle')) return;
 
-            // Inject a theme toggle into navbar if present (cycles Light -> Dark -> System)
-            var navMenu = document.querySelector('.nav-menu');
-            if (!navMenu) return;
-            if (!document.getElementById('theme-toggle')) {
-                var btn = document.createElement('button');
-            btn.id = 'theme-toggle';
-            btn.className = 'btn-nav';
-            btn.style.marginLeft = '8px';
+        var btn = document.createElement('button');
+        btn.id = 'theme-toggle';
+        btn.className = 'btn-nav';
+        btn.style.marginLeft = '8px';
+        btn.setAttribute('type', 'button');
+        btn.setAttribute('aria-label', 'Toggle theme');
 
-            function updateBtnForMode(choice, effective) {
-                var icon = choice === 'dark' ? '🌙' : (choice === 'light' ? '☀️' : '🖥️');
-                var label = choice === 'dark' ? 'Dark' : (choice === 'light' ? 'Light' : 'System');
-                btn.textContent = icon;
-                btn.title = label + ' (effective: ' + effective + ')';
-                btn.setAttribute('data-theme-mode', choice);
-                btn.setAttribute('aria-label', 'Theme: ' + label + ' — effective: ' + effective);
-                btn.setAttribute('aria-pressed', effective === 'dark');
-            }
+        var choice = window.getTheme();
+        var icon = choice === 'dark' ? '🌙' : (choice === 'light' ? '☀️' : '🖥️');
+        btn.textContent = icon;
+        btn.title = choice.charAt(0).toUpperCase() + choice.slice(1) + ' mode';
 
-            // Reflect current stored choice (or system) and effective theme
-            var chosen = window.getTheme();
-            var effective = document.documentElement.getAttribute('data-theme') || detectSystemTheme();
-            updateBtnForMode(chosen, effective);
+        btn.addEventListener('click', function(e){
+            e.preventDefault();
+            var cur = window.getTheme();
+            var next = cur === 'light' ? 'dark' : (cur === 'dark' ? 'system' : 'light');
+            window.setTheme(next);
+            applyTheme(next);
+        });
 
-            btn.addEventListener('click', function(){
-                var cur = window.getTheme();
-                var next = cur === 'light' ? 'dark' : (cur === 'dark' ? 'system' : 'light');
-                window.setTheme(next);
-                var eff = (next === 'system') ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : next;
-                updateBtnForMode(next, eff);
-            });
-
-            // Try to insert before the Logout link, otherwise append
-            var logoutLink = navMenu.querySelector('a[onclick^="logout"], a[href="#"]');
-            if (logoutLink) navMenu.insertBefore(btn, logoutLink);
-            else navMenu.appendChild(btn);
-
-            // Listen to external theme changes (dispatched by applyTheme)
-            window.addEventListener('themechange', function(e){
-                var info = e.detail || {};
-                updateBtnForMode(window.getTheme(), info.effective || document.documentElement.getAttribute('data-theme'));
-            });
+        // Insert before the user dropdown (direct child of nav-menu)
+        var userDropdown = navMenu.querySelector('#nav-user');
+        if (userDropdown) {
+            navMenu.insertBefore(btn, userDropdown);
+        } else {
+            navMenu.appendChild(btn);
         }
     });
-    })();
 })();

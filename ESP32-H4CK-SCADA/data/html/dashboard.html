@@ -60,8 +60,20 @@
       <a href="/alarms">Alarms</a>
       <a href="/vulnerabilities">Vulnerabilities</a>
       <a href="/incidents">Incidents</a>
-      <span class="nav-user" id="nav-user"></span>
-      <a href="#" onclick="logout()">Logout</a>
+      <div class="user-dropdown" id="nav-user">
+        <button class="user-dropdown-toggle" id="user-dropdown-toggle">
+          <span class="user-name" id="user-name">User</span>
+          <span class="user-role" id="user-role">ROLE</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="user-dropdown-menu">
+          <div class="dropdown-header">
+            <div class="dropdown-name" id="dropdown-name">User</div>
+            <div class="dropdown-role" id="dropdown-role">role</div>
+          </div>
+          <a href="#" class="dropdown-item danger logout-item" onclick="logout(); return false;">🚪 Logout</a>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -155,6 +167,7 @@
   </div>
 
   <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
   <script src="/js/navbar.js"></script>
   <script>
     requireAuth();
@@ -276,7 +289,8 @@
             const oldLine = lastData.lines[idx];
             if (oldLine && line.status !== oldLine.status) {
               addEvent(`Line ${line.number} changed to ${line.status.toUpperCase()}`, 
-                       line.status === 'fault' ? 'error' : 'info');
+                       line.status === 'CRITICAL' ? 'error' : 
+                       line.status === 'WARNING' ? 'warning' : 'info');
             }
           });
           
@@ -302,7 +316,8 @@
         let totalPower = 0;
         
         data.lines.forEach(line => {
-          if (line.status === 'running') {
+          // Check if motor is running (not sensor status)
+          if (line.motor_state === 'RUNNING' && line.motor_speed > 0) {
             activeLines++;
             totalEfficiency += line.efficiency || 0;
             totalPower += parseFloat(line.power) || 0;
@@ -320,14 +335,15 @@
         linesGrid.innerHTML = '';
         
         data.lines.forEach(line => {
-          const statusClass = line.status === 'running' ? 'status-running' : 
-                            line.status === 'fault' ? 'status-fault' : 'status-stopped';
+          // Status badge based on sensor status (NORMAL, WARNING, CRITICAL)
+          const statusClass = line.status === 'CRITICAL' ? 'status-fault' : 
+                            line.status === 'WARNING' ? 'status-warning' : 'status-running';
           
           const efficiencyColor = line.efficiency >= 80 ? '#10b981' : 
                                  line.efficiency >= 60 ? '#f59e0b' : '#ef4444';
           
           const lineCard = document.createElement('div');
-          lineCard.className = `line-card line-status-${line.status}`;
+          lineCard.className = `line-card line-status-${line.status.toLowerCase()}`;
           lineCard.innerHTML = `
             <div class="line-header">
               <h3>Production Line ${line.number}</h3>
@@ -400,8 +416,8 @@
     addEvent('Dashboard initialized', 'info');
     loadDashboard();
     
-    // Auto-refresh every 5 seconds
-    updateInterval = setInterval(loadDashboard, 5000);
+    // Auto-refresh every 10 seconds
+    updateInterval = setInterval(loadDashboard, 10000);
     
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {

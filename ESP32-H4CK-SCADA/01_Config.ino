@@ -13,6 +13,7 @@ bool        WIFI_STA_MODE = false;
 
 // Security Configuration (injected by upload.sh from .env)
 const char* JWT_SECRET              = "weak_secret_key_123";
+const char* LAB_MODE                = "testing";
 const char* TELNET_ADMIN_PASSWORD   = "admin";
 const char* TELNET_GUEST_PASSWORD   = "guest";
 const char* TELNET_ROOT_PASSWORD    = "toor";
@@ -25,6 +26,7 @@ void initConfig() {
   AP_PASSWORD_STR = String(AP_PASSWORD);
   STATION_MODE = WIFI_STA_MODE;
   JWT_SECRET_STR = String(JWT_SECRET);
+  LAB_MODE_STR = String(LAB_MODE);  // Initialize from injected config
   
   preferences.begin("scada-lab", false);
   loadConfigFromFS();

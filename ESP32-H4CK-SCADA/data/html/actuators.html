@@ -37,8 +37,20 @@
       <a href="/alarms">Alarms</a>
       <a href="/vulnerabilities">Vulnerabilities</a>
       <a href="/incidents">Incidents</a>
-      <span class="nav-user" id="nav-user"></span>
-      <a href="#" onclick="logout()">Logout</a>
+      <div class="user-dropdown" id="nav-user">
+        <button class="user-dropdown-toggle" id="user-dropdown-toggle">
+          <span class="user-name" id="user-name">User</span>
+          <span class="user-role" id="user-role">ROLE</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="user-dropdown-menu">
+          <div class="dropdown-header">
+            <div class="dropdown-name" id="dropdown-name">User</div>
+            <div class="dropdown-role" id="dropdown-role">role</div>
+          </div>
+          <a href="#" class="dropdown-item danger logout-item" onclick="logout(); return false;">🚪 Logout</a>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -54,6 +66,7 @@
   </div>
 
   <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
   <script src="/js/navbar.js"></script>
   <script>
     requireAuth();
@@ -139,36 +152,34 @@
       }
       try {
         const token = localStorage.getItem('jwt_token');
-        console.log('[ACTUATORS] controlActuator token length:', token ? token.length : 0);
         if (!token) {
           alert('No authentication token found — please log in');
           return;
         }
-        const response = await fetch(`/api/actuators/${actuatorId}/control`, {
+        const response = await fetch('/api/actuators/control', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          credentials: 'same-origin',
-          body: JSON.stringify({ command, param })
+          body: JSON.stringify({ actuator_id: actuatorId, command, param })
         });
-        
+
         const data = await response.json().catch(() => ({ error: 'Unknown error' }));
-        
+
         if (!response.ok) {
           if (response.status === 401) {
             alert('Session expired. Please log in again.');
             logout();
             return;
           } else if (response.status === 403) {
-            alert('Insufficient permissions. Role: ' + (localStorage.getItem('role') || 'unknown') + '. Error: ' + (data.error || 'Access denied'));
+            alert('Insufficient permissions: ' + (data.error || 'Access denied'));
             return;
           }
           alert(data.error || 'Command failed (HTTP ' + response.status + ')');
           return;
         }
-        
+
         await loadActuators();
       } catch (error) {
         console.error('Control error:', error);
@@ -189,8 +200,8 @@
     // Initial load
     loadActuators();
 
-    // Auto-refresh every 5 seconds
-    updateInterval = setInterval(loadActuators, 5000);
+    // Auto-refresh every 10 seconds
+    updateInterval = setInterval(loadActuators, 10000);
 
     // Cleanup
     window.addEventListener('beforeunload', () => {
