@@ -6,6 +6,10 @@
 # Local env file
 .env
 
+
+# Local IDE/Editor settings
+.claude/
+
 # Python cache
 __pycache__/
 *.py[cod]
