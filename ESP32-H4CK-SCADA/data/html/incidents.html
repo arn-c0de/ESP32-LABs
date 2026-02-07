@@ -136,6 +136,56 @@
       </div>
     </div>
 
+    <!-- IP Block Management (Operator/Admin) -->
+    <div class="defense-actions operator-only">
+      <h3>🚧 IP Block Management</h3>
+      <div class="actions-grid">
+        <div class="action-card">
+          <h4>Quick Block</h4>
+          <p>Block an IP address with a preset or custom duration.</p>
+          <div class="action-input">
+            <input type="text" id="block-ip-target" placeholder="192.168.1.100" />
+            <input type="number" id="block-ip-custom" placeholder="Custom minutes" min="1" />
+          </div>
+          <div class="action-input">
+            <button class="btn btn-secondary" onclick="blockPreset(60)">1m</button>
+            <button class="btn btn-secondary" onclick="blockPreset(300)">5m</button>
+            <button class="btn btn-secondary" onclick="blockPreset(1800)">30m</button>
+            <button class="btn btn-secondary" onclick="blockPreset(3600)">1h</button>
+            <button class="btn btn-danger" onclick="blockPermanent()">Permanent</button>
+          </div>
+          <button class="btn btn-warning" onclick="blockCustom()">Apply Custom</button>
+        </div>
+
+        <div class="action-card">
+          <h4>Unblock</h4>
+          <p>Remove an IP block immediately.</p>
+          <div class="action-input">
+            <input type="text" id="unblock-ip-target" placeholder="192.168.1.100" />
+          </div>
+          <button class="btn btn-danger" onclick="unblockIp()">Unblock IP</button>
+        </div>
+      </div>
+
+      <div class="active-rules">
+        <h3>📋 Active IP Blocks</h3>
+        <table class="rules-table">
+          <thead>
+            <tr>
+              <th>IP</th>
+              <th>Type</th>
+              <th>Remaining</th>
+              <th>By</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="blocks-tbody">
+            <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Active Defense Rules -->
     <div class="active-rules">
       <h3>📋 Active Defense Rules</h3>
@@ -233,6 +283,14 @@
           <p class="hint">Failed login attempts, suspicious activity, and attacks will appear here</p>
         </div>
       </div>
+      <div class="operator-only" style="margin-top: 12px;">
+        <div class="action-input">
+          <input type="text" id="alert-block-ip" placeholder="IP from alert (e.g. 192.168.1.100)" />
+          <button class="btn btn-danger" onclick="blockPresetFromAlert(300)">Block 5m</button>
+          <button class="btn btn-danger" onclick="blockPresetFromAlert(1800)">Block 30m</button>
+          <button class="btn btn-danger" onclick="blockPermanentFromAlert()">Block Permanent</button>
+        </div>
+      </div>
     </div>
 
     <!-- Defense Logs -->
@@ -254,6 +312,7 @@
     
     let updateInterval;
     let defenseState = {};
+    let adminDefenseState = {};
     
     async function loadDefenseState() {
       try {
@@ -337,6 +396,135 @@
           </td>
         </tr>
       `).join('');
+    }
+
+    async function loadAdminDefenseStatus() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/admin/defense/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          return;
+        }
+        adminDefenseState = await response.json();
+        renderBlocks(adminDefenseState.blocks || []);
+      } catch (error) {
+        console.error('Admin defense status error:', error);
+      }
+    }
+
+    function renderBlocks(blocks) {
+      const tbody = document.getElementById('blocks-tbody');
+      if (!tbody) return;
+      if (!blocks || blocks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No active blocks</td></tr>';
+        return;
+      }
+      tbody.innerHTML = blocks.map(b => {
+        const remaining = b.permanent ? 'Permanent' : `${b.remaining_s}s`;
+        const type = b.permanent ? 'Permanent' : 'Temporary';
+        const by = b.by || 'system';
+        return `
+          <tr>
+            <td><code>${b.ip}</code></td>
+            <td>${type}</td>
+            <td>${remaining}</td>
+            <td>${by}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="unblockIp('${b.ip}')">Unblock</button></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function getBlockTarget() {
+      return (document.getElementById('block-ip-target') || {}).value || '';
+    }
+
+    async function blockIp(ip, duration, permanent) {
+      if (!ip) {
+        alert('Please enter target IP');
+        return;
+      }
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const payload = { ip: ip, duration: duration, permanent: !!permanent };
+        const response = await fetch('/api/admin/defense/block', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          alert('Block failed');
+          return;
+        }
+        loadAdminDefenseStatus();
+      } catch (error) {
+        console.error('Block error:', error);
+      }
+    }
+
+    function blockPreset(seconds) {
+      const ip = getBlockTarget();
+      blockIp(ip, seconds, false);
+    }
+
+    function blockPermanent() {
+      const ip = getBlockTarget();
+      blockIp(ip, 0, true);
+    }
+
+    function blockCustom() {
+      const ip = getBlockTarget();
+      const minutes = parseInt(document.getElementById('block-ip-custom').value || '0', 10);
+      if (!minutes || minutes <= 0) {
+        alert('Please enter a custom duration in minutes');
+        return;
+      }
+      blockIp(ip, minutes * 60, false);
+    }
+
+    function blockPresetFromAlert(seconds) {
+      const ip = (document.getElementById('alert-block-ip') || {}).value || '';
+      blockIp(ip, seconds, false);
+    }
+
+    function blockPermanentFromAlert() {
+      const ip = (document.getElementById('alert-block-ip') || {}).value || '';
+      blockIp(ip, 0, true);
+    }
+
+    async function unblockIp(ip) {
+      const target = ip || (document.getElementById('unblock-ip-target') || {}).value || '';
+      if (!target) {
+        alert('Please enter target IP');
+        return;
+      }
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/admin/defense/unblock', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ ip: target })
+        });
+        if (!response.ok) {
+          alert('Unblock failed');
+          return;
+        }
+        loadAdminDefenseStatus();
+      } catch (error) {
+        console.error('Unblock error:', error);
+      }
     }
     
     async function activateDefense(type) {
@@ -485,6 +673,60 @@
         console.error('Load logs error:', error);
       }
     }
+
+    async function loadDefenseAlerts() {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const response = await fetch('/api/defense/alerts', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          return;
+        }
+        const data = await response.json();
+        renderAlerts((data && data.alerts) ? data.alerts : []);
+      } catch (error) {
+        console.error('Defense alerts error:', error);
+      }
+    }
+
+    function renderAlerts(alerts) {
+      const list = document.getElementById('incidents-list');
+      if (!list) return;
+      if (!alerts || alerts.length === 0) {
+        list.innerHTML = `
+          <div class="incident-placeholder">
+            <p>No recent incidents detected</p>
+            <p class="hint">Failed login attempts, suspicious activity, and attacks will appear here</p>
+          </div>
+        `;
+        return;
+      }
+      const role = localStorage.getItem('role') || '';
+      const canBlock = (role === 'admin' || role === 'operator');
+      list.innerHTML = alerts.map(a => {
+        const time = new Date(a.timestamp).toLocaleTimeString();
+        const ip = a.ip || 'unknown';
+        const details = a.details || '';
+        const actions = canBlock ? `
+          <div class="action-input" style="margin-top:8px;">
+            <button class="btn btn-sm btn-danger" onclick="blockIp('${ip}', 300, false)">Block 5m</button>
+            <button class="btn btn-sm btn-danger" onclick="blockIp('${ip}', 1800, false)">Block 30m</button>
+            <button class="btn btn-sm btn-danger" onclick="blockIp('${ip}', 0, true)">Block Permanent</button>
+          </div>` : '';
+        return `
+          <div class="incident-card">
+            <strong>${a.type}</strong> from <code>${ip}</code> at ${time}<br/>
+            <span class="hint">${details}</span>
+            ${actions}
+          </div>
+        `;
+      }).join('');
+    }
     
     async function clearLogs() {
       if (!confirm('Clear all defense logs?')) return;
@@ -559,12 +801,38 @@
     // Auto-refresh
     document.addEventListener('DOMContentLoaded', () => {
       loadDefenseState();
+      loadAdminDefenseStatus();
       loadLogs();
+      loadDefenseAlerts();
       loadWiFiClients();
-      updateInterval = setInterval(() => {
-        loadDefenseState();
-        loadWiFiClients();
-      }, 10000);
+      function startPolling() {
+        if (!updateInterval) updateInterval = setInterval(() => {
+          loadDefenseState();
+          loadAdminDefenseStatus();
+          loadDefenseAlerts();
+          loadWiFiClients();
+        }, 15000);
+      }
+      function stopPolling() {
+        if (updateInterval) {
+          clearInterval(updateInterval);
+          updateInterval = null;
+        }
+      }
+
+      startPolling();
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopPolling();
+        else { 
+          loadDefenseState();
+          loadAdminDefenseStatus();
+          loadDefenseAlerts();
+          loadWiFiClients();
+          startPolling();
+        }
+      });
+
     });
     
     window.addEventListener('beforeunload', () => {

@@ -316,16 +316,45 @@ void destroySession(String sessionId) {
   }
 }
 
-void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len) {
+void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t total) {
   totalRequests++;
   
   String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (rejectIfBodyTooLarge(request, total)) {
+    return;
+  }
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
+  
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+    return;
+  }
+  if (!checkLoginBackoff(clientIP)) {
+    request->send(429, "application/json", "{\"error\":\"Login backoff active\"}");
+    return;
+  }
+  
   Serial.printf("[AUTH] Login attempt from %s\n", clientIP.c_str());
   
   String username = "";
   String password = "";
   
   // Parse JSON body
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
   DynamicJsonDocument doc(512);
   DeserializationError error = deserializeJson(doc, (char*)data, len);
   
@@ -342,6 +371,7 @@ void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len) 
   
   // Authenticate
   if (authenticateUser(username, password)) {
+    resetLoginFailures(clientIP);
     // Find user role
     String role = "guest";
     for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
@@ -377,6 +407,7 @@ void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len) 
     resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
     request->send(resp);
   } else {
+    recordLoginFailure(clientIP);
     DynamicJsonDocument response(256);
     response["success"] = false;
     response["error"] = "Invalid credentials";
@@ -392,6 +423,26 @@ void handleLogin(AsyncWebServerRequest *request) {
   totalRequests++;
   
   String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+    return;
+  }
+  if (!checkLoginBackoff(clientIP)) {
+    request->send(429, "application/json", "{\"error\":\"Login backoff active\"}");
+    return;
+  }
   Serial.printf("[AUTH] Login attempt from %s\n", clientIP.c_str());
   
   if (request->method() != HTTP_POST) {
@@ -414,6 +465,7 @@ void handleLogin(AsyncWebServerRequest *request) {
   
   // Authenticate
   if (authenticateUser(username, password)) {
+    resetLoginFailures(clientIP);
     // Find user role
     String role = "guest";
     for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
@@ -468,6 +520,7 @@ void handleLogin(AsyncWebServerRequest *request) {
       request->send(resp);
     }
   } else {
+    recordLoginFailure(clientIP);
     // Check if browser form submit
     bool isBrowserForm = false;
     if (request->hasHeader("Accept")) {
@@ -587,4 +640,3 @@ bool requireRole(AsyncWebServerRequest *request, const char* minRole) {
   
   return true;
 }
-

@@ -57,6 +57,20 @@ void logWarning(String message) {
   }
 }
 
+void rateLimitedLog(const String &message) {
+  static unsigned long windowStart = 0;
+  static int count = 0;
+  unsigned long now = millis();
+  if (now - windowStart > 1000) {
+    windowStart = now;
+    count = 0;
+  }
+  if (count < 5) {
+    Serial.println(message);
+  }
+  count++;
+}
+
 void printSystemInfo() {
   Serial.println("\n=== SYSTEM INFORMATION ===");
   Serial.printf("Chip Model:       %s\n", ESP.getChipModel());
@@ -496,4 +510,3 @@ void listFilesRecursive(String path, int level) {
     file = root.openNextFile();
   }
 }
-

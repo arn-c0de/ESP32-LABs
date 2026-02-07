@@ -2,6 +2,29 @@
  * HTTP Helper Functions
  */
 
+bool rejectIfLowHeap(AsyncWebServerRequest *request) {
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    rateLimitedLog("[HTTP] Rejected - low memory");
+    request->send(503, "text/plain", "Server busy - low memory");
+    return true;
+  }
+  return false;
+}
+
+bool rejectIfBodyTooLarge(AsyncWebServerRequest *request, size_t total) {
+  if (total > MAX_BODY_BYTES) {
+    request->send(413, "application/json", "{\"error\":\"Request body too large\"}");
+    return true;
+  }
+  return false;
+}
+
+void sendRateLimited(AsyncWebServerRequest *request, const char* contentType, const String &body) {
+  AsyncWebServerResponse *response = request->beginResponse(429, contentType, body);
+  response->addHeader("Retry-After", "1");
+  request->send(response);
+}
+
 void addCORSHeaders(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200);
   response->addHeader("Access-Control-Allow-Origin", "*");
@@ -38,8 +61,20 @@ public:
 
   void handleRequest(AsyncWebServerRequest *request) override {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
 
@@ -75,9 +110,24 @@ public:
 
 void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (rejectIfBodyTooLarge(request, total)) {
+    return;
+  }
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
   }
 
@@ -97,6 +147,14 @@ void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t le
   }
 
   // Parse JSON body
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
   DynamicJsonDocument doc(256);
   DeserializationError error = deserializeJson(doc, (char*)data, len);
   if (error) {
@@ -135,9 +193,24 @@ void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t le
 
 void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (rejectIfBodyTooLarge(request, total)) {
+    return;
+  }
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
   }
 
@@ -154,6 +227,10 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
     return;
   }
 
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
   DynamicJsonDocument doc(256);
   DeserializationError error = deserializeJson(doc, (char*)data, len);
   if (error) {
@@ -209,9 +286,24 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
 
 void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (rejectIfBodyTooLarge(request, total)) {
+    return;
+  }
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
   }
 
@@ -230,6 +322,10 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
     return;
   }
 
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
   DynamicJsonDocument doc(256);
   DeserializationError error = deserializeJson(doc, (char*)data, len);
   if (error) {
@@ -252,9 +348,24 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
 // Reset a sensor's fault flag (accessible to admin and operators). This does NOT enable the sensor.
 void handleSensorResetBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
   String clientIP = request->client()->remoteIP().toString();
+  if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (rejectIfBodyTooLarge(request, total)) {
+    return;
+  }
+  if (!tryReserveConnection(clientIP)) {
+    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+    return;
+  }
+  ConnectionGuard guard(true);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+  if (!checkRateLimit(clientIP)) {
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
   }
 

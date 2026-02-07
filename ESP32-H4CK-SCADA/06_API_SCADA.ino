@@ -11,7 +11,7 @@ void setupSCADARoutes() {
   // Login with JSON body handler
   server.on("/api/login", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      handleLoginJSON(request, data, len);
+      handleLoginJSON(request, data, len, total);
     });
   
   server.on("/api/logout", HTTP_GET, handleLogout);
@@ -21,17 +21,25 @@ void setupSCADARoutes() {
   
   server.on("/api/dashboard/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
     }
     if (!checkRateLimit(clientIP)) {
-      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
     
     totalRequests++;
-    Serial.printf("[API] GET /api/dashboard/status from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/dashboard/status from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -47,17 +55,25 @@ void setupSCADARoutes() {
   // Get all sensors
   server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
     }
     if (!checkRateLimit(clientIP)) {
-      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
     
     totalRequests++;
-    Serial.printf("[API] GET /api/sensors from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/sensors from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -88,17 +104,25 @@ void setupSCADARoutes() {
   // Get all actuators
   server.on("/api/actuators", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
     }
     if (!checkRateLimit(clientIP)) {
-      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
     
     totalRequests++;
-    Serial.printf("[API] GET /api/actuators from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/actuators from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -120,17 +144,25 @@ void setupSCADARoutes() {
   // Get alarm history (optional line filter)
   server.on("/api/alarms", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
     }
     if (!checkRateLimit(clientIP)) {
-      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
     
     totalRequests++;
-    Serial.printf("[API] GET /api/alarms from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/alarms from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -169,7 +201,7 @@ void setupSCADARoutes() {
     }
     
     totalRequests++;
-    Serial.printf("[API] GET /api/info from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/info from " + clientIP);
     
     DynamicJsonDocument doc(1024);
     doc["version"] = LAB_VERSION;
@@ -257,8 +289,24 @@ void setupSCADARoutes() {
   
   server.on("/api/defense/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
     totalRequests++;
-    Serial.printf("[API] GET /api/defense/status from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/defense/status from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -298,6 +346,22 @@ void setupSCADARoutes() {
   
   server.on("/api/defense/logs", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
     totalRequests++;
     
     if (!isAuthenticated(request)) {
@@ -309,16 +373,173 @@ void setupSCADARoutes() {
     request->send(200, "application/json", "[]");
   });
 
+  server.on("/api/defense/alerts", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
+    if (!requireRole(request, "operator")) {
+      return;
+    }
+    String output = getDefenseAlertsJSON();
+    request->send(200, "application/json", output);
+  });
+
+  // ===== ADMIN DEFENSE API (Operator/Admin) =====
+  server.on("/api/admin/defense/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
+    if (!requireRole(request, "operator")) {
+      return;
+    }
+    String output = handleAdminDefenseStatus();
+    request->send(200, "application/json", output);
+  });
+
+  server.on("/api/admin/defense/block", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (rejectIfBodyTooLarge(request, total)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
+    if (!requireRole(request, "operator")) {
+      return;
+    }
+
+    if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, (char*)data, len);
+    if (error) {
+      request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
+    }
+    String targetIp = doc["ip"] | "";
+    bool permanent = doc["permanent"] | false;
+    unsigned long duration = doc["duration"] | 300;
+    if (targetIp == "") {
+      request->send(400, "application/json", "{\"error\":\"Missing ip\"}");
+      return;
+    }
+    String by = getRequestUsername(request);
+    if (by == "") by = "operator";
+    addBlock(targetIp, duration, permanent, by);
+    request->send(200, "application/json", "{\"success\":true}");
+  });
+
+  server.on("/api/admin/defense/unblock", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (rejectIfBodyTooLarge(request, total)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
+    if (!checkRateLimit(clientIP)) {
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      return;
+    }
+    if (!requireRole(request, "operator")) {
+      return;
+    }
+
+    if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    DynamicJsonDocument doc(256);
+    DeserializationError error = deserializeJson(doc, (char*)data, len);
+    if (error) {
+      request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
+    }
+    String targetIp = doc["ip"] | "";
+    if (targetIp == "") {
+      request->send(400, "application/json", "{\"error\":\"Missing ip\"}");
+      return;
+    }
+    removeBlock(targetIp);
+    request->send(200, "application/json", "{\"success\":true}");
+  });
+
   // ===== WIFI CLIENT HISTORY (AP Mode) =====
   server.on("/api/wifi/clients", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
     if (!checkRateLimit(clientIP)) {
-      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
     
     totalRequests++;
-    Serial.printf("[API] GET /api/wifi/clients from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] GET /api/wifi/clients from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -333,13 +554,28 @@ void setupSCADARoutes() {
   server.on("/api/incidents/spawn", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
     String clientIP = request->client()->remoteIP().toString();
+    if (rejectIfLowHeap(request)) {
+      return;
+    }
+    if (rejectIfBodyTooLarge(request, total)) {
+      return;
+    }
+    if (!tryReserveConnection(clientIP)) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+    ConnectionGuard guard(true);
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
     if (!checkRateLimit(clientIP)) {
-      request->send(429, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+      sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
     }
     
     totalRequests++;
-    Serial.printf("[API] POST /api/incidents/spawn from %s\n", clientIP.c_str());
+    rateLimitedLog("[API] POST /api/incidents/spawn from " + clientIP);
     
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
@@ -347,6 +583,10 @@ void setupSCADARoutes() {
     }
     
     // Parse JSON body
+    if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
     DynamicJsonDocument doc(512);
     DeserializationError error = deserializeJson(doc, data, len);
     if (error) {

@@ -83,6 +83,7 @@
       <div class="system-status" id="system-status">
         <span class="status-badge status-online">● ONLINE</span>
         <span id="uptime"></span>
+        <span id="last-alert"></span>
       </div>
     </div>
 
@@ -303,6 +304,7 @@
         
         // Update system info
         document.getElementById('uptime').textContent = formatUptime(data.uptime);
+        await updateLastAlert(data.uptime);
         document.getElementById('total-sensors').textContent = data.total_sensors;
         document.getElementById('active-actuators').textContent = data.active_actuators;
         document.getElementById('alarm-count').textContent = data.active_alarms;
@@ -387,6 +389,11 @@
                 <span class="metric-label">Motor:</span>
                 <span class="metric-value">${line.motor_state} (${parseFloat(line.motor_speed).toFixed(0)}%)</span>
               </div>
+              <div class="metric">
+                <span class="metric-icon" aria-label="Valve">🧪</span>
+                <span class="metric-label">Valve:</span>
+                <span class="metric-value">${line.valve_state} (${parseFloat(line.valve_pos).toFixed(0)}%)</span>
+              </div>
             </div>
             ${line.alarms > 0 ? `<div class="line-alarms">⚠️ ${line.alarms} active alarm(s)</div>` : ''}
           `;
@@ -410,14 +417,59 @@
       if (days > 0) return `${days}d ${hours}h ${minutes}m`;
       return `${hours}h ${minutes}m`;
     }
+
+    async function updateLastAlert(uptimeSeconds) {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const res = await fetch('/api/alarms?line=0&limit=1', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const alarms = await res.json();
+        const el = document.getElementById('last-alert');
+        if (!Array.isArray(alarms) || alarms.length === 0) {
+          el.textContent = 'Last alert: --';
+          return;
+        }
+        const alarm = alarms[0];
+        const ageSeconds = Math.max(0, (uptimeSeconds * 1000 - alarm.timestamp) / 1000);
+        el.textContent = `Last alert: ${formatAge(ageSeconds)} ago`;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function formatAge(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const hrs = Math.floor(mins / 60);
+      const days = Math.floor(hrs / 24);
+      if (days > 0) return `${days}d ${hrs % 24}h`;
+      if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+      if (mins > 0) return `${mins}m ${Math.floor(seconds % 60)}s`;
+      return `${Math.floor(seconds)}s`;
+    }
     
     // Initialize
     initCharts();
     addEvent('Dashboard initialized', 'info');
     loadDashboard();
     
-    // Auto-refresh every 10 seconds
-    updateInterval = setInterval(loadDashboard, 10000);
+    function startPolling() {
+      if (!updateInterval) updateInterval = setInterval(loadDashboard, 15000);
+    }
+    function stopPolling() {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    startPolling();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadDashboard(); startPolling(); }
+    });
     
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {

@@ -36,7 +36,14 @@ void initActuators() {
 }
 
 String getActuatorListJSON() {
+  static String actuatorListCache;
+  static unsigned long actuatorListCacheAt = 0;
+  const unsigned long now = millis();
+  if (actuatorListCache.length() > 0 && (now - actuatorListCacheAt) < 800) {
+    return actuatorListCache;
+  }
   if (ESP.getFreeHeap() < 20000) {
+    if (actuatorListCache.length() > 0) return actuatorListCache;
     return "{\"error\":\"low memory\"}";
   }
   DynamicJsonDocument doc(2048);
@@ -52,12 +59,18 @@ String getActuatorListJSON() {
     obj["speed"] = a.speed;
     obj["targetSpeed"] = a.targetSpeed;
     obj["locked"] = a.locked;
+    // Add motor temperature for MOTOR type
+    if (a.type == MOTOR && a.line >= 1 && a.line <= NUM_LINES) {
+      obj["motor_temp"] = motorTemp[a.line - 1];
+    }
   }
 
-  String output;
-  serializeJson(doc, output);
+  actuatorListCache = "";
+  actuatorListCache.reserve(2048);
+  serializeJson(doc, actuatorListCache);
   doc.clear();
-  return output;
+  actuatorListCacheAt = now;
+  return actuatorListCache;
 }
 
 // Find actuator index by ID, returns -1 if not found
@@ -191,6 +204,32 @@ String executeActuatorCommand(const char* actuatorId, const char* cmd, float par
     a.stateChangeTime = now;
 
     return makeResult(true, "Stopping", a);
+  }
+
+  // === COMMAND: open / close (valves) ===
+  if (strcmp(cmd, "open") == 0 || strcmp(cmd, "close") == 0) {
+    if (a.type != VALVE) {
+      return makeResult(false, "Open/close only valid for valves", a);
+    }
+
+    float pos = (strcmp(cmd, "open") == 0) ? 100.0f : 0.0f;
+
+    if (pos > 0.0f && a.state != ACT_RUNNING) {
+      a.state = ACT_STARTING;
+      a.stateChangeTime = now;
+    } else if (pos == 0.0f && a.state == ACT_RUNNING) {
+      a.state = ACT_STOPPING;
+      a.stateChangeTime = now;
+    }
+
+    a.targetSpeed = pos;
+    if (a.state == ACT_RUNNING) {
+      a.speed = pos;
+    }
+
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Valve %s", pos > 0.0f ? "opening" : "closing");
+    return makeResult(true, msg, a);
   }
 
   // === COMMAND: set (speed/position) ===

@@ -91,7 +91,16 @@ Instructor-controlled defenses provide practical experience in detecting and res
 - Understand role-based access control and safety interlocks
 - Provide competitive learning through leaderboards
 
+
+### Example Procedure for Red Team vs. Blue Team Exercise:
+
+- Students (Red Team) are granted viewer access to the SCADA system.
+- Blue Team operator (acting as Game Master) is granted admin access.
+- Goal for Red Team: Bring the industrial plant to a standstill and maintain that state.
+- Goal for Blue Team: Prevent the Red Team's actions and defend the system against disruptions.
+
 ---
+
 
 ## Exploit Paths
 
@@ -269,8 +278,9 @@ POST /api/admin/incidents/create    # Spawn incident
 ### Defense Endpoints
 ```
 GET  /api/defense/status            # Defense state
-POST /api/defense/block-ip          # Manual IP block
-GET  /api/defense/alerts            # IDS/WAF events
+GET  /api/admin/defense/status      # Active blocks + rate limiter state (operator/admin)
+POST /api/admin/defense/block       # Manual block (operator/admin)
+POST /api/admin/defense/unblock     # Manual unblock (operator/admin)
 ```
 
 ---
@@ -304,6 +314,39 @@ defense config set honeypot_alerts=on
 - Practice evasion and obfuscation techniques
 - Learn timing and patience under constraints
 - Understand defense costs and trade-offs
+
+---
+
+## Defense Hardening (Operational)
+
+This build adds a global per-IP token-bucket limiter (default 5 req/s, burst 10), automatic blocking after repeated violations, and manual block/unblock controls for operators/admins. Blocks are stored in RAM only and expire automatically unless permanent.
+
+### Automatic Blocking
+
+- Violations are tracked per IP.
+- Escalation after repeated violations: 5 minutes, 30 minutes, then permanent.
+- Violations reset after a quiet period or after a block is applied.
+
+### Manual Block/Unblock (Operator/Admin)
+
+Use the incidents page (IP Block Management section) or call the admin endpoints:
+
+```bash
+# Block for 5 minutes
+curl -X POST -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \\
+  -d '{\"ip\":\"1.2.3.4\",\"duration\":300,\"permanent\":false}' \\
+  http://<esp>/api/admin/defense/block
+
+# Permanent block
+curl -X POST -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \\
+  -d '{\"ip\":\"1.2.3.4\",\"permanent\":true}' \\
+  http://<esp>/api/admin/defense/block
+
+# Unblock
+curl -X POST -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \\
+  -d '{\"ip\":\"1.2.3.4\"}' \\
+  http://<esp>/api/admin/defense/unblock
+```
 
 ---
 

@@ -18,9 +18,62 @@
       gap: 1.5rem;
       width: 100%;
     }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 0.85em;
+    }
+    .last-updated {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--border-light);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .pending-badge {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 0.75em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .actuator-meta {
+      margin-top: 8px;
+      font-size: .85em;
+      color: var(--text-muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .sensor-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .sensor-tag {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: .75em;
+      font-weight: 600;
+    }
     @media (max-width: 900px) {
       .actuators-grid {
         grid-template-columns: 1fr;
+      }
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
       }
     }
   </style>
@@ -57,13 +110,17 @@
   <div class="container">
     <div class="page-header">
       <h2>Actuator Control</h2>
-      <div class="role-info" id="role-info"></div>
+      <div class="header-meta">
+        <div class="role-info" id="role-info"></div>
+        <div class="last-updated" id="last-updated">Last update: --</div>
+      </div>
     </div>
 
     <div class="actuators-grid" id="actuators-grid">
       <!-- Actuators will be populated by JavaScript -->
     </div>
   </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/js/auth-sync.js"></script>
   <script src="/js/mode.js"></script>
@@ -72,7 +129,10 @@
     requireAuth();
     
     let actuators = [];
+    let sensors = [];
     let updateInterval;
+    const pendingCommands = new Set();
+    const lastUpdatedEl = document.getElementById('last-updated');
     const userRole = localStorage.getItem('role');
     const canControl = ['admin', 'operator', 'maintenance'].includes(userRole);
     document.getElementById('role-info').innerHTML = canControl 
@@ -83,20 +143,26 @@
       try {
         const token = localStorage.getItem('jwt_token');
         
-        const response = await fetch('/api/actuators', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const [actRes, sensRes] = await Promise.all([
+          fetch('/api/actuators', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/sensors', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
         
-        if (!response.ok) {
-          if (response.status === 401) {
+        if (!actRes.ok) {
+          if (actRes.status === 401) {
             logout();
             return;
           }
           throw new Error('Failed to load actuators');
         }
         
-        actuators = await response.json();
+        actuators = await actRes.json();
+        if (sensRes.ok) {
+          sensors = await sensRes.json();
+        }
         renderActuators();
+        const now = new Date();
+        lastUpdatedEl.textContent = `Last update: ${now.toLocaleTimeString()}`;
         
       } catch (error) {
         console.error('Actuators error:', error);
@@ -109,6 +175,11 @@
       actuators.forEach(actuator => {
         const card = document.createElement('div');
         card.className = `actuator-card actuator-${actuator.state.toLowerCase()}`;
+        const isPending = pendingCommands.has(actuator.id);
+        const linked = sensors
+          .filter(s => s.line === actuator.line && sensorMatchesActuator(s.type, actuator.type))
+          .map(s => s.id);
+        const tags = linked.length ? linked.map(id => `<span class="sensor-tag">${id}</span>`).join('') : '<span class="sensor-tag">none</span>';
         card.innerHTML = `
           <div class="actuator-header">
             <span class="actuator-id">${actuator.id}</span>
@@ -116,6 +187,11 @@
           </div>
           <div class="actuator-state">
             <span class="state-badge state-${actuator.state.toLowerCase()}" aria-label="State">${actuator.state}</span>
+            ${isPending ? '<span class="pending-badge">Pending</span>' : ''}
+          </div>
+          <div class="actuator-meta">
+            <span>Line ${actuator.line}</span>
+            <div class="sensor-tags">${tags}</div>
           </div>
           <div class="actuator-speed">
             <div class="speed-label">${actuator.type === 'motor' ? 'Speed' : 'Position'}:</div>
@@ -127,12 +203,12 @@
           ${canControl ? `
           <div class="actuator-controls">
             ${actuator.type === 'motor' ? `
-              <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="start" data-param="75" aria-label="Start actuator">Start</button>
-              <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="stop" data-param="0" aria-label="Stop actuator">Stop</button>
-              <button class="btn btn-danger btn-sm" data-actuator="${actuator.id}" data-command="emergency_stop" data-param="0" aria-label="Emergency stop actuator">E-STOP</button>
+              <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="start" data-param="75" aria-label="Start actuator" ${isPending ? 'disabled' : ''}>Start</button>
+              <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="stop" data-param="0" aria-label="Stop actuator" ${isPending ? 'disabled' : ''}>Stop</button>
+              <button class="btn btn-danger btn-sm" data-actuator="${actuator.id}" data-command="emergency_stop" data-param="0" aria-label="Emergency stop actuator" ${isPending ? 'disabled' : ''}>E-STOP</button>
             ` : `
-              <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="open" data-param="100" aria-label="Open actuator">Open</button>
-              <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="close" data-param="0" aria-label="Close actuator">Close</button>
+              <button class="btn btn-success btn-sm" data-actuator="${actuator.id}" data-command="open" data-param="100" aria-label="Open actuator" ${isPending ? 'disabled' : ''}>Open</button>
+              <button class="btn btn-warning btn-sm" data-actuator="${actuator.id}" data-command="close" data-param="0" aria-label="Close actuator" ${isPending ? 'disabled' : ''}>Close</button>
             `}
           </div>
           ` : ''}
@@ -150,6 +226,8 @@
       if (command === 'emergency_stop' && !confirm('Trigger emergency stop?')) {
         return;
       }
+      pendingCommands.add(actuatorId);
+      renderActuators();
       try {
         const token = localStorage.getItem('jwt_token');
         if (!token) {
@@ -173,18 +251,44 @@
             logout();
             return;
           } else if (response.status === 403) {
-            alert('Insufficient permissions: ' + (data.error || 'Access denied'));
+            showToast('Insufficient permissions', 'error');
             return;
           }
-          alert(data.error || 'Command failed (HTTP ' + response.status + ')');
+          showToast(data.error || 'Command failed (HTTP ' + response.status + ')', 'error');
           return;
         }
 
+        if (data && data.message) {
+          showToast(data.message, 'success');
+        }
         await loadActuators();
       } catch (error) {
         console.error('Control error:', error);
-        alert('Network error: ' + error.message);
+        showToast('Network error: ' + error.message, 'error');
+      } finally {
+        pendingCommands.delete(actuatorId);
+        renderActuators();
       }
+    }
+
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `toast ${type} show`;
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.className = 'toast';
+      }, 2200);
+    }
+
+    function sensorMatchesActuator(sensorType, actuatorType) {
+      if (actuatorType === 'motor') {
+        return sensorType === 'VIBRATION' || sensorType === 'POWER' || sensorType === 'TEMP';
+      }
+      if (actuatorType === 'valve') {
+        return sensorType === 'PRESSURE' || sensorType === 'FLOW' || sensorType === 'TEMP';
+      }
+      return false;
     }
 
     // Event delegation for actuator controls
@@ -200,8 +304,22 @@
     // Initial load
     loadActuators();
 
-    // Auto-refresh every 10 seconds
-    updateInterval = setInterval(loadActuators, 10000);
+    function startPolling() {
+      if (!updateInterval) updateInterval = setInterval(loadActuators, 15000);
+    }
+    function stopPolling() {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    startPolling();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadActuators(); startPolling(); }
+    });
 
     // Cleanup
     window.addEventListener('beforeunload', () => {

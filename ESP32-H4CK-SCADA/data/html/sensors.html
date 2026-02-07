@@ -14,16 +14,16 @@
     }
     .sensors-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
       width: 100%;
-      margin-top: 2rem;
+      margin-top: 1.2rem;
     }
     .sensor-card {
       background: #fff;
-      border-radius: 8px;
+      border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-      padding: 1.2rem;
+      padding: 0.9rem;
       cursor: pointer;
       transition: box-shadow 0.2s;
       display: flex;
@@ -35,33 +35,34 @@
     }
     .sensor-header {
       font-weight: bold;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.4rem;
       display: flex;
       gap: 1rem;
+      font-size: 0.92rem;
     }
     .sensor-icon-display {
-      font-size: 2.2rem;
-      margin-bottom: 0.5rem;
+      font-size: 1.7rem;
+      margin-bottom: 0.35rem;
     }
     .sensor-value {
-      font-size: 1.2rem;
-      margin-bottom: 0.3rem;
+      font-size: 1rem;
+      margin-bottom: 0.2rem;
     }
     .sensor-status-text {
-      font-size: 0.95rem;
-      margin-bottom: 0.3rem;
+      font-size: 0.85rem;
+      margin-bottom: 0.25rem;
       font-weight: 500;
     }
     .sensor-thresholds {
       width: 100%;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.35rem;
     }
     .threshold-bar {
-      height: 8px;
+      height: 6px;
       background: #e5e7eb;
       border-radius: 4px;
       overflow: hidden;
-      margin-bottom: 0.2rem;
+      margin-bottom: 0.15rem;
     }
     .threshold-fill {
       height: 100%;
@@ -71,26 +72,42 @@
     .threshold-labels {
       display: flex;
       justify-content: space-between;
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       color: #6b7280;
     }
     .sensor-fault {
       color: #ef4444;
       font-weight: bold;
-      margin-bottom: 0.3rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.85rem;
     }
     .sensor-line-label {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       color: #374151;
-      margin-top: 0.2rem;
+      margin-top: 0.15rem;
+    }
+    .sensor-meta {
+      margin-top: 0.35rem;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .sensor-tag {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: .72em;
+      font-weight: 600;
     }
     .sensor-toggle-btn {
-      margin-top: 0.8rem;
-      padding: 0.4rem 0.8rem;
+      margin-top: 0.6rem;
+      padding: 0.35rem 0.7rem;
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
       transition: all 0.2s;
       width: 100%;
@@ -110,12 +127,12 @@
       background: #4b5563;
     }
     .sensor-reset-btn {
-      margin-top: 0.6rem;
-      padding: 0.4rem 0.8rem;
+      margin-top: 0.45rem;
+      padding: 0.35rem 0.7rem;
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
       width: 100%;
       background: #f59e0b;
@@ -199,6 +216,7 @@
       <!-- Sensors will be populated by JavaScript -->
     </div>
   </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <!-- Sensor Detail Modal -->
   <div id="sensor-modal" class="modal" style="display: none;">
@@ -243,6 +261,15 @@
     let updateInterval;
     let sensorChart = null;
     let sensorsLoading = false; // Polling guard
+    function startPolling() {
+      if (!updateInterval) updateInterval = setInterval(loadSensors, 15000);
+    }
+    function stopPolling() {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
 
     async function loadSensors() {
       // Pause polling if modal is open
@@ -329,6 +356,9 @@
           </div>
           ${sensor.faulted ? '<div class="sensor-fault" onclick="showSensorDetail(\'' + sensor.id + '\')">⚠️ FAULT</div>' : ''}
           <div class="sensor-line-label" onclick="showSensorDetail('${sensor.id}')">Line ${sensor.line}</div>
+          <div class="sensor-meta" onclick="showSensorDetail('${sensor.id}')">
+            ${linkedActuators(sensor.type).map(a => `<span class="sensor-tag">${a}</span>`).join('')}
+          </div>
           <button class="sensor-toggle-btn ${sensor.enabled ? 'enabled' : 'disabled'}" 
                   onclick="event.stopPropagation(); toggleSensor('${sensor.id}', ${!sensor.enabled})">
             ${sensor.enabled ? '✓ Enabled' : '✗ Disabled'}
@@ -349,6 +379,13 @@
         'POWER': '⚡'
       };
       return icons[type] || '📡';
+    }
+
+    function linkedActuators(type) {
+      if (type === 'VIBRATION' || type === 'POWER') return ['Motor'];
+      if (type === 'PRESSURE' || type === 'FLOW') return ['Valve'];
+      if (type === 'TEMP') return ['Motor', 'Valve'];
+      return [];
     }
 
     function getSensorStatus(sensor) {
@@ -380,7 +417,7 @@
       // Find sensor in allSensors array
       const sensor = allSensors.find(s => s.id === sensorId);
       if (!sensor) {
-        alert('Sensor not found');
+        showToast('Sensor not found', 'error');
         return;
       }
 
@@ -525,7 +562,7 @@
         sensorChart = null;
       }
       // Resume polling
-      updateInterval = setInterval(loadSensors, 10000);
+      startPolling();
     }
 
     async function toggleSensor(sensorId, enable) {
@@ -533,7 +570,7 @@
         const token = localStorage.getItem('jwt_token');
         console.log('[SENSORS] toggleSensor token length:', token ? token.length : 0);
         if (!token) {
-          alert('No authentication token found — please log in');
+          showToast('No authentication token found — please log in', 'error');
           return;
         }
         
@@ -570,7 +607,7 @@
             if (role === 'admin' || role === 'operator') {
               await resetSensor(sensorId);
             } else {
-              alert('Insufficient permissions to reset (Operator or Admin required).');
+              showToast('Insufficient permissions to reset (Operator or Admin required).', 'error');
             }
           }
           return;
@@ -578,12 +615,12 @@
 
         if (!response.ok) {
           if (response.status === 401) {
-            alert('Session expired. Please log in again.');
+            showToast('Session expired. Please log in again.', 'error');
             logout();
             return;
           } else if (response.status === 403) {
             const msg = errorData && errorData.error ? errorData.error : 'Insufficient permissions';
-            alert(msg + ' Role: ' + (localStorage.getItem('role') || 'unknown'));
+            showToast(msg + ' Role: ' + (localStorage.getItem('role') || 'unknown'), 'error');
             return;
           }
           throw new Error(errorData && errorData.error ? errorData.error : `HTTP ${response.status}`);
@@ -593,10 +630,11 @@
         
         // Immediately reload sensors to show change
         await loadSensors();
+        showToast('Sensor updated', 'success');
         
       } catch (error) {
         console.error('Toggle sensor error:', error);
-        alert('Failed to toggle sensor: ' + (error.message || error));
+        showToast('Failed to toggle sensor: ' + (error.message || error), 'error');
       }
     }
 
@@ -605,14 +643,14 @@
       try {
         const role = localStorage.getItem('role');
         if (!(role === 'admin' || role === 'operator')) {
-          alert('Insufficient permissions to reset sensor (Operator or Admin required).');
+          showToast('Insufficient permissions to reset sensor (Operator or Admin required).', 'error');
           return;
         }
 
         if (!confirm('Reset fault for ' + sensorId + '? This clears the fault flag and leaves the sensor disabled.')) return;
 
         const token = localStorage.getItem('jwt_token');
-        if (!token) { alert('No authentication token found — please log in'); return; }
+        if (!token) { showToast('No authentication token found — please log in', 'error'); return; }
 
         const response = await fetch('/api/sensors/reset', {
           method: 'POST',
@@ -631,19 +669,29 @@
         }
 
         if (!response.ok) {
-          if (response.status === 401) { alert('Session expired. Please log in again.'); logout(); return; }
-          if (response.status === 403) { alert('Insufficient permissions'); return; }
+          if (response.status === 401) { showToast('Session expired. Please log in again.', 'error'); logout(); return; }
+          if (response.status === 403) { showToast('Insufficient permissions', 'error'); return; }
           throw new Error(data && data.error ? data.error : `HTTP ${response.status}`);
         }
 
-        alert('Sensor fault cleared. The sensor remains disabled.');
+        showToast('Sensor fault cleared. The sensor remains disabled.', 'success');
         await loadSensors();
         // Refresh modal if open
         if (document.getElementById('sensor-modal').style.display === 'flex') showSensorDetail(sensorId);
       } catch (err) {
         console.error('Reset sensor error:', err);
-        alert('Failed to reset sensor: ' + (err.message || err));
+        showToast('Failed to reset sensor: ' + (err.message || err), 'error');
       }
+    }
+
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `toast ${type} show`;
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.className = 'toast';
+      }, 2200);
     }
 
     // Close modal on outside click
@@ -657,8 +705,13 @@
     // Initial load
     loadSensors();
 
-    // Auto-refresh every 10 seconds
-    updateInterval = setInterval(loadSensors, 10000);
+    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    startPolling();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadSensors(); startPolling(); }
+    });
 
     // Cleanup
     window.addEventListener('beforeunload', () => {

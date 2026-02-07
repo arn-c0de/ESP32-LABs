@@ -53,6 +53,18 @@ void initSensors() {
       sd.enabled = true;
       sd.lastUpdate = millis();
 
+      if (s == TEMP) {
+        motorTemp[line] = sd.currentValue;
+      }
+
+      // Link sensors to actuators (one or more per sensor)
+      // TEMP: motor+valve, PRESSURE/FLOW: valve, VIBRATION/POWER: motor
+      uint8_t linkMask = ACTUATOR_MASK_MOTOR;
+      if (s == PRESSURE || s == FLOW) linkMask = ACTUATOR_MASK_VALVE;
+      else if (s == VIBRATION || s == POWER) linkMask = ACTUATOR_MASK_MOTOR;
+      else linkMask = ACTUATOR_MASK_MOTOR | ACTUATOR_MASK_VALVE;
+      sensorActuatorMask[idx] = linkMask;
+
       // Clear history
       SensorHistory &h = sensorHistory[idx];
       h.writeIndex = 0;
@@ -74,8 +86,89 @@ static const char* getSensorStatus(const SensorData &s) {
   return "NORMAL";
 }
 
+// Actuator considered active if running/starting and has non-zero target/speed
+static bool isActuatorEffectivelyOn(const ActuatorData &a) {
+  if (a.state != ACT_RUNNING && a.state != ACT_STARTING) return false;
+  if (a.targetSpeed > 0.0f || a.speed > 0.0f) return true;
+  return false;
+}
+
+// Sensor is monitored only if enabled AND at least one linked actuator is active
+bool isSensorMonitored(int sensorIdx) {
+  if (sensorIdx < 0 || sensorIdx >= TOTAL_SENSORS) return false;
+  const SensorData &s = sensors[sensorIdx];
+  if (!s.enabled) return false;
+
+  uint8_t mask = sensorActuatorMask[sensorIdx];
+  if (mask == 0) return true;  // no mapping -> always monitored
+
+  int base = (s.line - 1) * ACTUATORS_PER_LINE;
+  bool anyOn = false;
+
+  if ((mask & ACTUATOR_MASK_MOTOR) && base < TOTAL_ACTUATORS) {
+    anyOn = anyOn || isActuatorEffectivelyOn(actuators[base]);
+  }
+  if ((mask & ACTUATOR_MASK_VALVE) && (base + 1) < TOTAL_ACTUATORS) {
+    anyOn = anyOn || isActuatorEffectivelyOn(actuators[base + 1]);
+  }
+
+  return anyOn;
+}
+
+static bool isLineEfficiencyAlarm(const AlarmEntry &a) {
+  if (strncmp(a.sensorId, "LINE-L", 6) != 0) return false;
+  return strstr(a.sensorId, "-EFF") != nullptr;
+}
+
+int countActiveLineAlarms(int line, bool excludeLineEfficiency) {
+  int lineAlarms = 0;
+  for (int i = 0; i < alarmCount; i++) {
+    if (alarms[i].line != line || alarms[i].acknowledged) continue;
+    if (excludeLineEfficiency && isLineEfficiencyAlarm(alarms[i])) continue;
+    lineAlarms++;
+  }
+  return lineAlarms;
+}
+
+float getLineEfficiency(int line, int lineAlarms) {
+  int base = (line - 1) * ACTUATORS_PER_LINE;
+  float motorSpeed = 0.0f;
+  float valvePos = 100.0f;
+  bool motorOn = false;
+
+  if (base >= 0 && base < TOTAL_ACTUATORS && actuators[base].type == MOTOR) {
+    motorOn = isActuatorEffectivelyOn(actuators[base]);
+    motorSpeed = max(actuators[base].speed, actuators[base].targetSpeed);
+  }
+
+  if ((base + 1) < TOTAL_ACTUATORS && actuators[base + 1].type == VALVE) {
+    if (isActuatorEffectivelyOn(actuators[base + 1])) {
+      valvePos = max(actuators[base + 1].speed, actuators[base + 1].targetSpeed);
+    } else {
+      valvePos = 0.0f;
+    }
+  }
+
+  float efficiency = 0.0f;
+  if (motorOn && motorSpeed > 0.0f && valvePos > 0.0f) {
+    efficiency = (motorSpeed * 0.85f) * (valvePos / 100.0f);
+    efficiency -= (lineAlarms * 10.0f);
+  }
+
+  if (efficiency < 0.0f) efficiency = 0.0f;
+  if (efficiency > 100.0f) efficiency = 100.0f;
+  return efficiency;
+}
+
 String getSensorListJSON() {
+  static String sensorListCache;
+  static unsigned long sensorListCacheAt = 0;
+  const unsigned long now = millis();
+  if (sensorListCache.length() > 0 && (now - sensorListCacheAt) < 800) {
+    return sensorListCache;
+  }
   if (ESP.getFreeHeap() < 20000) {
+    if (sensorListCache.length() > 0) return sensorListCache;
     return "{\"error\":\"low memory\"}";
   }
   DynamicJsonDocument doc(4096);
@@ -98,10 +191,12 @@ String getSensorListJSON() {
     obj["enabled"] = s.enabled;
   }
 
-  String output;
-  serializeJson(doc, output);
+  sensorListCache = "";
+  sensorListCache.reserve(4096);
+  serializeJson(doc, sensorListCache);
   doc.clear();
-  return output;
+  sensorListCacheAt = now;
+  return sensorListCache;
 }
 
 String getSensorReadingJSON(const char* sensorId, int limit) {
@@ -153,6 +248,7 @@ static const char* getLineStatus(int line) {
   int base = (line - 1) * SENSORS_PER_LINE;
 
   for (int i = 0; i < SENSORS_PER_LINE; i++) {
+    if (!isSensorMonitored(base + i)) continue;
     const char* st = getSensorStatus(sensors[base + i]);
     if (strcmp(st, "CRITICAL") == 0 || strcmp(st, "FAULT") == 0) hasCritical = true;
     else if (strcmp(st, "WARNING") == 0 || strcmp(st, "LOW") == 0) hasWarning = true;
@@ -164,7 +260,14 @@ static const char* getLineStatus(int line) {
 }
 
 String getDashboardStatusJSON() {
+  static String dashboardCache;
+  static unsigned long dashboardCacheAt = 0;
+  const unsigned long now = millis();
+  if (dashboardCache.length() > 0 && (now - dashboardCacheAt) < 800) {
+    return dashboardCache;
+  }
   if (ESP.getFreeHeap() < 20000) {
+    if (dashboardCache.length() > 0) return dashboardCache;
     return "{\"error\":\"low memory\"}";
   }
   DynamicJsonDocument doc(4096);
@@ -240,42 +343,37 @@ String getDashboardStatusJSON() {
       const ActuatorData &motor = actuators[motorIdx];
       lineObj["motor_state"] = ACTUATOR_STATE_NAMES[motor.state];
       lineObj["motor_speed"] = motor.speed;
+      lineObj["motor_temp"] = motorTemp[line - 1];
     } else {
       lineObj["motor_state"] = "UNKNOWN";
       lineObj["motor_speed"] = 0;
+      lineObj["motor_temp"] = 65.0;
+    }
+
+    // Get valve state for this line (second actuator is valve)
+    int valveIdx = motorIdx + 1;
+    if (valveIdx < TOTAL_ACTUATORS) {
+      const ActuatorData &valve = actuators[valveIdx];
+      lineObj["valve_state"] = ACTUATOR_STATE_NAMES[valve.state];
+      lineObj["valve_pos"] = valve.speed;
+    } else {
+      lineObj["valve_state"] = "UNKNOWN";
+      lineObj["valve_pos"] = 0;
     }
     
     // Count alarms for this line
-    int lineAlarms = 0;
-    for (int i = 0; i < alarmCount; i++) {
-      if (alarms[i].line == line && !alarms[i].acknowledged) {
-        lineAlarms++;
-      }
-    }
+    int lineAlarms = countActiveLineAlarms(line, true);
     lineObj["alarms"] = lineAlarms;
     
     // Production efficiency (simulate based on motor speed and alarms)
     // Check if motor is actually running, not sensor status
-    bool motorRunning = false;
-    float motorSpeed = 0;
-    if (motorIdx < TOTAL_ACTUATORS) {
-      const ActuatorData &motor = actuators[motorIdx];
-      motorRunning = (motor.state == ACT_RUNNING);
-      motorSpeed = motor.speed;
-    }
-    
-    if (motorRunning && motorSpeed > 0) {
-      int efficiency = (int)(motorSpeed * 0.85) - (lineAlarms * 10);
-      if (efficiency < 0) efficiency = 0;
-      if (efficiency > 100) efficiency = 100;
-      lineObj["efficiency"] = efficiency;
-    } else {
-      lineObj["efficiency"] = 0;
-    }
+    lineObj["efficiency"] = (int)getLineEfficiency(line, lineAlarms);
   }
 
-  String output;
-  serializeJson(doc, output);
+  dashboardCache = "";
+  dashboardCache.reserve(4096);
+  serializeJson(doc, dashboardCache);
   doc.clear();
-  return output;
+  dashboardCacheAt = now;
+  return dashboardCache;
 }

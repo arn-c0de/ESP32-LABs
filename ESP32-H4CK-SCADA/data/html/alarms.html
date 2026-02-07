@@ -144,9 +144,20 @@
         return;
       }
       
-      tbody.innerHTML = alarms.map((alarm, idx) => `
+      tbody.innerHTML = alarms.map((alarm, idx) => {
+        // Format timestamp: if < 60000ms (1 min from start), show uptime-relative
+        let timeStr;
+        if (alarm.timestamp < 60000) {
+          const sec = Math.floor(alarm.timestamp / 1000);
+          const min = Math.floor(sec / 60);
+          const s = sec % 60;
+          timeStr = `t+${min.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        } else {
+          timeStr = new Date(alarm.timestamp).toLocaleString();
+        }
+        return `
         <tr class="alarm-row alarm-level-${alarm.level.toLowerCase()} ${alarm.acknowledged ? 'alarm-ack' : ''}">
-          <td>${new Date(alarm.timestamp).toLocaleString()}</td>
+          <td>${timeStr}</td>
           <td>${alarm.sensor_id}</td>
           <td>Line ${alarm.line}</td>
           <td><span class="alarm-badge alarm-badge-${alarm.level.toLowerCase()}">${alarm.level}</span></td>
@@ -159,7 +170,7 @@
               '-'}
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     }
     
     function updateSummary() {
@@ -213,8 +224,22 @@
     // Initial load
     loadAlarms();
     
-    // Auto-refresh every 10 seconds
-    updateInterval = setInterval(loadAlarms, 10000);
+    function startPolling() {
+      if (!updateInterval) updateInterval = setInterval(loadAlarms, 15000);
+    }
+    function stopPolling() {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    startPolling();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadAlarms(); startPolling(); }
+    });
     
     // Cleanup
     window.addEventListener('beforeunload', () => {

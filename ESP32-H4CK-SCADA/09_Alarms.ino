@@ -11,12 +11,21 @@
 
 // Forward declarations
 bool isAlarmActive(const char* sensorId, const char* level);
+bool isSensorMonitored(int sensorIdx);
+int countActiveLineAlarms(int line, bool excludeLineEfficiency);
+float getLineEfficiency(int line, int lineAlarms);
 
 // ===== ALARM CHECKING =====
 
 void checkAlarms() {
   // FIXED: Don't check alarms during first 30 seconds after boot to allow system stabilization
-  if (millis() < 30000) return;
+  if (millis() < 30000) {
+    // Initialize line efficiency states
+    for (int line = 0; line < NUM_LINES; line++) {
+      lastLineEffState[line] = -1.0f;
+    }
+    return;
+  }
 
   for (int i = 0; i < TOTAL_SENSORS; i++) {
     SensorData &s = sensors[i];
@@ -24,24 +33,10 @@ void checkAlarms() {
     // Skip sensors that haven't been updated yet
     if (s.lastUpdate == 0) continue;
 
-    // Skip disabled sensors
-    if (!s.enabled) continue;
+    // Skip sensors that are disabled or not monitored by running actuators
+    if (!isSensorMonitored(i)) continue;
 
-    // Check if motor for this line is running
-    // Motor index: (line - 1) * ACTUATORS_PER_LINE (first actuator per line)
-    int motorIdx = (s.line - 1) * ACTUATORS_PER_LINE;
-    bool motorRunning = false;
-    if (motorIdx >= 0 && motorIdx < TOTAL_ACTUATORS &&
-        actuators[motorIdx].type == MOTOR &&
-        (actuators[motorIdx].state == ACT_RUNNING || actuators[motorIdx].state == ACT_STARTING)) {
-      motorRunning = true;
-    }
-
-    // Debug: print sensor, motor state and values
-    Serial.printf("[ALARM-CHECK] %s line=%d motorRunning=%d value=%.2f min=%.2f max=%.2f crit=%.2f\n",
-                  s.id, s.line, motorRunning ? 1 : 0, s.currentValue, s.minThreshold, s.maxThreshold, s.critThreshold);
-
-    // CRITICAL alarms should trigger regardless of motor state
+    // CRITICAL alarms should trigger when the sensor is monitored
     if (s.currentValue >= s.critThreshold) {
       if (!isAlarmActive(s.id, "CRITICAL")) {
         addAlarm(s.id, s.line, "CRITICAL", s.currentValue, s.critThreshold);
@@ -51,14 +46,58 @@ void checkAlarms() {
       continue; // highest priority
     }
 
-    // HIGH alarms only when motor is running
-    if (motorRunning && s.currentValue >= s.maxThreshold) {
+    // HIGH alarms when the sensor is monitored and over threshold
+    if (s.currentValue >= s.maxThreshold) {
       if (!isAlarmActive(s.id, "HIGH")) {
         addAlarm(s.id, s.line, "HIGH", s.currentValue, s.maxThreshold);
         Serial.printf("[ALARM] HIGH: %s = %.2f (threshold %.2f)\n",
                       s.id, s.currentValue, s.maxThreshold);
       }
     }
+  }
+
+  // Line efficiency alerts (trigger on state change)
+  for (int line = 1; line <= NUM_LINES; line++) {
+    int lineAlarms = countActiveLineAlarms(line, true);
+    float efficiency = getLineEfficiency(line, lineAlarms);
+    int lineIdx = line - 1;
+    char lineId[20];
+    snprintf(lineId, sizeof(lineId), "LINE-L%d-EFF", line);
+
+    // Check if efficiency state changed to trigger new alarm
+    bool stateChanged = false;
+    if (lastLineEffState[lineIdx] < 0.0f) {
+      // First check - initialize
+      lastLineEffState[lineIdx] = efficiency;
+    } else {
+      // Determine if we crossed a threshold boundary
+      bool wasZero = (lastLineEffState[lineIdx] <= 0.0f);
+      bool wasLow = (lastLineEffState[lineIdx] > 0.0f && lastLineEffState[lineIdx] < 25.0f);
+      bool isZero = (efficiency <= 0.0f);
+      bool isLow = (efficiency > 0.0f && efficiency < 25.0f);
+      
+      if (wasZero != isZero || wasLow != isLow) {
+        stateChanged = true;
+        lastLineEffState[lineIdx] = efficiency;
+      }
+    }
+
+    if (efficiency <= 0.0f) {
+      if (stateChanged || !isAlarmActive(lineId, "CRITICAL")) {
+        addAlarm(lineId, line, "CRITICAL", efficiency, 0.0f);
+        Serial.printf("[ALARM] ZERO EFF: Line %d = %.1f%%\n", line, efficiency);
+      }
+    } else if (efficiency < 25.0f) {
+      if (stateChanged || !isAlarmActive(lineId, "HIGH")) {
+        addAlarm(lineId, line, "HIGH", efficiency, 25.0f);
+        Serial.printf("[ALARM] LOW EFF: Line %d = %.1f%% (threshold 25%%)\n",
+                      line, efficiency);
+      }
+    }
+  }
+
+  if (DEBUG_MODE) {
+    Serial.printf("[ALARM-CHECK] %dActuators %dSensors\n", TOTAL_ACTUATORS, TOTAL_SENSORS);
   }
 }
 
