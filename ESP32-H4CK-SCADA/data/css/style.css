@@ -502,6 +502,7 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 
 .defense-logs{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:20px}
 .defense-logs h3{color:var(--primary);font-size:1.1em;margin-bottom:16px}
+.incident-card{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:12px;margin-bottom:10px}
 .log-controls{display:flex;gap:8px;margin-bottom:12px}
 .log-output{background:#1e293b;color:#e2e8f0;padding:16px;border-radius:6px;font-family:'Courier New',monospace;font-size:.85em;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-wrap:break-word}
 
@@ -519,4 +520,3 @@ input:read-only{background:#f8f9fa;color:var(--text-muted)}
 .detail-stat{display:flex;flex-direction:column;gap:4px}
 .detail-label{font-size:.8em;color:var(--text-muted);text-transform:uppercase}
 .detail-value{font-size:1.1em;font-weight:700;color:var(--primary)}
-

@@ -37,9 +37,6 @@ void checkAlarms() {
       motorRunning = true;
     }
 
-    // Debug: print sensor, motor state and values
-    Serial.printf("[ALARM-CHECK] %s line=%d motorRunning=%d value=%.2f min=%.2f max=%.2f crit=%.2f\n",
-                  s.id, s.line, motorRunning ? 1 : 0, s.currentValue, s.minThreshold, s.maxThreshold, s.critThreshold);
 
     // CRITICAL alarms should trigger regardless of motor state
     if (s.currentValue >= s.critThreshold) {
@@ -59,6 +56,10 @@ void checkAlarms() {
                       s.id, s.currentValue, s.maxThreshold);
       }
     }
+  }
+
+  if (DEBUG_MODE) {
+    Serial.printf("[ALARM-CHECK] %dActuators %dSensors\n", TOTAL_ACTUATORS, TOTAL_SENSORS);
   }
 }
 

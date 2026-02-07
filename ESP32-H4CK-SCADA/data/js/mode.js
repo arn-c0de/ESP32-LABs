@@ -31,6 +31,20 @@
                 }
             });
         }
+
+        // Hide operator/admin elements for non-operator users
+        if (role !== 'admin' && role !== 'operator') {
+            var operatorOnlyElements = document.querySelectorAll('.operator-only');
+            operatorOnlyElements.forEach(el => {
+                if (el.tagName === 'LI') {
+                    el.style.display = 'none';
+                } else if (el.tagName === 'A') {
+                    el.style.display = 'none';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+        }
         
         // Elements to hide in pentest mode
         var pentestHide = document.querySelectorAll('.vuln-info, .testing-only, .hint-box, .vuln-hint, .exploit-hint, .default-creds');

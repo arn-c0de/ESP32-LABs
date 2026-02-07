@@ -11,7 +11,7 @@
 // ===== DATA STRUCTURES =====
 // Note: All Defense structures are declared in main .ino file
 
-// Rate limiting tracking
+// Rate limiting tracking (legacy, for defense rules)
 struct RateLimitEntry {
   String ip;
   int requestCount;
@@ -27,8 +27,20 @@ extern int activeRuleCount;
 // Local state
 String recentRequestIds[32];  // For idempotency
 int recentIdCount = 0;
-RateLimitEntry rateLimits[16]; // Track rate limits per IP
+RateLimitEntry rateLimits[16]; // Track rate limits per IP (legacy)
 int rateLimitCount = 0;
+
+TokenBucket tokenBuckets[64];
+BlockEntry blockEntries[64];
+NotFoundEntry notFoundEntries[32];
+LoginBackoffEntry loginBackoff[32];
+AlertEntry defenseAlerts[64];
+int defenseAlertIndex = 0;
+
+static const uint16_t TOKEN_BUCKET_RATE = 5;   // requests per second
+static const uint16_t TOKEN_BUCKET_BURST = 10; // burst size
+static const int VIOLATION_THRESHOLD = 3;
+static const unsigned long VIOLATION_QUIET_MS = 300000; // 5 minutes
 
 // ===== INITIALIZATION =====
 
@@ -82,6 +94,41 @@ void initDefense() {
     rateLimits[i].ip = "";
     rateLimits[i].requestCount = 0;
   }
+  for (int i = 0; i < 64; i++) {
+    tokenBuckets[i].ip = "";
+    tokenBuckets[i].tokens = TOKEN_BUCKET_BURST;
+    tokenBuckets[i].lastRefill = 0;
+    tokenBuckets[i].rate = TOKEN_BUCKET_RATE;
+    tokenBuckets[i].burst = TOKEN_BUCKET_BURST;
+    tokenBuckets[i].lastSeen = 0;
+    tokenBuckets[i].violations = 0;
+    tokenBuckets[i].blockLevel = 0;
+    tokenBuckets[i].lastViolation = 0;
+  }
+  for (int i = 0; i < 64; i++) {
+    blockEntries[i].ip = "";
+    blockEntries[i].expiresAt = 0;
+    blockEntries[i].permanent = false;
+    blockEntries[i].reason = "";
+    blockEntries[i].by = "";
+    blockEntries[i].createdAt = 0;
+  }
+  for (int i = 0; i < 32; i++) {
+    notFoundEntries[i].ip = "";
+    notFoundEntries[i].count = 0;
+    notFoundEntries[i].windowStart = 0;
+    notFoundEntries[i].lastSeen = 0;
+    loginBackoff[i].ip = "";
+    loginBackoff[i].failures = 0;
+    loginBackoff[i].lastFailure = 0;
+    loginBackoff[i].lockedUntil = 0;
+  }
+  for (int i = 0; i < 64; i++) {
+    defenseAlerts[i].timestamp = 0;
+    defenseAlerts[i].type = "";
+    defenseAlerts[i].ip = "";
+    defenseAlerts[i].details = "";
+  }
   
   Serial.println("[DEFENSE] Defense system initialized");
   Serial.printf("[DEFENSE] Resources: DP=%d/%d AP=%d/%d Stability=%d/%d\n",
@@ -122,6 +169,34 @@ String generateRuleId() {
   return "r-" + String(ruleCounter);
 }
 
+uint32_t ipToUint(const String &ip) {
+  int parts[4] = {0, 0, 0, 0};
+  if (sscanf(ip.c_str(), "%d.%d.%d.%d", &parts[0], &parts[1], &parts[2], &parts[3]) != 4) {
+    return 0;
+  }
+  for (int i = 0; i < 4; i++) {
+    if (parts[i] < 0 || parts[i] > 255) return 0;
+  }
+  return ((uint32_t)parts[0] << 24) | ((uint32_t)parts[1] << 16) | ((uint32_t)parts[2] << 8) | (uint32_t)parts[3];
+}
+
+bool ipMatchesTarget(const String &ip, const String &target) {
+  if (target == "0.0.0.0/0") return true;
+  int slash = target.indexOf('/');
+  if (slash < 0) {
+    return ip == target;
+  }
+  String base = target.substring(0, slash);
+  String prefixStr = target.substring(slash + 1);
+  int prefix = prefixStr.toInt();
+  if (prefix < 0 || prefix > 32) return false;
+  uint32_t ipVal = ipToUint(ip);
+  uint32_t baseVal = ipToUint(base);
+  if (ipVal == 0 || baseVal == 0) return false;
+  uint32_t mask = (prefix == 0) ? 0 : (0xFFFFFFFFu << (32 - prefix));
+  return (ipVal & mask) == (baseVal & mask);
+}
+
 bool isRequestIdRecent(String reqId) {
   if (reqId.length() == 0) return false;
   for (int i = 0; i < 32; i++) {
@@ -137,6 +212,312 @@ void addRequestId(String reqId) {
     recentRequestIds[i] = recentRequestIds[i-1];
   }
   recentRequestIds[0] = reqId;
+}
+
+void addDefenseAlert(const String &type, const String &ip, const String &details) {
+  defenseAlerts[defenseAlertIndex].timestamp = millis();
+  defenseAlerts[defenseAlertIndex].type = type;
+  defenseAlerts[defenseAlertIndex].ip = ip;
+  defenseAlerts[defenseAlertIndex].details = details;
+  defenseAlertIndex = (defenseAlertIndex + 1) % 64;
+}
+
+String getDefenseAlertsJSON() {
+  DynamicJsonDocument doc(4096);
+  JsonArray arr = doc.createNestedArray("alerts");
+  for (int i = 0; i < 64; i++) {
+    int idx = (defenseAlertIndex + i) % 64;
+    if (defenseAlerts[idx].timestamp == 0) continue;
+    JsonObject a = arr.createNestedObject();
+    a["timestamp"] = defenseAlerts[idx].timestamp;
+    a["type"] = defenseAlerts[idx].type;
+    a["ip"] = defenseAlerts[idx].ip;
+    a["details"] = defenseAlerts[idx].details;
+  }
+  String output;
+  serializeJson(doc, output);
+  return output;
+}
+
+int findTokenBucketIndex(const String &ip) {
+  for (int i = 0; i < 64; i++) {
+    if (tokenBuckets[i].ip == ip) return i;
+  }
+  return -1;
+}
+
+int allocateTokenBucketSlot(const String &ip) {
+  int empty = -1;
+  unsigned long oldest = 0xFFFFFFFFUL;
+  int oldestIdx = -1;
+  for (int i = 0; i < 64; i++) {
+    if (tokenBuckets[i].ip == "") {
+      empty = i;
+      break;
+    }
+    if (tokenBuckets[i].lastSeen < oldest) {
+      oldest = tokenBuckets[i].lastSeen;
+      oldestIdx = i;
+    }
+  }
+  int idx = (empty >= 0) ? empty : oldestIdx;
+  tokenBuckets[idx].ip = ip;
+  tokenBuckets[idx].tokens = TOKEN_BUCKET_BURST;
+  tokenBuckets[idx].lastRefill = millis();
+  tokenBuckets[idx].rate = TOKEN_BUCKET_RATE;
+  tokenBuckets[idx].burst = TOKEN_BUCKET_BURST;
+  tokenBuckets[idx].lastSeen = millis();
+  tokenBuckets[idx].violations = 0;
+  tokenBuckets[idx].blockLevel = 0;
+  tokenBuckets[idx].lastViolation = 0;
+  return idx;
+}
+
+void refillTokenBucket(TokenBucket &bucket) {
+  unsigned long now = millis();
+  if (bucket.lastRefill == 0) {
+    bucket.lastRefill = now;
+    return;
+  }
+  unsigned long elapsedMs = now - bucket.lastRefill;
+  if (elapsedMs < 1000) return;
+  unsigned long addTokens = (elapsedMs / 1000) * bucket.rate;
+  if (addTokens > 0) {
+    bucket.tokens = min((int)bucket.burst, bucket.tokens + (int)addTokens);
+    bucket.lastRefill = now;
+  }
+}
+
+void pruneExpiredBlocks() {
+  unsigned long now = millis();
+  for (int i = 0; i < 64; i++) {
+    if (blockEntries[i].ip != "" && !blockEntries[i].permanent && blockEntries[i].expiresAt > 0 && now >= blockEntries[i].expiresAt) {
+      blockEntries[i].ip = "";
+      blockEntries[i].expiresAt = 0;
+      blockEntries[i].permanent = false;
+      blockEntries[i].reason = "";
+      blockEntries[i].by = "";
+      blockEntries[i].createdAt = 0;
+    }
+  }
+}
+
+void addBlock(const String &ip, unsigned long seconds, bool permanent, String by) {
+  pruneExpiredBlocks();
+  unsigned long now = millis();
+  String reason = (by == "system") ? "auto-rate-limit" : "manual";
+  if (permanent) {
+    Serial.printf("[DEFENSE] Block added (permanent): %s by %s\n", ip.c_str(), by.c_str());
+  } else {
+    Serial.printf("[DEFENSE] Block added (%lus): %s by %s\n", seconds, ip.c_str(), by.c_str());
+  }
+  addDefenseAlert("block", ip, reason);
+  // Update existing entry if present
+  for (int i = 0; i < 64; i++) {
+    if (blockEntries[i].ip == ip) {
+      if (blockEntries[i].permanent) return;
+      blockEntries[i].permanent = permanent;
+      blockEntries[i].expiresAt = permanent ? 0 : now + (seconds * 1000);
+      blockEntries[i].reason = reason;
+      blockEntries[i].by = by;
+      blockEntries[i].createdAt = now;
+      return;
+    }
+  }
+
+  int empty = -1;
+  unsigned long oldest = 0xFFFFFFFFUL;
+  int oldestIdx = -1;
+  for (int i = 0; i < 64; i++) {
+    if (blockEntries[i].ip == "") {
+      empty = i;
+      break;
+    }
+    if (!blockEntries[i].permanent && blockEntries[i].createdAt < oldest) {
+      oldest = blockEntries[i].createdAt;
+      oldestIdx = i;
+    }
+  }
+  int idx = (empty >= 0) ? empty : oldestIdx;
+  blockEntries[idx].ip = ip;
+  blockEntries[idx].permanent = permanent;
+  blockEntries[idx].expiresAt = permanent ? 0 : now + (seconds * 1000);
+  blockEntries[idx].reason = reason;
+  blockEntries[idx].by = by;
+  blockEntries[idx].createdAt = now;
+}
+
+void removeBlock(const String &ip) {
+  for (int i = 0; i < 64; i++) {
+    if (blockEntries[i].ip == ip) {
+      blockEntries[i].ip = "";
+      blockEntries[i].expiresAt = 0;
+      blockEntries[i].permanent = false;
+      blockEntries[i].reason = "";
+      blockEntries[i].by = "";
+      blockEntries[i].createdAt = 0;
+      Serial.printf("[DEFENSE] Block removed: %s\n", ip.c_str());
+      addDefenseAlert("unblock", ip, "manual");
+      return;
+    }
+  }
+}
+
+bool isBlockedByEntry(const String &ip) {
+  pruneExpiredBlocks();
+  for (int i = 0; i < 64; i++) {
+    if (blockEntries[i].ip == ip) {
+      if (blockEntries[i].permanent) return true;
+      if (blockEntries[i].expiresAt == 0) return true;
+      if (millis() < blockEntries[i].expiresAt) return true;
+    }
+  }
+  return false;
+}
+
+void recordViolation(TokenBucket &bucket, const String &ip) {
+  unsigned long now = millis();
+  if (bucket.lastViolation > 0 && (now - bucket.lastViolation) > VIOLATION_QUIET_MS) {
+    bucket.violations = 0;
+  }
+  bucket.lastViolation = now;
+  bucket.violations++;
+  addDefenseAlert("rate_limit", ip, "token bucket exceeded");
+  if (bucket.violations >= VIOLATION_THRESHOLD) {
+    if (bucket.blockLevel == 0) {
+      addBlock(ip, 300, false, "system");
+      bucket.blockLevel = 1;
+    } else if (bucket.blockLevel == 1) {
+      addBlock(ip, 1800, false, "system");
+      bucket.blockLevel = 2;
+    } else {
+      addBlock(ip, 0, true, "system");
+      bucket.blockLevel = 3;
+    }
+    bucket.violations = 0;
+  }
+}
+
+bool consumeTokens(const String &ip, int cost) {
+  if (ip == "") return true;
+  if (isBlockedByEntry(ip)) return false;
+
+  int idx = findTokenBucketIndex(ip);
+  if (idx < 0) {
+    idx = allocateTokenBucketSlot(ip);
+  }
+  TokenBucket &bucket = tokenBuckets[idx];
+  bucket.lastSeen = millis();
+  refillTokenBucket(bucket);
+
+  if (bucket.tokens >= cost) {
+    bucket.tokens -= cost;
+    return true;
+  }
+
+  recordViolation(bucket, ip);
+  return false;
+}
+
+bool checkNotFoundBackoff(const String &ip) {
+  unsigned long now = millis();
+  int idx = -1;
+  for (int i = 0; i < 32; i++) {
+    if (notFoundEntries[i].ip == ip) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    for (int i = 0; i < 32; i++) {
+      if (notFoundEntries[i].ip == "") {
+        idx = i;
+        notFoundEntries[i].ip = ip;
+        notFoundEntries[i].count = 0;
+        notFoundEntries[i].windowStart = now;
+        notFoundEntries[i].lastSeen = now;
+        break;
+      }
+    }
+  }
+  if (idx < 0) return true;
+  NotFoundEntry &entry = notFoundEntries[idx];
+  entry.lastSeen = now;
+  if (now - entry.windowStart > 1000) {
+    entry.windowStart = now;
+    entry.count = 0;
+  }
+  entry.count++;
+  return entry.count <= 20;
+}
+
+bool checkLoginBackoff(const String &ip) {
+  unsigned long now = millis();
+  for (int i = 0; i < 32; i++) {
+    if (loginBackoff[i].ip == ip) {
+      if (loginBackoff[i].lockedUntil > now) return false;
+      return true;
+    }
+  }
+  return true;
+}
+
+void recordLoginFailure(const String &ip) {
+  unsigned long now = millis();
+  int idx = -1;
+  for (int i = 0; i < 32; i++) {
+    if (loginBackoff[i].ip == ip) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    for (int i = 0; i < 32; i++) {
+      if (loginBackoff[i].ip == "") {
+        idx = i;
+        loginBackoff[i].ip = ip;
+        loginBackoff[i].failures = 0;
+        loginBackoff[i].lastFailure = 0;
+        loginBackoff[i].lockedUntil = 0;
+        break;
+      }
+    }
+  }
+  if (idx < 0) return;
+  LoginBackoffEntry &entry = loginBackoff[idx];
+  entry.failures++;
+  entry.lastFailure = now;
+  if (entry.failures >= 5) {
+    entry.lockedUntil = now + 30000; // 30s backoff
+    entry.failures = 0;
+    addDefenseAlert("login_backoff", ip, "backoff applied (30s)");
+  }
+}
+
+void resetLoginFailures(const String &ip) {
+  for (int i = 0; i < 32; i++) {
+    if (loginBackoff[i].ip == ip) {
+      loginBackoff[i].failures = 0;
+      loginBackoff[i].lastFailure = 0;
+      loginBackoff[i].lockedUntil = 0;
+      return;
+    }
+  }
+}
+
+bool tryReserveConnection(const String &ip) {
+  (void)ip;
+  if (activeConnections >= MAX_HTTP_CONNECTIONS) {
+    return false;
+  }
+  activeConnections++;
+  return true;
+}
+
+void releaseConnection() {
+  if (activeConnections > 0) {
+    activeConnections--;
+  }
 }
 
 bool checkCooldown(DefenseType type) {
@@ -261,10 +642,13 @@ void tickDefenseRules() {
 // ===== ENFORCEMENT FUNCTIONS =====
 
 bool isIpBlocked(String ip) {
+  if (isBlockedByEntry(ip)) {
+    return true;
+  }
   for (int i = 0; i < 32; i++) {
     if (activeRules[i].active && 
         activeRules[i].type == DEFENSE_IP_BLOCK && 
-        activeRules[i].target == ip) {
+        ipMatchesTarget(ip, activeRules[i].target)) {
       return true;
     }
   }
@@ -272,7 +656,11 @@ bool isIpBlocked(String ip) {
 }
 
 bool checkRateLimit(String ip) {
-  // Find or create rate limit entry
+  if (!consumeTokens(ip, 1)) {
+    return false;
+  }
+
+  // Find or create legacy rate limit entry (for defense rules)
   int idx = -1;
   unsigned long now = millis();
   
@@ -311,7 +699,7 @@ bool checkRateLimit(String ip) {
   for (int i = 0; i < 32; i++) {
     if (activeRules[i].active && 
         activeRules[i].type == DEFENSE_RATE_LIMIT &&
-        (activeRules[i].target == ip || activeRules[i].target == "0.0.0.0/0")) {
+        ipMatchesTarget(ip, activeRules[i].target)) {
       if (rateLimits[idx].requestCount > rateLimits[idx].maxRequests) {
         return false; // Rate limited
       }
@@ -604,6 +992,50 @@ String handleDefenseStatus() {
   json += "]}}";
   
   return json;
+}
+
+String handleAdminDefenseStatus() {
+  DynamicJsonDocument doc(8192);
+  doc["status"] = "ok";
+
+  JsonArray blocks = doc.createNestedArray("blocks");
+  unsigned long now = millis();
+  for (int i = 0; i < 64; i++) {
+    if (blockEntries[i].ip == "") continue;
+    if (!blockEntries[i].permanent && blockEntries[i].expiresAt > 0 && now >= blockEntries[i].expiresAt) continue;
+    JsonObject b = blocks.createNestedObject();
+    b["ip"] = blockEntries[i].ip;
+    b["permanent"] = blockEntries[i].permanent;
+    b["reason"] = blockEntries[i].reason;
+    b["by"] = blockEntries[i].by;
+    b["created_at"] = blockEntries[i].createdAt;
+    b["expires_at"] = blockEntries[i].expiresAt;
+    if (blockEntries[i].permanent) {
+      b["remaining_s"] = -1;
+    } else if (blockEntries[i].expiresAt > now) {
+      b["remaining_s"] = (blockEntries[i].expiresAt - now) / 1000;
+    } else {
+      b["remaining_s"] = 0;
+    }
+  }
+
+  JsonArray buckets = doc.createNestedArray("buckets");
+  for (int i = 0; i < 64; i++) {
+    if (tokenBuckets[i].ip == "") continue;
+    JsonObject t = buckets.createNestedObject();
+    t["ip"] = tokenBuckets[i].ip;
+    t["tokens"] = tokenBuckets[i].tokens;
+    t["rate"] = tokenBuckets[i].rate;
+    t["burst"] = tokenBuckets[i].burst;
+    t["last_seen"] = tokenBuckets[i].lastSeen;
+    t["violations"] = tokenBuckets[i].violations;
+    t["block_level"] = tokenBuckets[i].blockLevel;
+    t["last_violation"] = tokenBuckets[i].lastViolation;
+  }
+
+  String output;
+  serializeJson(doc, output);
+  return output;
 }
 
 String handleDefenseConfig(String args) {

@@ -213,8 +213,22 @@
     // Initial load
     loadAlarms();
     
-    // Auto-refresh every 10 seconds
-    updateInterval = setInterval(loadAlarms, 10000);
+    function startPolling() {
+      if (!updateInterval) updateInterval = setInterval(loadAlarms, 15000);
+    }
+    function stopPolling() {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    startPolling();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadAlarms(); startPolling(); }
+    });
     
     // Cleanup
     window.addEventListener('beforeunload', () => {

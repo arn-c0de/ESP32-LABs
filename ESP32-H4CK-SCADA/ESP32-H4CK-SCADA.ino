@@ -49,6 +49,7 @@ String AP_PASSWORD_STR;
 #define MAX_HTTP_CONNECTIONS 16
 #define MAX_AP_CLIENTS 4
 #define MIN_FREE_HEAP 35000  // Minimum free heap to accept new connections
+#define MAX_BODY_BYTES 2048  // Maximum accepted request body size
 
 // Feature Flags
 bool ENABLE_VULNERABILITIES = true;
@@ -64,6 +65,7 @@ bool STATION_MODE = STATION_MODE_DEFAULT;
 #define WIFI_CHECK_INTERVAL 30000
 #define SESSION_TIMEOUT 3600000
 #define PHYSICS_UPDATE_INTERVAL 2000
+#define ALARM_CHECK_INTERVAL 10000
 #define SENSOR_SAVE_INTERVAL 60000
 
 // Security (set by 01_Config.ino)
@@ -271,6 +273,52 @@ struct DefenseRule {
   String metadata;
 };
 
+// Global token bucket limiter (per-IP)
+struct TokenBucket {
+  String ip;
+  int tokens;
+  unsigned long lastRefill;
+  uint16_t rate;
+  uint16_t burst;
+  unsigned long lastSeen;
+  int violations;
+  int blockLevel;
+  unsigned long lastViolation;
+};
+
+// In-RAM block list
+struct BlockEntry {
+  String ip;
+  unsigned long expiresAt;
+  bool permanent;
+  String reason;
+  String by;
+  unsigned long createdAt;
+};
+
+// Per-IP 404 limiter
+struct NotFoundEntry {
+  String ip;
+  int count;
+  unsigned long windowStart;
+  unsigned long lastSeen;
+};
+
+// Per-IP login backoff
+struct LoginBackoffEntry {
+  String ip;
+  int failures;
+  unsigned long lastFailure;
+  unsigned long lockedUntil;
+};
+
+struct AlertEntry {
+  unsigned long timestamp;
+  String type;
+  String ip;
+  String details;
+};
+
 struct DefenseConfig {
   int max_dp;
   int max_ap;
@@ -329,8 +377,11 @@ String getUserRole(String token);
 String getRequestRole(AsyncWebServerRequest *request);
 String getRequestUsername(AsyncWebServerRequest *request);
 void handleLogin(AsyncWebServerRequest *request);
-void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len);
+void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t total);
 void handleLogout(AsyncWebServerRequest *request);
+bool rejectIfLowHeap(AsyncWebServerRequest *request);
+bool rejectIfBodyTooLarge(AsyncWebServerRequest *request, size_t total);
+void sendRateLimited(AsyncWebServerRequest *request, const char* contentType, const String &body);
 
 // Database
 void initDatabase();
@@ -367,6 +418,28 @@ void setupSCADARoutes();
 void initDefense();
 void tickDefenseResources();
 void tickDefenseRules();
+bool ipMatchesTarget(const String &ip, const String &target);
+bool checkNotFoundBackoff(const String &ip);
+bool checkLoginBackoff(const String &ip);
+void recordLoginFailure(const String &ip);
+void resetLoginFailures(const String &ip);
+bool tryReserveConnection(const String &ip);
+void releaseConnection();
+String handleAdminDefenseStatus();
+void addBlock(const String &ip, unsigned long seconds, bool permanent, String by);
+void removeBlock(const String &ip);
+void rateLimitedLog(const String &message);
+String getDefenseAlertsJSON();
+
+struct ConnectionGuard {
+  bool active;
+  ConnectionGuard(bool reserved) : active(reserved) {}
+  ~ConnectionGuard() {
+    if (active) {
+      releaseConnection();
+    }
+  }
+};
 bool isIpBlocked(String ip);
 bool checkRateLimit(String ip);
 String handleDefenseLine(String line);
@@ -493,9 +566,13 @@ void loop() {
   }
 
   // Update physics simulation
+  static unsigned long lastAlarmCheck = 0;
   if (millis() - lastPhysicsUpdate > PHYSICS_UPDATE_INTERVAL) {
     updatePhysics();
-    checkAlarms();
+    if (millis() - lastAlarmCheck > ALARM_CHECK_INTERVAL) {
+      checkAlarms();
+      lastAlarmCheck = millis();
+    }
     lastPhysicsUpdate = millis();
   }
 

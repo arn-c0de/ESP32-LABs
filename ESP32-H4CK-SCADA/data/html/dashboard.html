@@ -416,8 +416,22 @@
     addEvent('Dashboard initialized', 'info');
     loadDashboard();
     
-    // Auto-refresh every 10 seconds
-    updateInterval = setInterval(loadDashboard, 10000);
+    function startPolling() {
+      if (!updateInterval) updateInterval = setInterval(loadDashboard, 15000);
+    }
+    function stopPolling() {
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
+    }
+    // Auto-refresh every 15 seconds (pause when tab is hidden)
+    startPolling();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling();
+      else { loadDashboard(); startPolling(); }
+    });
     
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {

@@ -75,7 +75,14 @@ static const char* getSensorStatus(const SensorData &s) {
 }
 
 String getSensorListJSON() {
+  static String sensorListCache;
+  static unsigned long sensorListCacheAt = 0;
+  const unsigned long now = millis();
+  if (sensorListCache.length() > 0 && (now - sensorListCacheAt) < 800) {
+    return sensorListCache;
+  }
   if (ESP.getFreeHeap() < 20000) {
+    if (sensorListCache.length() > 0) return sensorListCache;
     return "{\"error\":\"low memory\"}";
   }
   DynamicJsonDocument doc(4096);
@@ -98,10 +105,12 @@ String getSensorListJSON() {
     obj["enabled"] = s.enabled;
   }
 
-  String output;
-  serializeJson(doc, output);
+  sensorListCache = "";
+  sensorListCache.reserve(4096);
+  serializeJson(doc, sensorListCache);
   doc.clear();
-  return output;
+  sensorListCacheAt = now;
+  return sensorListCache;
 }
 
 String getSensorReadingJSON(const char* sensorId, int limit) {
@@ -164,7 +173,14 @@ static const char* getLineStatus(int line) {
 }
 
 String getDashboardStatusJSON() {
+  static String dashboardCache;
+  static unsigned long dashboardCacheAt = 0;
+  const unsigned long now = millis();
+  if (dashboardCache.length() > 0 && (now - dashboardCacheAt) < 800) {
+    return dashboardCache;
+  }
   if (ESP.getFreeHeap() < 20000) {
+    if (dashboardCache.length() > 0) return dashboardCache;
     return "{\"error\":\"low memory\"}";
   }
   DynamicJsonDocument doc(4096);
@@ -274,8 +290,10 @@ String getDashboardStatusJSON() {
     }
   }
 
-  String output;
-  serializeJson(doc, output);
+  dashboardCache = "";
+  dashboardCache.reserve(4096);
+  serializeJson(doc, dashboardCache);
   doc.clear();
-  return output;
+  dashboardCacheAt = now;
+  return dashboardCache;
 }
