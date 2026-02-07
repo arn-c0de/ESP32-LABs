@@ -7,11 +7,15 @@
  */
 
 void initWebServer() {
+  // Enable reuse of connections and set timeouts
+  DefaultHeaders::Instance().addHeader("Connection", "close");
+  
   setupRoutes();
   serveStaticFiles();
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.printf("[WEBSERVER] Server started on port %d\n", HTTP_PORT);
+  Serial.printf("[WEBSERVER] Max concurrent connections: %d\n", MAX_HTTP_CONNECTIONS);
   Serial.printf("[WEBSERVER] Access at: http://%s/\n", getLocalIP().c_str());
 }
 
@@ -19,6 +23,14 @@ void setupRoutes() {
   // Home / Index page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     String clientIP = request->client()->remoteIP().toString();
+    
+    // Memory-based limit instead of connection counting
+    if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+      Serial.printf("[HTTP] Rejected - low memory: %d bytes\n", ESP.getFreeHeap());
+      request->send(503, "text/plain", "Server busy - low memory");
+      return;
+    }
+    
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -28,7 +40,7 @@ void setupRoutes() {
       return;
     }
     totalRequests++;
-    Serial.printf("[HTTP] GET / from %s\n", clientIP.c_str());
+    Serial.printf("[HTTP] GET / from %s (heap: %d)\n", clientIP.c_str(), ESP.getFreeHeap());
     request->send(LittleFS, "/html/index.html", "text/html");
   });
 

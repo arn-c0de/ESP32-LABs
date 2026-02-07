@@ -32,6 +32,7 @@ String LAB_MODE_STR = "testing"; // will be overridden in initConfig()
 #include <mbedtls/base64.h>
 #include <esp_system.h>
 #include <esp_heap_caps.h>
+#include <esp_wifi.h>
 #include <map>
 
 // ===== WiFi Configuration (set by 01_Config.ino) =====
@@ -45,6 +46,9 @@ String AP_PASSWORD_STR;
 
 // Server Configuration
 #define HTTP_PORT 80
+#define MAX_HTTP_CONNECTIONS 16
+#define MAX_AP_CLIENTS 4
+#define MIN_FREE_HEAP 35000  // Minimum free heap to accept new connections
 
 // Feature Flags
 bool ENABLE_VULNERABILITIES = true;
@@ -169,6 +173,15 @@ struct AlarmEntry {
   bool acknowledged;
 };
 
+// WiFi Client History (for AP mode)
+#define MAX_WIFI_CLIENTS 50
+struct WiFiClientEntry {
+  char ip[16];
+  char mac[18];
+  unsigned long connectedTime;
+  unsigned long lastSeen;
+};
+
 // Global Objects
 AsyncWebServer server(HTTP_PORT);
 Preferences preferences;
@@ -189,6 +202,8 @@ SensorData sensors[TOTAL_SENSORS];
 SensorHistory sensorHistory[TOTAL_SENSORS];
 ActuatorData actuators[TOTAL_ACTUATORS];
 AlarmEntry alarms[MAX_ALARMS];
+WiFiClientEntry wifiClients[MAX_WIFI_CLIENTS];
+int wifiClientCount = 0;
 int alarmCount = 0;
 
 // Session Storage
@@ -384,6 +399,10 @@ void printSystemInfo();
 void printMemoryUsage();
 void printWiFiInfo();
 void handleSerialCommands();
+void trackConnectedClients();
+
+// Incidents
+bool triggerIncident(String type, String details);
 
 // ===== ARDUINO ENTRY POINTS =====
 
@@ -469,6 +488,7 @@ void loop() {
   static unsigned long lastWiFiCheck = 0;
   if (millis() - lastWiFiCheck > WIFI_CHECK_INTERVAL) {
     checkWiFiConnection();
+    trackConnectedClients();  // Track connected WiFi clients in AP mode
     lastWiFiCheck = millis();
   }
 
@@ -483,15 +503,29 @@ void loop() {
   tickDefenseResources();
   tickDefenseRules();
 
-  // Memory monitoring
+  // Memory monitoring and cleanup
   static unsigned long lastMemCheck = 0;
   if (millis() - lastMemCheck > 10000) {
     uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < 30000) {
+    
+    // Log memory status periodically
+    if (freeHeap < 50000) {
+      Serial.printf("[MEMORY] Free: %d bytes, Largest block: %d bytes\n", 
+                    freeHeap, ESP.getMaxAllocHeap());
+    }
+    
+    // Critical memory - restart
+    if (freeHeap < 25000) {
       Serial.printf("[CRITICAL] Low memory: %d bytes. Restarting...\n", freeHeap);
       delay(1000);
       ESP.restart();
     }
+    
+    // Reset activeConnections counter periodically to prevent drift
+    if (activeConnections > 0) {
+      activeConnections = 0;  // Reset for clean state
+    }
+    
     lastMemCheck = millis();
   }
 

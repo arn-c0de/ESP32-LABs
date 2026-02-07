@@ -5,6 +5,10 @@
  * file operations, and common tasks.
  */
 
+// Forward declarations
+char hexToChar(char c);
+char charToHex(char c);
+
 String urlDecode(String input) {
   String decoded = "";
   char c;
@@ -224,4 +228,19 @@ int getFSUsagePercentage() {
   size_t total = LittleFS.totalBytes();
   if (total == 0) return 0;
   return (LittleFS.usedBytes() * 100) / total;
+}
+
+// Memory Management Helpers
+bool hasEnoughMemory() {
+  uint32_t freeHeap = ESP.getFreeHeap();
+  if (freeHeap < MIN_FREE_HEAP) {
+    Serial.printf("[MEMORY] Low heap warning: %d bytes (min: %d)\n", freeHeap, MIN_FREE_HEAP);
+    return false;
+  }
+  return true;
+}
+
+void logMemoryStatus() {
+  Serial.printf("[MEMORY] Free heap: %d bytes, Largest block: %d bytes\n", 
+                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 }
