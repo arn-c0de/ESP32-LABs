@@ -111,6 +111,10 @@ int FAULT_PROBABILITY_PERCENT = 0.2;  // 0.2% = ~1 fault per 10-20 minutes (much
 #define ACTUATORS_PER_LINE 2
 #define TOTAL_SENSORS (NUM_LINES * SENSORS_PER_LINE)
 #define TOTAL_ACTUATORS (NUM_LINES * ACTUATORS_PER_LINE)
+
+// Sensor-to-actuator link masks (per sensor)
+#define ACTUATOR_MASK_MOTOR 0x01
+#define ACTUATOR_MASK_VALVE 0x02
 #define SENSOR_COUNT TOTAL_SENSORS
 #define ACTUATOR_COUNT TOTAL_ACTUATORS
 
@@ -203,6 +207,9 @@ int activeConnections = 0;
 SensorData sensors[TOTAL_SENSORS];
 SensorHistory sensorHistory[TOTAL_SENSORS];
 ActuatorData actuators[TOTAL_ACTUATORS];
+uint8_t sensorActuatorMask[TOTAL_SENSORS];
+float motorTemp[NUM_LINES];
+float lastLineEffState[NUM_LINES];
 AlarmEntry alarms[MAX_ALARMS];
 WiFiClientEntry wifiClients[MAX_WIFI_CLIENTS];
 int wifiClientCount = 0;

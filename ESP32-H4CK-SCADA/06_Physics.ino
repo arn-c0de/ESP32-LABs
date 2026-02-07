@@ -14,6 +14,9 @@ void initPhysics() {
   for (int i = 0; i < TOTAL_SENSORS; i++) {
     driftAccum[i] = 0.0f;
   }
+  for (int line = 0; line < NUM_LINES; line++) {
+    motorTemp[line] = 65.0f;
+  }
   Serial.println("[PHYSICS] Simulation engine initialized");
 }
 
@@ -35,9 +38,13 @@ void updatePhysics() {
   // Pre-compute which lines have a running motor
   bool motorRunning[NUM_LINES];
   float motorSpeed[NUM_LINES];
+  bool valveOpen[NUM_LINES];
+  float valvePos[NUM_LINES];
   for (int line = 0; line < NUM_LINES; line++) {
     motorRunning[line] = false;
     motorSpeed[line] = 0.0f;
+    valveOpen[line] = false;
+    valvePos[line] = 0.0f;
     // Each line has ACTUATORS_PER_LINE actuators; first is MOTOR
     int motorIdx = line * ACTUATORS_PER_LINE;
     if (motorIdx < TOTAL_ACTUATORS &&
@@ -46,12 +53,51 @@ void updatePhysics() {
       motorRunning[line] = true;
       motorSpeed[line] = actuators[motorIdx].speed;
     }
+    int valveIdx = motorIdx + 1;
+    if (valveIdx < TOTAL_ACTUATORS && actuators[valveIdx].type == VALVE) {
+      const ActuatorData &v = actuators[valveIdx];
+      bool vOn = (v.state == ACT_RUNNING || v.state == ACT_STARTING) &&
+                 (v.targetSpeed > 0.0f || v.speed > 0.0f);
+      valveOpen[line] = vOn;
+      if (vOn) {
+        valvePos[line] = max(v.speed, v.targetSpeed);
+      }
+    }
+  }
+
+  // Update motor temperature per line (overheat if motor runs with closed valve)
+  for (int line = 0; line < NUM_LINES; line++) {
+    float baseTemp = 65.0f;
+    float target = baseTemp;
+    float speedFactor = motorSpeed[line] / 100.0f;
+    if (motorRunning[line]) {
+      target = baseTemp + 8.0f * speedFactor;
+      if (!valveOpen[line]) {
+        target += 25.0f;
+      }
+    }
+    motorTemp[line] += (target - motorTemp[line]) * 0.15f;
+
+    int motorIdx = line * ACTUATORS_PER_LINE;
+    if (motorRunning[line] && motorTemp[line] >= 95.0f &&
+        motorIdx < TOTAL_ACTUATORS && actuators[motorIdx].state != ACT_FAULT) {
+      ActuatorData &motor = actuators[motorIdx];
+      motor.state = ACT_FAULT;
+      motor.speed = 0.0f;
+      motor.targetSpeed = 0.0f;
+      motor.stateChangeTime = now;
+      Serial.printf("[SAFETY] Motor overheat on line %d (%.1fC). Stopping motor.\n",
+                    line + 1, motorTemp[line]);
+    }
   }
 
   // Update each sensor
   for (int i = 0; i < TOTAL_SENSORS; i++) {
     SensorData &s = sensors[i];
     int lineIdx = s.line - 1;  // 0-based
+
+    // If sensor disabled, freeze value until re-enabled
+    if (!s.enabled) continue;
 
     // Noise component - proportional to base value (not absolute)
     // SENSOR_NOISE_AMPLITUDE is now a percentage (e.g., 0.03 = 3%)
@@ -68,17 +114,43 @@ void updatePhysics() {
     float crossEffect = 0.0f;
     if (lineIdx >= 0 && lineIdx < NUM_LINES && motorRunning[lineIdx]) {
       float speedFactor = motorSpeed[lineIdx] / 100.0f;
+      
+      // Overheat factor: above 80°C motor becomes inefficient and vibrates
+      float mTemp = motorTemp[lineIdx];
+      float overheatFactor = 1.0f;
+      if (mTemp > 80.0f) {
+        // Linear scale from 80°C (1.0) to 95°C (2.5)
+        overheatFactor = 1.0f + ((mTemp - 80.0f) / 15.0f) * 1.5f;
+      }
+      
       if (s.type == VIBRATION) {
-        crossEffect = s.baseValue * 1.5f * speedFactor;  // vibration roughly triples
+        // Vibration increases significantly with overheat
+        crossEffect = s.baseValue * 1.5f * speedFactor * overheatFactor;
       } else if (s.type == POWER) {
-        crossEffect = s.baseValue * 0.8f * speedFactor;  // power nearly doubles
+        // Power consumption drops with overheat (inefficient/struggle)
+        float powerFactor = (mTemp > 80.0f) ? (1.0f / overheatFactor) : 1.0f;
+        crossEffect = s.baseValue * 0.8f * speedFactor * powerFactor;
       } else if (s.type == TEMP) {
         crossEffect = 5.0f * speedFactor;  // slight temperature rise
       }
     }
 
+    // Base adjustment for line shutdown (actuators off)
+    float baseAdjusted = s.baseValue;
+    if (lineIdx >= 0 && lineIdx < NUM_LINES) {
+      if (s.type == FLOW || s.type == PRESSURE) {
+        float vf = valveOpen[lineIdx] ? (valvePos[lineIdx] / 100.0f) : 0.0f;
+        baseAdjusted = s.baseValue * (0.1f + 0.9f * vf);
+      } else if (s.type == POWER || s.type == VIBRATION) {
+        baseAdjusted = s.baseValue * (motorRunning[lineIdx] ? 1.0f : 0.1f);
+      } else if (s.type == TEMP) {
+        // Sync TEMP sensor with actual motor temperature
+        baseAdjusted = motorTemp[lineIdx];
+      }
+    }
+
     // Compute new value
-    float newVal = s.baseValue + noise + driftAccum[i] + crossEffect;
+    float newVal = baseAdjusted + noise + driftAccum[i] + crossEffect;
 
     // Fault injection (only after startup period)
     if (allowFaults && ENABLE_SENSOR_FAULTS && !s.faulted) {

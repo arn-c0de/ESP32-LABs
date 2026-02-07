@@ -86,6 +86,21 @@
       color: #374151;
       margin-top: 0.15rem;
     }
+    .sensor-meta {
+      margin-top: 0.35rem;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .sensor-tag {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: .72em;
+      font-weight: 600;
+    }
     .sensor-toggle-btn {
       margin-top: 0.6rem;
       padding: 0.35rem 0.7rem;
@@ -341,6 +356,9 @@
           </div>
           ${sensor.faulted ? '<div class="sensor-fault" onclick="showSensorDetail(\'' + sensor.id + '\')">⚠️ FAULT</div>' : ''}
           <div class="sensor-line-label" onclick="showSensorDetail('${sensor.id}')">Line ${sensor.line}</div>
+          <div class="sensor-meta" onclick="showSensorDetail('${sensor.id}')">
+            ${linkedActuators(sensor.type).map(a => `<span class="sensor-tag">${a}</span>`).join('')}
+          </div>
           <button class="sensor-toggle-btn ${sensor.enabled ? 'enabled' : 'disabled'}" 
                   onclick="event.stopPropagation(); toggleSensor('${sensor.id}', ${!sensor.enabled})">
             ${sensor.enabled ? '✓ Enabled' : '✗ Disabled'}
@@ -361,6 +379,13 @@
         'POWER': '⚡'
       };
       return icons[type] || '📡';
+    }
+
+    function linkedActuators(type) {
+      if (type === 'VIBRATION' || type === 'POWER') return ['Motor'];
+      if (type === 'PRESSURE' || type === 'FLOW') return ['Valve'];
+      if (type === 'TEMP') return ['Motor', 'Valve'];
+      return [];
     }
 
     function getSensorStatus(sensor) {

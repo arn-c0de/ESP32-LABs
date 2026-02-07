@@ -59,6 +59,10 @@ String getActuatorListJSON() {
     obj["speed"] = a.speed;
     obj["targetSpeed"] = a.targetSpeed;
     obj["locked"] = a.locked;
+    // Add motor temperature for MOTOR type
+    if (a.type == MOTOR && a.line >= 1 && a.line <= NUM_LINES) {
+      obj["motor_temp"] = motorTemp[a.line - 1];
+    }
   }
 
   actuatorListCache = "";
