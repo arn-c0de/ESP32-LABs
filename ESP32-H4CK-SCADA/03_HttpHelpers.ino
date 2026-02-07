@@ -180,6 +180,26 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
     return;
   }
 
+  // Disallow enabling a sensor that is currently faulted unless the requester is an admin.
+  if (enabled && sensors[idx].faulted) {
+    if (role == "admin") {
+      // Admin-override: activate the sensor and clear the fault flag
+      sensors[idx].faulted = false;
+      sensors[idx].enabled = true;
+      Serial.printf("[API] Admin override: enabled faulted sensor %s from %s\n", sensorId.c_str(), clientIP.c_str());
+
+      String response = "{\"success\":true,\"sensor_id\":\"" + sensorId +
+                       "\",\"enabled\":true,\"faulted\":false,\"override\":true}";
+      request->send(200, "application/json", response);
+      return;
+    } else {
+      sensors[idx].enabled = false; // ensure it's disabled
+      Serial.printf("[API] Rejected enabling faulted sensor %s from %s (role=%s)\n", sensorId.c_str(), clientIP.c_str(), role.c_str());
+      request->send(409, "application/json", "{\"error\":\"Sensor is faulted and cannot be enabled\"}");
+      return;
+    }
+  }
+
   sensors[idx].enabled = enabled;
 
   String response = "{\"success\":true,\"sensor_id\":\"" + sensorId +
@@ -227,4 +247,62 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
 
   String result = executeActuatorCommand(actuatorId.c_str(), cmd.c_str(), param);
   request->send(200, "application/json", result);
+}
+
+// Reset a sensor's fault flag (accessible to admin and operators). This does NOT enable the sensor.
+void handleSensorResetBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String clientIP = request->client()->remoteIP().toString();
+
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+
+  totalRequests++;
+
+  if (!isAuthenticated(request)) {
+    Serial.printf("[API] Sensor reset UNAUTHORIZED from %s (hasAuth=%d)\n",
+                  clientIP.c_str(), request->hasHeader("Authorization") ? 1 : 0);
+    request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    return;
+  }
+
+  String role = getRequestRole(request);
+  if (role != "admin" && role != "operator") {
+    request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+    return;
+  }
+
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, (char*)data, len);
+  if (error) {
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String sensorId = doc["sensor_id"].as<String>();
+
+  Serial.printf("[API] POST /api/sensors/reset sensor=%s from %s (%s)\n",
+                sensorId.c_str(), clientIP.c_str(), role.c_str());
+
+  int idx = -1;
+  for (int i = 0; i < TOTAL_SENSORS; i++) {
+    if (strcmp(sensors[i].id, sensorId.c_str()) == 0) {
+      idx = i;
+      break;
+    }
+  }
+
+  if (idx < 0) {
+    request->send(404, "application/json", "{\"error\":\"Sensor not found\"}");
+    return;
+  }
+
+  sensors[idx].faulted = false;
+  // Keep sensor disabled after reset; operator/admin can enable explicitly via control endpoint
+  sensors[idx].enabled = false;
+
+  String response = "{\"success\":true,\"sensor_id\":\"" + sensorId +
+                   "\",\"faulted\":false,\"enabled\":false}";
+  request->send(200, "application/json", response);
 }

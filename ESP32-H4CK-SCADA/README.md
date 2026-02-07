@@ -14,6 +14,8 @@ ESP32 Industrial SCADA Lab is a red team-oriented training environment for indus
 
 **GitHub Repository**: https://github.com/arn-c0de/ESP32-LABs
 
+<img src="images/h4ck-SCADA-dashboard.png" alt="ESP32-LAB - SCADA Industrial width="50%">
+
 ### Key Features
 
 - **Six independent exploit vectors**: IDOR, command injection, race conditions, physics analysis, forensics, weak authentication

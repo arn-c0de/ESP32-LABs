@@ -109,6 +109,20 @@
     .sensor-toggle-btn.disabled:hover {
       background: #4b5563;
     }
+    .sensor-reset-btn {
+      margin-top: 0.6rem;
+      padding: 0.4rem 0.8rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      width: 100%;
+      background: #f59e0b;
+      color: white;
+      transition: background 0.15s;
+    }
+    .sensor-reset-btn:hover { background: #d97706; }
     .sensor-card.sensor-disabled {
       opacity: 0.6;
       border: 2px dashed #9ca3af;
@@ -291,6 +305,8 @@
         // Calculate percentage for threshold bar
         const percent = getThresholdPercent(sensor);
         const barColor = getBarColor(statusClass);
+        const role = localStorage.getItem('role');
+        const canReset = sensor.faulted && (role === 'admin' || role === 'operator');
 
         card.innerHTML = `
           <div class="sensor-header" onclick="showSensorDetail('${sensor.id}')">
@@ -317,6 +333,7 @@
                   onclick="event.stopPropagation(); toggleSensor('${sensor.id}', ${!sensor.enabled})">
             ${sensor.enabled ? '✓ Enabled' : '✗ Disabled'}
           </button>
+          ${canReset ? `<button class="sensor-reset-btn" onclick="event.stopPropagation(); resetSensor('${sensor.id}')">Reset Fault</button>` : ''}
         `;
 
         grid.appendChild(card);
@@ -399,6 +416,9 @@
         const data = await response.json();
 
         // Populate header and details
+        const role = localStorage.getItem('role');
+        const canReset = sensor.faulted && (role === 'admin' || role === 'operator');
+
         document.getElementById('modal-sensor-id').textContent = sensor.id + ' - ' + sensor.type;
         document.getElementById('modal-sensor-body').innerHTML = `
           <div class="sensor-detail-stats">
@@ -417,6 +437,11 @@
           </div>
           <div class="chart-container" style="height:250px;margin-top:20px;">
             <canvas id="sensor-chart"></canvas>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn btn-outline" onclick="closeSensorModal()">Close</button>
+            ${canReset ? `<button class="sensor-reset-btn" onclick="resetSensor('${sensor.id}')">Reset Fault</button>` : ''}
+            <button class="sensor-toggle-btn ${sensor.enabled ? 'enabled' : 'disabled'}" onclick="toggleSensor('${sensor.id}', ${!sensor.enabled})">${sensor.enabled ? '✓ Enabled' : '✗ Disabled'}</button>
           </div>
         `;
 
@@ -512,30 +537,58 @@
           return;
         }
         
-        const response = await fetch(`/api/sensors/${sensorId}/control`, {
+        // Use the flat control endpoint expected by the server and include the sensor_id in the JSON body
+        const body = { sensor_id: sensorId, enabled: enable };
+        const response = await fetch(`/api/sensors/control`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
           credentials: 'same-origin',
-          body: JSON.stringify({ enabled: enable })
+          body: JSON.stringify(body)
         });
         
+        // Parse JSON when available, handle non-JSON gracefully
+        const contentType = response.headers.get('content-type') || '';
+        let errorData = null;
+        let result = null;
+        if (contentType.includes('application/json')) {
+          const data = await response.json().catch(() => null);
+          if (!response.ok) errorData = data || { error: 'Unknown error' };
+          else result = data;
+        } else {
+          if (!response.ok) errorData = { error: response.statusText || 'Unknown error' };
+          else result = { success: true };
+        }
+
+        // If server rejects due to faulted sensor (409), offer to reset if permitted
+        if (!response.ok && response.status === 409) {
+          const msg = errorData && errorData.error ? errorData.error : 'Conflict: sensor state';
+          if (confirm(msg + '\nWould you like to attempt a reset?')) {
+            const role = localStorage.getItem('role');
+            if (role === 'admin' || role === 'operator') {
+              await resetSensor(sensorId);
+            } else {
+              alert('Insufficient permissions to reset (Operator or Admin required).');
+            }
+          }
+          return;
+        }
+
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           if (response.status === 401) {
             alert('Session expired. Please log in again.');
             logout();
             return;
           } else if (response.status === 403) {
-            alert('Insufficient permissions to control sensors. Role: ' + (localStorage.getItem('role') || 'unknown'));
+            const msg = errorData && errorData.error ? errorData.error : 'Insufficient permissions';
+            alert(msg + ' Role: ' + (localStorage.getItem('role') || 'unknown'));
             return;
           }
-          throw new Error(errorData.error || 'Failed to toggle sensor');
+          throw new Error(errorData && errorData.error ? errorData.error : `HTTP ${response.status}`);
         }
         
-        const result = await response.json();
         console.log('Sensor toggled:', result);
         
         // Immediately reload sensors to show change
@@ -543,7 +596,53 @@
         
       } catch (error) {
         console.error('Toggle sensor error:', error);
-        alert('Failed to toggle sensor: ' + error.message);
+        alert('Failed to toggle sensor: ' + (error.message || error));
+      }
+    }
+
+    // Reset a sensor's fault flag (Operator+Admin). Keeps the sensor disabled.
+    async function resetSensor(sensorId) {
+      try {
+        const role = localStorage.getItem('role');
+        if (!(role === 'admin' || role === 'operator')) {
+          alert('Insufficient permissions to reset sensor (Operator or Admin required).');
+          return;
+        }
+
+        if (!confirm('Reset fault for ' + sensorId + '? This clears the fault flag and leaves the sensor disabled.')) return;
+
+        const token = localStorage.getItem('jwt_token');
+        if (!token) { alert('No authentication token found — please log in'); return; }
+
+        const response = await fetch('/api/sensors/reset', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ sensor_id: sensorId })
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        let data = null;
+        if (contentType.includes('application/json')) {
+          data = await response.json().catch(() => null);
+        }
+
+        if (!response.ok) {
+          if (response.status === 401) { alert('Session expired. Please log in again.'); logout(); return; }
+          if (response.status === 403) { alert('Insufficient permissions'); return; }
+          throw new Error(data && data.error ? data.error : `HTTP ${response.status}`);
+        }
+
+        alert('Sensor fault cleared. The sensor remains disabled.');
+        await loadSensors();
+        // Refresh modal if open
+        if (document.getElementById('sensor-modal').style.display === 'flex') showSensorDetail(sensorId);
+      } catch (err) {
+        console.error('Reset sensor error:', err);
+        alert('Failed to reset sensor: ' + (err.message || err));
       }
     }
 
