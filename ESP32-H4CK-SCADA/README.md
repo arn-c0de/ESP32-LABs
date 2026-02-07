@@ -95,7 +95,8 @@ Instructor-controlled defenses provide practical experience in detecting and res
 ### Example Procedure for Red Team vs. Blue Team Exercise:
 
 - Students (Red Team) are granted viewer access to the SCADA system.
-- Blue Team operator (acting as Game Master) is granted admin access.
+- Blue Team operator/s is granted operator access.
+- White Team operator admin is granted full admin/gamemaster access.
 - Goal for Red Team: Bring the industrial plant to a standstill and maintain that state.
 - Goal for Blue Team: Prevent the Red Team's actions and defend the system against disruptions.
 
