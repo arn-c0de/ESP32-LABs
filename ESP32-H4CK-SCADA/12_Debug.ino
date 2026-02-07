@@ -192,7 +192,7 @@ void monitorMemory() {
   static unsigned long lastCheck = 0;
   static size_t lastFreeHeap = 0;
   
-  if (millis() - lastCheck > 5000) {  // Check every 5 seconds
+  if (millis() - lastCheck > 10000) {  // Check every 10 seconds
     size_t currentFreeHeap = ESP.getFreeHeap();
     
     if (lastFreeHeap > 0) {

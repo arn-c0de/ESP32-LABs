@@ -14,19 +14,21 @@ void addCORSHeaders(AsyncWebServerRequest *request) {
 String extractIdFromUrl(String url, String prefix, String suffix) {
   int prefixPos = url.indexOf(prefix);
   if (prefixPos < 0) return "";
-  
+
   int startPos = prefixPos + prefix.length();
   int endPos = url.indexOf(suffix, startPos);
   if (endPos < 0) endPos = url.length();
-  
+
   return url.substring(startPos, endPos);
 }
 
-// Custom handler for sensor readings
+// Custom handler for sensor readings (GET - works fine as custom handler)
 class SensorReadingsHandler : public AsyncWebHandler {
 public:
   SensorReadingsHandler() {}
   virtual ~SensorReadingsHandler() {}
+
+  bool isRequestHandlerTrivial() override { return false; }
 
   bool canHandle(AsyncWebServerRequest *request) override {
     if (request->method() != HTTP_GET) return false;
@@ -40,14 +42,14 @@ public:
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
     }
-    
+
     totalRequests++;
-    
+
     if (!isAuthenticated(request)) {
       request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
       return;
     }
-    
+
     String sensorId = extractIdFromUrl(request->url(), "/api/sensors/", "/readings");
     int limit = 60;
     if (request->hasParam("limit")) {
@@ -55,10 +57,10 @@ public:
       if (limit < 1) limit = 1;
       if (limit > 1000) limit = 1000;
     }
-    
-    Serial.printf("[API] GET /api/sensors/%s/readings (limit=%d) from %s\n", 
+
+    Serial.printf("[API] GET /api/sensors/%s/readings (limit=%d) from %s\n",
                   sensorId.c_str(), limit, clientIP.c_str());
-    
+
     String json = getSensorReadingJSON(sensorId.c_str(), limit);
     if (json == "null") {
       request->send(404, "application/json", "{\"error\":\"Sensor not found\"}");
@@ -68,239 +70,161 @@ public:
   }
 };
 
-// Custom handler for alarm acknowledgement
-class AlarmAckHandler : public AsyncWebHandler {
-public:
-  AlarmAckHandler() {}
-  virtual ~AlarmAckHandler() {}
+// ===== POST handlers using server.on() body callback pattern =====
+// (Custom AsyncWebHandler subclasses have issues with POST in ESPAsyncWebServer)
 
-  bool canHandle(AsyncWebServerRequest *request) override {
-    if (request->method() != HTTP_POST) return false;
-    String url = request->url();
-    return url.startsWith("/api/alarms/") && url.endsWith("/ack");
+void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String clientIP = request->client()->remoteIP().toString();
+
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
   }
 
-  void handleRequest(AsyncWebServerRequest *request) override {
-    String clientIP = request->client()->remoteIP().toString();
-    
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-      return;
-    }
-    
-    totalRequests++;
-    
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
-    }
-    
-    String role = getRequestRole(request);
-    if (role != "admin" && role != "operator" && role != "maintenance") {
-      request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
-      return;
-    }
-    
-    String sensorId = extractIdFromUrl(request->url(), "/api/alarms/", "/ack");
-    unsigned long timestamp = 0;
-    
-    if (request->hasParam("timestamp")) {
-      timestamp = request->getParam("timestamp")->value().toInt();
-    }
-    
-    Serial.printf("[API] POST /api/alarms/%s/ack (ts=%lu) from %s (%s)\n",
-                  sensorId.c_str(), timestamp, clientIP.c_str(), role.c_str());
-    
-    bool found = false;
-    int total = (alarmCount < MAX_ALARMS) ? alarmCount : MAX_ALARMS;
-    
-    for (int i = 0; i < total; i++) {
-      AlarmEntry &a = alarms[i];
-      if (strcmp(a.sensorId, sensorId.c_str()) == 0 && !a.acknowledged) {
-        if (timestamp == 0 || a.timestamp == timestamp) {
-          a.acknowledged = true;
-          found = true;
-          Serial.printf("[API] Acknowledged alarm: %s at %lu\n", a.sensorId, a.timestamp);
-          break;
-        }
-      }
-    }
-    
-    if (!found) {
-      request->send(404, "application/json", "{\"error\":\"Alarm not found or already acknowledged\"}");
-      return;
-    }
-    
-    request->send(200, "application/json", "{\"success\":true,\"message\":\"Alarm acknowledged\"}");
-  }
-};
+  totalRequests++;
 
-// Custom handler for sensor control (enable/disable)
-class SensorControlHandler : public AsyncWebHandler {
-private:
-  String _bodyData;
-  
-public:
-  SensorControlHandler() {}
-  virtual ~SensorControlHandler() {}
-
-  bool canHandle(AsyncWebServerRequest *request) override {
-    if (request->method() != HTTP_POST && request->method() != HTTP_PATCH) return false;
-    String url = request->url();
-    return url.startsWith("/api/sensors/") && url.endsWith("/control");
+  if (!isAuthenticated(request)) {
+    Serial.printf("[API] Alarm ack UNAUTHORIZED from %s (hasAuth=%d)\n",
+                  clientIP.c_str(), request->hasHeader("Authorization") ? 1 : 0);
+    request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    return;
   }
 
-  void handleRequest(AsyncWebServerRequest *request) override {
-    // This will be called by handleBody after body is received
+  String role = getRequestRole(request);
+  if (role != "admin" && role != "operator" && role != "maintenance") {
+    request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+    return;
   }
-  
-  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
-    String clientIP = request->client()->remoteIP().toString();
-    
-    // Accumulate body data
-    if (index == 0) {
-      _bodyData = "";
-    }
-    for (size_t i = 0; i < len; i++) {
-      _bodyData += (char)data[i];
-    }
-    
-    // Only process when all data received
-    if (index + len != total) {
-      return;
-    }
-    
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-      return;
-    }
-    
-    totalRequests++;
-    
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
-    }
-    
-    String role = getRequestRole(request);
-    if (role != "admin" && role != "operator" && role != "maintenance") {
-      request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
-      return;
-    }
-    
-    String sensorId = extractIdFromUrl(request->url(), "/api/sensors/", "/control");
-    
-    Serial.printf("[API] POST /api/sensors/%s/control from %s (%s)\n",
-                  sensorId.c_str(), clientIP.c_str(), role.c_str());
-    
-    DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, _bodyData);
-    
-    if (error) {
-      Serial.printf("[API] JSON parse error: %s\n", error.c_str());
-      request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-    
-    bool enabled = doc["enabled"] | true;
-    
-    // Find sensor by ID
-    int idx = -1;
-    for (int i = 0; i < TOTAL_SENSORS; i++) {
-      if (strcmp(sensors[i].id, sensorId.c_str()) == 0) {
-        idx = i;
+
+  // Parse JSON body
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, (char*)data, len);
+  if (error) {
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String sensorId = doc["sensor_id"].as<String>();
+  unsigned long timestamp = doc["timestamp"] | (unsigned long)0;
+
+  Serial.printf("[API] POST /api/alarms/ack sensor=%s ts=%lu from %s (%s)\n",
+                sensorId.c_str(), timestamp, clientIP.c_str(), role.c_str());
+
+  bool found = false;
+  int total_alarms = (alarmCount < MAX_ALARMS) ? alarmCount : MAX_ALARMS;
+
+  for (int i = 0; i < total_alarms; i++) {
+    AlarmEntry &a = alarms[i];
+    if (strcmp(a.sensorId, sensorId.c_str()) == 0 && !a.acknowledged) {
+      if (timestamp == 0 || a.timestamp == timestamp) {
+        a.acknowledged = true;
+        found = true;
+        Serial.printf("[API] Acknowledged alarm: %s at %lu\n", a.sensorId, a.timestamp);
         break;
       }
     }
-    
-    if (idx < 0) {
-      request->send(404, "application/json", "{\"error\":\"Sensor not found\"}");
-      return;
-    }
-    
-    sensors[idx].enabled = enabled;
-    
-    Serial.printf("[API] Sensor %s %s\n", sensorId.c_str(), enabled ? "enabled" : "disabled");
-    
-    String response = "{\"success\":true,\"sensor_id\":\"" + String(sensorId) + 
-                     "\",\"enabled\":" + String(enabled ? "true" : "false") + "}";
-    request->send(200, "application/json", response);
-  }
-};
-
-// Custom handler for actuator control
-class ActuatorControlHandler : public AsyncWebHandler {
-private:
-  String _bodyData;
-  
-public:
-  ActuatorControlHandler() {}
-  virtual ~ActuatorControlHandler() {}
-
-  bool canHandle(AsyncWebServerRequest *request) override {
-    if (request->method() != HTTP_POST) return false;
-    String url = request->url();
-    return url.startsWith("/api/actuators/") && url.endsWith("/control");
   }
 
-  void handleRequest(AsyncWebServerRequest *request) override {
-    // This will be called by handleBody after body is received
+  if (!found) {
+    request->send(404, "application/json", "{\"error\":\"Alarm not found or already acknowledged\"}");
+    return;
   }
-  
-  void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
-    String clientIP = request->client()->remoteIP().toString();
-    
-    // Accumulate body data
-    if (index == 0) {
-      _bodyData = "";
-    }
-    for (size_t i = 0; i < len; i++) {
-      _bodyData += (char)data[i];
-    }
-    
-    // Only process when all data received
-    if (index + len != total) {
-      return;
-    }
-    
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-      return;
-    }
-    
-    totalRequests++;
-    
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
-    }
-    
-    String role = getRequestRole(request);
-    if (role != "admin" && role != "operator" && role != "maintenance") {
-      request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
-      return;
-    }
-    
-    String actuatorId = extractIdFromUrl(request->url(), "/api/actuators/", "/control");
-    
-    Serial.printf("[API] POST /api/actuators/%s/control from %s (%s)\n",
-                  actuatorId.c_str(), clientIP.c_str(), role.c_str());
-    
-    DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, _bodyData);
-    
-    if (error) {
-      Serial.printf("[API] JSON parse error: %s\n", error.c_str());
-      request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-    
-    String cmd = doc["command"].as<String>();
-    float param = doc["param"] | 0.0f;
-    
-    Serial.printf("[API] Command: %s, param: %.1f\n", cmd.c_str(), param);
-    
-    String result = executeActuatorCommand(actuatorId.c_str(), cmd.c_str(), param);
-    request->send(200, "application/json", result);
+
+  request->send(200, "application/json", "{\"success\":true,\"message\":\"Alarm acknowledged\"}");
+}
+
+void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String clientIP = request->client()->remoteIP().toString();
+
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
   }
-};
+
+  totalRequests++;
+
+  if (!isAuthenticated(request)) {
+    request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    return;
+  }
+
+  String role = getRequestRole(request);
+  if (role != "admin" && role != "operator" && role != "maintenance") {
+    request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+    return;
+  }
+
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, (char*)data, len);
+  if (error) {
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String sensorId = doc["sensor_id"].as<String>();
+  bool enabled = doc["enabled"] | true;
+
+  Serial.printf("[API] POST /api/sensors/control sensor=%s enabled=%d from %s (%s)\n",
+                sensorId.c_str(), enabled ? 1 : 0, clientIP.c_str(), role.c_str());
+
+  int idx = -1;
+  for (int i = 0; i < TOTAL_SENSORS; i++) {
+    if (strcmp(sensors[i].id, sensorId.c_str()) == 0) {
+      idx = i;
+      break;
+    }
+  }
+
+  if (idx < 0) {
+    request->send(404, "application/json", "{\"error\":\"Sensor not found\"}");
+    return;
+  }
+
+  sensors[idx].enabled = enabled;
+
+  String response = "{\"success\":true,\"sensor_id\":\"" + sensorId +
+                   "\",\"enabled\":" + String(enabled ? "true" : "false") + "}";
+  request->send(200, "application/json", response);
+}
+
+void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+  String clientIP = request->client()->remoteIP().toString();
+
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
+
+  totalRequests++;
+
+  if (!isAuthenticated(request)) {
+    Serial.printf("[API] Actuator control UNAUTHORIZED from %s (hasAuth=%d)\n",
+                  clientIP.c_str(), request->hasHeader("Authorization") ? 1 : 0);
+    request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+    return;
+  }
+
+  String role = getRequestRole(request);
+  if (role != "admin" && role != "operator" && role != "maintenance") {
+    request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+    return;
+  }
+
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, (char*)data, len);
+  if (error) {
+    Serial.printf("[API] Actuator JSON parse error: %s\n", error.c_str());
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String actuatorId = doc["actuator_id"].as<String>();
+  String cmd = doc["command"].as<String>();
+  float param = doc["param"] | 0.0f;
+
+  Serial.printf("[API] POST /api/actuators/control id=%s cmd=%s param=%.1f from %s (%s)\n",
+                actuatorId.c_str(), cmd.c_str(), param, clientIP.c_str(), role.c_str());
+
+  String result = executeActuatorCommand(actuatorId.c_str(), cmd.c_str(), param);
+  request->send(200, "application/json", result);
+}

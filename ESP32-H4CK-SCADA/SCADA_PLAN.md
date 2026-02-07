@@ -684,9 +684,9 @@ When defense is active, students learn:
 
 | Resource | Default | Regeneration | Use |
 |----------|---------|--------------|-----|
-| DP (Defense Points) | 100 | +2/5sec | Cost to deploy rules |
-| AP (Action Points) | 10 | +1/5sec | Simultaneous actions |
-| SS (Stability) | 100 | +1/5sec | System health (aggr. defense reduces it) |
+| DP (Defense Points) | 100 | +2/10sec | Cost to deploy rules |
+| AP (Action Points) | 10 | +1/10sec | Simultaneous actions |
+| SS (Stability) | 100 | +1/10sec | System health (aggr. defense reduces it) |
 
 **Why?** Teaches that defending is **costly** — aggressive defense may cripple legitimate services or cause DoS to all users.
 

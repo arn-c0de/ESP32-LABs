@@ -36,6 +36,9 @@ void initActuators() {
 }
 
 String getActuatorListJSON() {
+  if (ESP.getFreeHeap() < 20000) {
+    return "{\"error\":\"low memory\"}";
+  }
   DynamicJsonDocument doc(2048);
   JsonArray arr = doc.to<JsonArray>();
 

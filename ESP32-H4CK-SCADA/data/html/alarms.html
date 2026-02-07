@@ -18,8 +18,20 @@
       <a href="/alarms" class="active">Alarms</a>
       <a href="/vulnerabilities">Vulnerabilities</a>
       <a href="/incidents">Incidents</a>
-      <span class="nav-user" id="nav-user"></span>
-      <a href="#" onclick="logout()">Logout</a>
+      <div class="user-dropdown" id="nav-user">
+        <button class="user-dropdown-toggle" id="user-dropdown-toggle">
+          <span class="user-name" id="user-name">User</span>
+          <span class="user-role" id="user-role">ROLE</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        <div class="user-dropdown-menu">
+          <div class="dropdown-header">
+            <div class="dropdown-name" id="dropdown-name">User</div>
+            <div class="dropdown-role" id="dropdown-role">role</div>
+          </div>
+          <a href="#" class="dropdown-item danger logout-item" onclick="logout(); return false;">🚪 Logout</a>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -85,6 +97,7 @@
   </div>
 
   <script src="/js/auth-sync.js"></script>
+  <script src="/js/mode.js"></script>
   <script src="/js/navbar.js"></script>
   <script>
     requireAuth();
@@ -169,24 +182,28 @@
         alert('Insufficient permissions');
         return;
       }
-      
+
       try {
         const token = localStorage.getItem('jwt_token');
-        
-        const response = await fetch(`/api/alarms/${sensorId}/ack?timestamp=${timestamp}`, {
+
+        const response = await fetch('/api/alarms/ack', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sensor_id: sensorId, timestamp: timestamp })
         });
-        
+
         if (!response.ok) {
           const data = await response.json();
           alert(data.error || 'Failed to acknowledge alarm');
           return;
         }
-        
+
         // Immediate refresh
         await loadAlarms();
-        
+
       } catch (error) {
         console.error('Acknowledge error:', error);
         alert('Network error');
@@ -196,8 +213,8 @@
     // Initial load
     loadAlarms();
     
-    // Auto-refresh every 5 seconds
-    updateInterval = setInterval(loadAlarms, 5000);
+    // Auto-refresh every 10 seconds
+    updateInterval = setInterval(loadAlarms, 10000);
     
     // Cleanup
     window.addEventListener('beforeunload', () => {

@@ -102,40 +102,44 @@ void addAlarm(const char* sensorId, int line, const char* level, float value, fl
 // ===== ALARM HISTORY JSON =====
 
 String getAlarmHistoryJSON(int line, int limit) {
-  if (limit <= 0) limit = 50;
+  if (limit <= 0) limit = 30;
+  if (limit > MAX_ALARMS) limit = MAX_ALARMS;
 
-  String json = "[";
-  bool first = true;
+  // Guard: check heap before allocating
+  if (ESP.getFreeHeap() < 20000) {
+    return "{\"error\":\"low memory\"}";
+  }
+
+  // Fixed-size JSON doc instead of unbounded String concatenation
+  DynamicJsonDocument doc(3072);
+  JsonArray arr = doc.to<JsonArray>();
+
   int emitted = 0;
-
-  // Walk backward from the most recent entry
   int total = (alarmCount < MAX_ALARMS) ? alarmCount : MAX_ALARMS;
 
   for (int n = total - 1; n >= 0 && emitted < limit; n--) {
     int idx = n % MAX_ALARMS;
     AlarmEntry &a = alarms[idx];
 
-    // Filter by production line (0 = all lines)
     if (line > 0 && a.line != line) continue;
-
-    // FIXED: Skip acknowledged alarms older than 30 seconds
     if (a.acknowledged && (millis() - a.timestamp) > 30000) continue;
 
-    if (!first) json += ",";
-    first = false;
+    // Stop if doc is running out of capacity
+    if (doc.overflowed()) break;
 
-    json += "{";
-    json += "\"sensor_id\":\"" + String(a.sensorId) + "\",";
-    json += "\"line\":" + String(a.line) + ",";
-    json += "\"level\":\"" + String(a.level) + "\",";
-    json += "\"value\":" + String(a.value, 2) + ",";
-    json += "\"threshold\":" + String(a.threshold, 2) + ",";
-    json += "\"timestamp\":" + String(a.timestamp) + ",";
-    json += "\"acknowledged\":" + String(a.acknowledged ? "true" : "false");
-    json += "}";
+    JsonObject obj = arr.createNestedObject();
+    obj["sensor_id"] = a.sensorId;
+    obj["line"] = a.line;
+    obj["level"] = a.level;
+    obj["value"] = a.value;
+    obj["threshold"] = a.threshold;
+    obj["timestamp"] = a.timestamp;
+    obj["acknowledged"] = a.acknowledged;
     emitted++;
   }
 
-  json += "]";
-  return json;
+  String output;
+  serializeJson(doc, output);
+  doc.clear();
+  return output;
 }

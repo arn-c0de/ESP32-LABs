@@ -24,9 +24,9 @@ This system teaches:
 **Stability Score (SS)**: System stability impact (aggressive defenses reduce it)
 
 Defaults:
-- Max DP: 100 (regenerates +2 every 5 seconds)
-- Max AP: 10 (regenerates +1 every 5 seconds)
-- Max Stability: 100 (regenerates +1 every 5 seconds)
+- Max DP: 100 (regenerates +2 every 10 seconds)
+- Max AP: 10 (regenerates +1 every 10 seconds)
+- Max Stability: 100 (regenerates +1 every 10 seconds)
 
 ### Defense Types
 
@@ -256,7 +256,7 @@ iptables -A INPUT -s 192.168.4.200 -j DROP --duration 30
 ```
 
 **Learning**:
-- Must wait for DP regeneration (+2 every 5 sec)
+- Must wait for DP regeneration (+2 every 10 sec)
 - Cannot defend everything simultaneously
 - Strategic choices required
 
@@ -468,7 +468,7 @@ All config saved to ESP32 `Preferences` namespace `"defense"`:
   <div class="status-value">85<span class="unit">/100</span></div>
   <div class="status-trend">
     <span class="trend-icon">↑</span>
-    <span class="trend-text">+2 / 5sec</span>
+    <span class="trend-text">+2 / 10sec</span>
   </div>
 </div>
 ```
@@ -549,7 +549,7 @@ All config saved to ESP32 `Preferences` namespace `"defense"`:
     <div class="meter-fill" style="width: 85%;" data-status="healthy"></div>
   </div>
   <div class="meter-regen">
-    <span>Regeneration: +2 every 5s</span>
+    <span>Regeneration: +2 every 10s</span>
   </div>
 </div>
 ```
@@ -588,10 +588,10 @@ All config saved to ESP32 `Preferences` namespace `"defense"`:
 ```
 +------------------------+------------------------+
 | DP: 85/100  [████▓▓▓▓] | AP: 9/10   [████████▓] |
-| Regen: +2/5s           | Regen: +1/5s           |
+| Regen: +2/10s          | Regen: +1/10s          |
 +------------------------+------------------------+
 | SS: 92/100  [████████░] |  Active Rules: 2      |
-| Regen: +1/5s           |  Last Action: 12s ago |
+| Regen: +1/10s          |  Last Action: 12s ago |
 +------------------------+------------------------+
 
 +----------------------------------------------------------+

@@ -50,8 +50,9 @@ void updatePhysics() {
     SensorData &s = sensors[i];
     int lineIdx = s.line - 1;  // 0-based
 
-    // Noise component
-    float noise = gaussianNoise() * SENSOR_NOISE_AMPLITUDE;
+    // Noise component - proportional to base value (not absolute)
+    // SENSOR_NOISE_AMPLITUDE is now a percentage (e.g., 0.03 = 3%)
+    float noise = gaussianNoise() * s.baseValue * SENSOR_NOISE_AMPLITUDE;
 
     // Drift component (slow random walk)
     driftAccum[i] += ((float)random(-100, 101) / 100.0f) * SENSOR_DRIFT_RATE;
