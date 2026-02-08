@@ -37,9 +37,9 @@ LoginBackoffEntry loginBackoff[32];
 AlertEntry defenseAlerts[64];
 int defenseAlertIndex = 0;
 
-static const uint16_t TOKEN_BUCKET_RATE = 12;   // requests per second
-static const uint16_t TOKEN_BUCKET_BURST = 40;  // burst size (page load = HTML + ~10 API calls + assets)
-static const int VIOLATION_THRESHOLD = 6;
+static const uint16_t TOKEN_BUCKET_RATE = 8;   // requests per second
+static const uint16_t TOKEN_BUCKET_BURST = 25;  // burst size (page load = HTML + ~10 API calls + assets)
+static const int VIOLATION_THRESHOLD = 20;
 static const unsigned long VIOLATION_QUIET_MS = 300000; // 5 minutes
 
 // ===== INITIALIZATION =====
@@ -224,6 +224,9 @@ void addDefenseAlert(const String &type, const String &ip, const String &details
 }
 
 String getDefenseAlertsJSON() {
+  if (ESP.getFreeHeap() < 50000) {
+    return "{\"status\":\"error\",\"error\":{\"code\":503,\"msg\":\"Server busy\"}}";
+  }
   DynamicJsonDocument doc(4096);
   JsonArray arr = doc.createNestedArray("alerts");
   for (int i = 0; i < 64; i++) {
@@ -388,13 +391,13 @@ void recordViolation(TokenBucket &bucket, const String &ip) {
   addDefenseAlert("rate_limit", ip, "token bucket exceeded");
   if (bucket.violations >= VIOLATION_THRESHOLD) {
     if (bucket.blockLevel == 0) {
-      addBlock(ip, 30, false, "system");
+      addBlock(ip, 60, false, "system");
       bucket.blockLevel = 1;
     } else if (bucket.blockLevel == 1) {
-      addBlock(ip, 300, false, "system");
+      addBlock(ip, 180, false, "system");
       bucket.blockLevel = 2;
     } else {
-      addBlock(ip, 1800, false, "system");
+      addBlock(ip, 300, false, "system");
       bucket.blockLevel = 3;
     }
     bucket.violations = 0;
@@ -451,7 +454,7 @@ bool checkNotFoundBackoff(const String &ip) {
     entry.count = 0;
   }
   entry.count++;
-  return entry.count <= 20;
+  return entry.count <= 10;
 }
 
 bool checkLoginBackoff(const String &ip) {
@@ -1019,6 +1022,9 @@ String handleDefenseStatus() {
 }
 
 String handleAdminDefenseStatus() {
+  if (ESP.getFreeHeap() < 50000) {
+    return "{\"status\":\"error\",\"error\":{\"code\":503,\"msg\":\"Server busy\"}}";
+  }
   DynamicJsonDocument doc(8192);
   doc["status"] = "ok";
 

@@ -2,6 +2,25 @@
  * HTTP Helper Functions
  */
 
+extern SemaphoreHandle_t actuatorMutex;
+
+static int parseLineFromSensorId(const String &sensorId) {
+  if (!sensorId.startsWith("SENSOR-L")) return 0;
+  int start = 8;
+  int dash = sensorId.indexOf('-', start);
+  if (dash < 0) return 0;
+  String lineStr = sensorId.substring(start, dash);
+  return lineStr.toInt();
+}
+
+static bool isLineAllowedForRole(int line, const String &role) {
+  if (line <= 0 || line > NUM_LINES) return false;
+  if (role == "admin" || role == "operator") return true;
+  if (role == "maintenance") return line <= 2;
+  if (role == "viewer" || role == "guest") return line == 1;
+  return false;
+}
+
 bool rejectIfLowHeap(AsyncWebServerRequest *request) {
   if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
     rateLimitedLog("[HTTP] Rejected - low memory");
@@ -64,15 +83,15 @@ public:
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
       return;
@@ -91,6 +110,17 @@ public:
       limit = request->getParam("limit")->value().toInt();
       if (limit < 1) limit = 1;
       if (limit > 1000) limit = 1000;
+    }
+    if (!VULN_PHYSICS_ANALYSIS && limit > 10) {
+      limit = 10;
+    }
+    if (!VULN_IDOR_SENSORS) {
+      String role = getRequestRole(request);
+      int line = parseLineFromSensorId(sensorId);
+      if (line > 0 && !isLineAllowedForRole(line, role)) {
+        request->send(403, "application/json", "{\"error\":\"Insufficient permissions\"}");
+        return;
+      }
     }
 
     Serial.printf("[API] GET /api/sensors/%s/readings (limit=%d) from %s\n",
@@ -116,16 +146,15 @@ void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t le
   if (rejectIfBodyTooLarge(request, total)) {
     return;
   }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
-
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
@@ -147,11 +176,7 @@ void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t le
   }
 
   // Parse JSON body
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
-    request->send(503, "application/json", "{\"error\":\"Server busy\"}");
-    return;
-  }
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+  if (ESP.getFreeHeap() < 50000) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
@@ -199,16 +224,15 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
   if (rejectIfBodyTooLarge(request, total)) {
     return;
   }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
-
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
@@ -227,7 +251,7 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
     return;
   }
 
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+  if (ESP.getFreeHeap() < 50000) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
@@ -292,16 +316,15 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
   if (rejectIfBodyTooLarge(request, total)) {
     return;
   }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
-
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
@@ -322,7 +345,7 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
     return;
   }
 
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+  if (ESP.getFreeHeap() < 50000) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
@@ -341,7 +364,16 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
   Serial.printf("[API] POST /api/actuators/control id=%s cmd=%s param=%.1f from %s (%s)\n",
                 actuatorId.c_str(), cmd.c_str(), param, clientIP.c_str(), role.c_str());
 
+  if (!VULN_RACE_ACTUATORS) {
+    if (actuatorMutex == nullptr || xSemaphoreTake(actuatorMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
+  }
   String result = executeActuatorCommand(actuatorId.c_str(), cmd.c_str(), param);
+  if (!VULN_RACE_ACTUATORS && actuatorMutex != nullptr) {
+    xSemaphoreGive(actuatorMutex);
+  }
   request->send(200, "application/json", result);
 }
 
@@ -354,16 +386,15 @@ void handleSensorResetBody(AsyncWebServerRequest *request, uint8_t *data, size_t
   if (rejectIfBodyTooLarge(request, total)) {
     return;
   }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
-
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;

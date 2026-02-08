@@ -375,16 +375,15 @@ void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
   if (rejectIfBodyTooLarge(request, total)) {
     return;
   }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
-  
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;
@@ -471,15 +470,15 @@ void handleLogin(AsyncWebServerRequest *request) {
   if (rejectIfLowHeap(request)) {
     return;
   }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
+    return;
+  }
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
     return;

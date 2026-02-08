@@ -75,9 +75,12 @@ void setupSCADARoutes() {
     totalRequests++;
     rateLimitedLog("[API] GET /api/sensors from " + clientIP);
     
-    if (!isAuthenticated(request)) {
-      request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
-      return;
+    // If the sensors-open-access vulnerability is disabled, enforce authentication
+    if (!VULN_SENSORS_OPEN_ACCESS) {
+      if (!isAuthenticated(request)) {
+        request->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+        return;
+      }
     }
     
     String json = getSensorListJSON();
@@ -269,6 +272,8 @@ void setupSCADARoutes() {
     vulns["weak_auth"] = VULN_WEAK_AUTH;
     vulns["hardcoded_secrets"] = VULN_HARDCODED_SECRETS;
     vulns["logic_flaws"] = VULN_LOGIC_FLAWS;
+    vulns["sensors_open_access"] = VULN_SENSORS_OPEN_ACCESS;
+    vulns["physics_analysis"] = VULN_PHYSICS_ANALYSIS;
     
     String output;
     serializeJson(doc, output);
@@ -430,6 +435,10 @@ void setupSCADARoutes() {
     if (!requireRole(request, "operator")) {
       return;
     }
+    if (ESP.getFreeHeap() < 50000) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
+      return;
+    }
     String output = getDefenseAlertsJSON();
     request->send(200, "application/json", output);
   });
@@ -454,6 +463,10 @@ void setupSCADARoutes() {
       return;
     }
     if (!requireRole(request, "operator")) {
+      return;
+    }
+    if (ESP.getFreeHeap() < 50000) {
+      request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
     String output = handleAdminDefenseStatus();

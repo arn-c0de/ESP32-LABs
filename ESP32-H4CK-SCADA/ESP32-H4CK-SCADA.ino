@@ -35,6 +35,7 @@ String LAB_MODE_STR = "testing"; // will be overridden in initConfig()
 #include <esp_wifi.h>
 #include <esp_netif.h>
 #include <tcpip_adapter.h>
+#include <freertos/semphr.h>
 #include <map>
 
 // ===== WiFi Configuration (set by 01_Config.ino) =====
@@ -101,6 +102,9 @@ bool VULN_RACE_ACTUATORS = true;
 bool VULN_WEAK_AUTH = true;
 bool VULN_HARDCODED_SECRETS = true;
 bool VULN_LOGIC_FLAWS = true;
+bool VULN_PHYSICS_ANALYSIS = true;
+// Open sensors list without auth - training lab toggle
+bool VULN_SENSORS_OPEN_ACCESS = true;
 
 // Sensor Physics
 float SENSOR_NOISE_AMPLITUDE = 0.03;  // 3% noise (proportional to sensor value)
@@ -220,6 +224,7 @@ unsigned long lastSensorSave = 0;
 int failedLoginAttempts = 0;
 unsigned long lastFailedLogin = 0;
 int activeConnections = 0;
+SemaphoreHandle_t actuatorMutex = nullptr;
 
 // SCADA Data (in-memory)
 SensorData sensors[TOTAL_SENSORS];
@@ -576,6 +581,10 @@ void setup() {
 
   initActuators();
   logInfo("Actuators initialized");
+  actuatorMutex = xSemaphoreCreateMutex();
+  if (actuatorMutex == nullptr) {
+    logError("Actuator mutex creation failed");
+  }
 
   initWebServer();
   logInfo("Web server started");
@@ -587,6 +596,10 @@ void setup() {
 
   initDefense();
   logInfo("Defense system initialized");
+  yield();
+
+  setupVulnerableRoutes();
+  logInfo("Vulnerable routes configured");
   yield();
 
   Serial.println();
@@ -651,7 +664,8 @@ void loop() {
     static unsigned long lastNonZero = 0;
     if (activeConnections > 0) {
       if (lastNonZero == 0) lastNonZero = millis();
-      if (millis() - lastNonZero > 30000) {
+      if (millis() - lastNonZero > 15000) {
+        Serial.printf("[DEFENSE] Resetting activeConnections (stuck=%d)\n", activeConnections);
         activeConnections = 0;
         lastNonZero = 0;
       }

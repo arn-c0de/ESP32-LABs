@@ -206,39 +206,51 @@ curl -X POST 'http://192.168.4.1/api/alarms/acknowledge' \
 
 ### Path 1: IDOR (Insecure Direct Object Reference)
 **Vulnerability:** Sensor readings lack per-line access control  
-**Endpoint:** `GET /api/sensors/readings?sensor_id=SENSOR-L2-03`  
+**Toggle:** `VULN_IDOR_SENSORS` in `ESP32-H4CK-SCADA.ino`  
+**Enforced in:** `03_HttpHelpers.ino` (`SensorReadingsHandler`)  
+**Endpoint:** `GET /api/sensors/SENSOR-L2-03/readings`  
 **Learning:** Authorization bypass, cross-line data exfiltration  
 **Exploit:** Request sensor IDs from unauthorized production lines
 
 ### Path 2: Command Injection
 **Vulnerability:** Actuator commands not sanitized  
+**Toggle:** `VULN_COMMAND_INJECT` in `ESP32-H4CK-SCADA.ino`  
+**Enforced in:** `08_Actuators.ino` (`executeActuatorCommand`)  
 **Endpoint:** `POST /api/actuators/control` (cmd parameter)  
 **Learning:** Input validation, shell injection techniques  
 **Exploit:** Inject commands via `cmd` or `value` parameters
 
 ### Path 3: Race Condition
 **Vulnerability:** Actuator state changes without mutex locks  
+**Toggle:** `VULN_RACE_ACTUATORS` in `ESP32-H4CK-SCADA.ino`  
+**Enforced in:** `03_HttpHelpers.ino` (`handleActuatorControlBody`)  
 **Endpoint:** Rapid sequential actuator control requests  
 **Learning:** Concurrency exploits, state corruption  
 **Exploit:** Send overlapping control requests to corrupt state
 
 ### Path 4: Physics-Based Analysis
 **Vulnerability:** Sensor anomaly detection can be inferred  
-**Endpoint:** `GET /api/sensors/readings` (trend analysis)  
+**Toggle:** `VULN_PHYSICS_ANALYSIS` in `ESP32-H4CK-SCADA.ino`  
+**Enforced in:** `03_HttpHelpers.ino` (`SensorReadingsHandler`, history cap when off)  
+**Endpoint:** `GET /api/sensors/<SENSOR-ID>/readings?limit=<n>` (trend analysis)  
 **Learning:** Cross-correlation, system behavior understanding  
 **Exploit:** Correlate patterns across multiple sensors to predict system state
 
 ### Path 5: Forensics / Information Disclosure
 **Vulnerability:** Debug endpoints expose internal state  
+**Toggle:** `ENABLE_VULNERABILITIES` in `ESP32-H4CK-SCADA.ino`  
+**Enforced in:** `09_Vulnerabilities.ino` (`setupVulnerableRoutes`)  
 **Endpoint:** `/vuln/debug` (when ENABLE_VULNERABILITIES=true)  
 **Learning:** Log analysis, data reconstruction  
 **Exploit:** Extract session tokens, IP addresses, system uptime
 
 ### Path 6: Weak Authentication
 **Vulnerability:** Default credentials visible in code/config  
+**Toggle:** `VULN_WEAK_AUTH` in `ESP32-H4CK-SCADA.ino`  
+**Enforced in:** `04_Auth.ino` (`generateJWT`, weak auth paths)  
 **Endpoint:** `/api/login` with hardcoded user/password pairs  
 **Learning:** Credential discovery, default password exploitation  
-**Exploit:** Use `admin/admin` or `operator/operator123` credentials
+**Exploit:** Use `admin/admin`, `operator/operator123`, `maintenance/maint456`, or `viewer/viewer` credentials
 
 </details>
 

@@ -37,15 +37,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -61,15 +61,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -85,15 +85,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -109,15 +109,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -133,15 +133,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -157,15 +157,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -181,15 +181,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -205,15 +205,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -229,15 +229,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -257,15 +257,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -281,15 +281,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       sendRateLimited(request, "text/plain", "Too Many Requests");
       return;
@@ -305,15 +305,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       request->send(429, "text/plain", "Too Many Requests");
       return;
@@ -329,15 +329,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       request->send(429, "text/plain", "Too Many Requests");
       return;
@@ -353,15 +353,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       request->send(429, "text/plain", "Too Many Requests");
       return;
@@ -376,15 +376,15 @@ void setupRoutes() {
     if (rejectIfLowHeap(request)) {
       return;
     }
+    if (isIpBlocked(clientIP)) {
+      request->send(403, "text/plain", "Access Denied");
+      return;
+    }
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "text/plain", "Server busy");
       return;
     }
     ConnectionGuard guard(true, clientIP);
-    if (isIpBlocked(clientIP)) {
-      request->send(403, "text/plain", "Access Denied");
-      return;
-    }
     if (!checkRateLimit(clientIP)) {
       request->send(429, "text/plain", "Too Many Requests");
       return;
@@ -412,9 +412,16 @@ void serveStaticFiles() {
 }
 
 void handleNotFound(AsyncWebServerRequest *request) {
-  totalRequests++;
   String clientIP = request->client()->remoteIP().toString();
+  if (isBlockedByEntry(clientIP)) {
+    request->send(403, "text/plain", "Access Denied");
+    return;
+  }
   if (rejectIfLowHeap(request)) {
+    return;
+  }
+  if (isIpBlocked(clientIP)) {
+    request->send(403, "text/plain", "Access Denied");
     return;
   }
   if (!tryReserveConnection(clientIP)) {
@@ -422,10 +429,6 @@ void handleNotFound(AsyncWebServerRequest *request) {
     return;
   }
   ConnectionGuard guard(true, clientIP);
-  if (isIpBlocked(clientIP)) {
-    request->send(403, "text/plain", "Access Denied");
-    return;
-  }
   if (!checkRateLimit(clientIP)) {
     sendRateLimited(request, "text/plain", "Too Many Requests");
     return;
@@ -435,6 +438,7 @@ void handleNotFound(AsyncWebServerRequest *request) {
     return;
   }
 
+  totalRequests++;
   String message = "404 - Not Found\nURI: " + request->url() + "\n";
   AsyncWebServerResponse *response = request->beginResponse(404, "text/plain", message);
   response->addHeader("Access-Control-Allow-Origin", "*");
