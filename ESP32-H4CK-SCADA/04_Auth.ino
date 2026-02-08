@@ -5,6 +5,126 @@
  * Contains intentional vulnerabilities for educational purposes.
  */
 
+// JwtPayload and AuthCacheEntry structs are now defined in main .ino file
+static const int AUTH_CACHE_SIZE = 6;
+static AuthCacheEntry authCache[AUTH_CACHE_SIZE];
+
+static bool decodeJwtPayload(const String &payloadB64, JwtPayload &out) {
+  String decoded = base64Decode(payloadB64);
+  if (DEBUG_MODE) {
+    Serial.printf("[AUTH] Decoded payload: %s\n", decoded.c_str());
+  }
+
+  DynamicJsonDocument doc(256);
+  DeserializationError error = deserializeJson(doc, decoded);
+  if (error) {
+    if (DEBUG_MODE) {
+      Serial.printf("[AUTH] JSON parse error: %s\n", error.c_str());
+    }
+    return false;
+  }
+
+  out.username = doc["username"].as<String>();
+  out.role = doc["role"].as<String>();
+  out.exp = doc["exp"] | 0UL;
+  if (DEBUG_MODE) {
+    Serial.printf("[AUTH] Parsed role from JSON: %s\n", out.role.c_str());
+  }
+  return true;
+}
+
+static bool getCachedJwt(const String &token, JwtPayload &out) {
+  unsigned long now = millis();
+  for (int i = 0; i < AUTH_CACHE_SIZE; i++) {
+    if (authCache[i].token == token && authCache[i].token.length() > 0) {
+      if (authCache[i].payload.exp != 0 && now > authCache[i].payload.exp) {
+        authCache[i].token = "";
+        return false;
+      }
+      authCache[i].lastUsed = now;
+      out = authCache[i].payload;
+      return true;
+    }
+  }
+  return false;
+}
+
+static void putCachedJwt(const String &token, const JwtPayload &payload) {
+  if (token.length() == 0) return;
+  unsigned long now = millis();
+  int slot = 0;
+  unsigned long oldest = authCache[0].lastUsed;
+  for (int i = 0; i < AUTH_CACHE_SIZE; i++) {
+    if (authCache[i].token.length() == 0) {
+      slot = i;
+      break;
+    }
+    if (authCache[i].lastUsed < oldest) {
+      oldest = authCache[i].lastUsed;
+      slot = i;
+    }
+  }
+  authCache[slot].token = token;
+  authCache[slot].payload = payload;
+  authCache[slot].lastUsed = now;
+}
+
+static bool parseJwtToken(const String &token, JwtPayload &out) {
+  if (token.length() == 0) return false;
+  if (getCachedJwt(token, out)) return true;
+
+  String payload;
+
+  if (VULN_WEAK_AUTH && token.indexOf(".unsigned") > 0) {
+    int firstDot = token.indexOf('.');
+    int lastDot = token.lastIndexOf('.');
+    if (firstDot >= 0 && lastDot > firstDot) {
+      payload = token.substring(firstDot + 1, lastDot);
+      if (DEBUG_MODE) {
+        Serial.printf("[AUTH] Extracted payload from weak auth token (length: %d)\n", payload.length());
+      }
+    }
+  } else {
+    int dotPos = token.indexOf('.');
+    if (dotPos <= 0) return false;
+    String payloadB64 = token.substring(0, dotPos);
+    String signature = token.substring(dotPos + 1);
+
+    String expectedSignature = sha256Hash(payloadB64 + JWT_SECRET_STR);
+    if (signature != expectedSignature) {
+      return false;
+    }
+    payload = payloadB64;
+    if (DEBUG_MODE) {
+      Serial.printf("[AUTH] Extracted payload from secure token (length: %d)\n", payload.length());
+    }
+  }
+
+  if (payload.length() == 0) return false;
+  if (!decodeJwtPayload(payload, out)) return false;
+  putCachedJwt(token, out);
+  return true;
+}
+
+static bool getSessionFromRequest(AsyncWebServerRequest *request, Session &sessionOut) {
+  if (!request->hasHeader("Cookie")) return false;
+  String cookies = request->header("Cookie");
+  int sessionPos = cookies.indexOf("session=");
+  if (sessionPos < 0) return false;
+  int endPos = cookies.indexOf(';', sessionPos);
+  String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
+  if (activeSessions.find(sessionId) == activeSessions.end()) return false;
+
+  Session &session = activeSessions[sessionId];
+  if (millis() - session.lastActivity > SESSION_TIMEOUT) {
+    activeSessions.erase(sessionId);
+    return false;
+  }
+  session.lastActivity = millis();
+  sessionOut = session;
+  return true;
+}
+
 void initAuth() {
   // Clear any existing sessions
   activeSessions.clear();
@@ -14,7 +134,7 @@ void initAuth() {
   Serial.printf("[AUTH] JWT expiry: %d seconds\n", JWT_EXPIRY);
 }
 
-bool authenticateUser(String username, String password) {
+bool authenticateUser(String username, String password, String *roleOut) {
   // Intentional vulnerability: No rate limiting on failed attempts
   failedLoginAttempts++;
   
@@ -24,6 +144,7 @@ bool authenticateUser(String username, String password) {
       if (defaultUsers[i].password == password) {
         logInfo("Successful login: " + username);
         failedLoginAttempts = 0;
+        if (roleOut) *roleOut = defaultUsers[i].role;
         return true;
       } else {
         Serial.printf("[AUTH] Default user '%s' provided wrong password\n", username.c_str());
@@ -41,12 +162,14 @@ bool authenticateUser(String username, String password) {
     
     if (!error) {
       String storedPassword = doc["password"].as<String>();
+      String storedRole = doc["role"].as<String>();
       
       // Intentional vulnerability: Simple string comparison (no hashing in default mode)
       if (VULN_WEAK_AUTH) {
         if (password == storedPassword) {
           logInfo("Successful login from DB: " + username);
           failedLoginAttempts = 0;
+          if (roleOut && storedRole.length() > 0) *roleOut = storedRole;
           return true;
         } else {
           Serial.printf("[AUTH] DB user '%s' provided wrong password (weak auth)\n", username.c_str());
@@ -58,6 +181,7 @@ bool authenticateUser(String username, String password) {
         if (verifyPassword(password, storedPassword)) {
           logInfo("Successful login (hashed): " + username);
           failedLoginAttempts = 0;
+          if (roleOut && storedRole.length() > 0) *roleOut = storedRole;
           return true;
         } else {
           Serial.printf("[AUTH] DB user '%s' failed password verify (hashed)\n", username.c_str());
@@ -69,6 +193,10 @@ bool authenticateUser(String username, String password) {
   logError("Failed login attempt: " + username);
   lastFailedLogin = millis();
   return false;
+}
+
+bool authenticateUser(String username, String password) {
+  return authenticateUser(username, password, nullptr);
 }
 
 String generateJWT(String username, String role) {
@@ -97,150 +225,67 @@ String generateJWT(String username, String role) {
 
 bool validateJWT(String token) {
   if (token == "") return false;
-  
-  // Intentional vulnerability: Accept unsigned tokens
-  if (VULN_WEAK_AUTH && token.indexOf(".unsigned") > 0) {
-    return true;  // Accept any unsigned token!
-  }
-  
-  // Basic validation
-  int dotPos = token.indexOf('.');
-  if (dotPos < 0) return false;
-  
-  String payload = token.substring(0, dotPos);
-  String signature = token.substring(dotPos + 1);
-  
-  // Verify signature
-  String expectedSignature = sha256Hash(payload + JWT_SECRET_STR);
-  if (signature != expectedSignature) {
-    return false;
-  }
-  
-  // Decode and check expiry
-  String decoded = base64Decode(payload);
-  DynamicJsonDocument doc(256);
-  DeserializationError error = deserializeJson(doc, decoded);
-  
-  if (error) return false;
-  
-  unsigned long exp = doc["exp"];
-  if (millis() > exp) {
-    return false;  // Token expired
-  }
-  
+  JwtPayload payload;
+  if (!parseJwtToken(token, payload)) return false;
+  if (payload.exp != 0 && millis() > payload.exp) return false;
   return true;
 }
 
 bool isAuthenticated(AsyncWebServerRequest *request) {
-  // Check for Authorization header
+  // Check for Authorization header first
   if (request->hasHeader("Authorization")) {
     String authHeader = request->header("Authorization");
     if (authHeader.startsWith("Bearer ")) {
       String token = authHeader.substring(7);
-      return validateJWT(token);
-    }
-  }
-  
-  // Check for session cookie
-  if (request->hasHeader("Cookie")) {
-    String cookies = request->header("Cookie");
-    int sessionPos = cookies.indexOf("session=");
-    if (sessionPos >= 0) {
-      int endPos = cookies.indexOf(';', sessionPos);
-      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
-      
-      // Check if session exists and is valid
-      if (activeSessions.find(sessionId) != activeSessions.end()) {
-        Session &session = activeSessions[sessionId];
-        
-        // Check if session expired
-        if (millis() - session.lastActivity > SESSION_TIMEOUT) {
-          activeSessions.erase(sessionId);
-          return false;
-        }
-        
-        // Update last activity
-        session.lastActivity = millis();
+      if (validateJWT(token)) {
         return true;
       }
     }
   }
-  
+
+  // Check for session cookie
+  Session session;
+  if (getSessionFromRequest(request, session)) {
+    return true;
+  }
+
   return false;
 }
 
 String getUserRole(String token) {
-  // Extract payload part based on token format
-  String payload;
-  
-  if (token.indexOf(".unsigned") > 0) {
-    // VULN_WEAK_AUTH format: header.body.unsigned
-    int firstDot = token.indexOf('.');
-    int lastDot = token.lastIndexOf('.');
-    if (firstDot >= 0 && lastDot > firstDot) {
-      payload = token.substring(firstDot + 1, lastDot);
-      Serial.printf("[AUTH] Extracted payload from weak auth token (length: %d)\n", payload.length());
-    }
-  } else {
-    // Secure format: payload.signature
-    int dotPos = token.indexOf('.');
-    if (dotPos > 0) {
-      payload = token.substring(0, dotPos);
-      Serial.printf("[AUTH] Extracted payload from secure token (length: %d)\n", payload.length());
-    } else {
-      payload = token; // fallback
-      Serial.printf("[AUTH] Using entire token as payload (fallback, length: %d)\n", payload.length());
-    }
-  }
-  
-  String decoded = base64Decode(payload);
-  Serial.printf("[AUTH] Decoded payload: %s\n", decoded.c_str());
-  
-  DynamicJsonDocument doc(256);
-  DeserializationError error = deserializeJson(doc, decoded);
-  
-  if (!error) {
-    String role = doc["role"].as<String>();
-    Serial.printf("[AUTH] Parsed role from JSON: %s\n", role.c_str());
-    return role;
-  } else {
-    Serial.printf("[AUTH] JSON parse error: %s\n", error.c_str());
-  }
-  
-  return "guest";
+  JwtPayload payload;
+  if (!parseJwtToken(token, payload)) return "guest";
+  if (payload.exp != 0 && millis() > payload.exp) return "guest";
+  return payload.role.length() ? payload.role : "guest";
 }
 
 String getRequestRole(AsyncWebServerRequest *request) {
-  // Check session cookie first
-  if (request->hasHeader("Cookie")) {
-    String cookies = request->header("Cookie");
-    int sessionPos = cookies.indexOf("session=");
-    if (sessionPos >= 0) {
-      int endPos = cookies.indexOf(';', sessionPos);
-      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
-      
-      if (activeSessions.find(sessionId) != activeSessions.end()) {
-        String role = activeSessions[sessionId].role;
-        Serial.printf("[AUTH] Role from session: %s\n", role.c_str());
-        return role;
-      }
-    }
-  }
-  
-  // Check Authorization header (JWT)
+  // Check Authorization header (JWT) first
   if (request->hasHeader("Authorization")) {
     String authHeader = request->header("Authorization");
     if (authHeader.startsWith("Bearer ")) {
       String token = authHeader.substring(7);
-      Serial.printf("[AUTH] JWT token length: %d\n", token.length());
-      if (validateJWT(token)) {
-        String role = getUserRole(token);
-        Serial.printf("[AUTH] Role from JWT: %s\n", role.c_str());
+      if (DEBUG_MODE) {
+        Serial.printf("[AUTH] JWT token length: %d\n", token.length());
+      }
+      JwtPayload payload;
+      if (parseJwtToken(token, payload) && (payload.exp == 0 || millis() <= payload.exp)) {
+        String role = payload.role.length() ? payload.role : "guest";
+        if (DEBUG_MODE) {
+          Serial.printf("[AUTH] Role from JWT: %s\n", role.c_str());
+        }
         return role;
-      } else {
-        Serial.println("[AUTH] JWT validation failed");
       }
     }
+  }
+
+  // Check session cookie
+  Session session;
+  if (getSessionFromRequest(request, session)) {
+    if (DEBUG_MODE) {
+      Serial.printf("[AUTH] Role from session: %s\n", session.role.c_str());
+    }
+    return session.role;
   }
   
   // Check role cookie
@@ -250,12 +295,16 @@ String getRequestRole(AsyncWebServerRequest *request) {
     if (pos >= 0) {
       int endPos = cookies.indexOf(';', pos);
       String role = cookies.substring(pos + 10, endPos > 0 ? endPos : cookies.length());
-      Serial.printf("[AUTH] Role from cookie: %s\n", role.c_str());
+      if (DEBUG_MODE) {
+        Serial.printf("[AUTH] Role from cookie: %s\n", role.c_str());
+      }
       return role;
     }
   }
   
-  Serial.println("[AUTH] No role found, defaulting to guest");
+  if (DEBUG_MODE) {
+    Serial.println("[AUTH] No role found, defaulting to guest");
+  }
   return "guest";
 }
 
@@ -330,7 +379,7 @@ void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
   
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
@@ -370,16 +419,9 @@ void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
   Serial.printf("[AUTH] User: %s, Pass: %s from %s\n", username.c_str(), password.c_str(), clientIP.c_str());
   
   // Authenticate
-  if (authenticateUser(username, password)) {
+  String role = "guest";
+  if (authenticateUser(username, password, &role)) {
     resetLoginFailures(clientIP);
-    // Find user role
-    String role = "guest";
-    for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
-      if (defaultUsers[i].username == username) {
-        role = defaultUsers[i].role;
-        break;
-      }
-    }
     
     // Create session
     String ipAddress = request->client()->remoteIP().toString();
@@ -405,6 +447,9 @@ void handleLoginJSON(AsyncWebServerRequest *request, uint8_t *data, size_t len, 
 
     AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", responseStr);
     resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+    resp->addHeader("Set-Cookie", "auth_token=" + token + "; Path=/");
+    resp->addHeader("Set-Cookie", "auth_user=" + username + "; Path=/");
+    resp->addHeader("Set-Cookie", "auth_role=" + role + "; Path=/");
     request->send(resp);
   } else {
     recordLoginFailure(clientIP);
@@ -430,7 +475,7 @@ void handleLogin(AsyncWebServerRequest *request) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
     return;
@@ -464,16 +509,9 @@ void handleLogin(AsyncWebServerRequest *request) {
   Serial.printf("[AUTH] User: %s, Pass: %s from %s\n", username.c_str(), password.c_str(), clientIP.c_str());
   
   // Authenticate
-  if (authenticateUser(username, password)) {
+  String role = "guest";
+  if (authenticateUser(username, password, &role)) {
     resetLoginFailures(clientIP);
-    // Find user role
-    String role = "guest";
-    for (int i = 0; i < DEFAULT_USERS_COUNT; i++) {
-      if (defaultUsers[i].username == username) {
-        role = defaultUsers[i].role;
-        break;
-      }
-    }
     
     // Create session
     String ipAddress = request->client()->remoteIP().toString();
@@ -517,6 +555,9 @@ void handleLogin(AsyncWebServerRequest *request) {
 
       AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", responseStr);
       resp->addHeader("Set-Cookie", "session=" + sessionId + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_token=" + token + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_user=" + username + "; Path=/");
+      resp->addHeader("Set-Cookie", "auth_role=" + role + "; Path=/");
       request->send(resp);
     }
   } else {
@@ -576,35 +617,21 @@ String getRequestUsername(AsyncWebServerRequest *request) {
     String authHeader = request->header("Authorization");
     if (authHeader.startsWith("Bearer ")) {
       String token = authHeader.substring(7);
-      int dotPos = token.indexOf('.');
-      if (dotPos > 0) {
-        int secondDot = token.indexOf('.', dotPos + 1);
-        if (secondDot > 0) {
-          String payload = token.substring(dotPos + 1, secondDot);
-          String decoded = base64Decode(payload);
-          DynamicJsonDocument doc(256);
-          DeserializationError error = deserializeJson(doc, decoded);
-          if (!error) {
-            return doc["username"].as<String>();
-          }
+      JwtPayload payload;
+      if (parseJwtToken(token, payload)) {
+        if (payload.exp == 0 || millis() <= payload.exp) {
+          return payload.username;
         }
       }
     }
   }
-  
+
   // Try session cookie
-  if (request->hasHeader("Cookie")) {
-    String cookies = request->header("Cookie");
-    int sessionPos = cookies.indexOf("session=");
-    if (sessionPos >= 0) {
-      int endPos = cookies.indexOf(';', sessionPos);
-      String sessionId = cookies.substring(sessionPos + 8, endPos > 0 ? endPos : cookies.length());
-      if (activeSessions.find(sessionId) != activeSessions.end()) {
-        return activeSessions[sessionId].username;
-      }
-    }
+  Session session;
+  if (getSessionFromRequest(request, session)) {
+    return session.username;
   }
-  
+
   return "";
 }
 

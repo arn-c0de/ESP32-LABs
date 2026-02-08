@@ -11,7 +11,8 @@
     <div class="nav-brand">
       <h1>⚡ SCADA Control</h1>
     </div>
-    <div class="nav-menu">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">☰</button>
+    <div class="nav-menu" id="nav-menu">
       <a href="/dashboard">Dashboard</a>
       <a href="/sensors">Sensors</a>
       <a href="/actuators">Actuators</a>
@@ -75,7 +76,13 @@
 
     <!-- Defense Actions -->
     <div class="defense-actions">
-      <h3>🛡️ Available Defenses</h3>
+      <div class="section-header">
+        <h3>🛡️ Available Defenses</h3>
+        <div class="section-tools">
+          <span class="badge badge-success">Live</span>
+          <span class="badge badge-warning">Costs Apply</span>
+        </div>
+      </div>
       <div class="actions-grid">
         <div class="action-card">
           <h4>🚫 IP Block</h4>
@@ -138,7 +145,12 @@
 
     <!-- IP Block Management (Operator/Admin) -->
     <div class="defense-actions operator-only" style="display: none;">
-      <h3>🚧 IP Block Management</h3>
+      <div class="section-header">
+        <h3>🚧 IP Block Management</h3>
+        <div class="section-tools">
+          <span class="badge badge-warning">Operator+</span>
+        </div>
+      </div>
       <div class="actions-grid">
         <div class="action-card">
           <h4>Quick Block</h4>
@@ -168,8 +180,14 @@
       </div>
 
       <div class="active-rules">
-        <h3>📋 Active IP Blocks</h3>
-        <table class="rules-table">
+        <div class="section-header">
+          <h3>📋 Active IP Blocks</h3>
+          <div class="section-tools">
+            <span class="badge badge-danger">Enforced</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="rules-table">
           <thead>
             <tr>
               <th>IP</th>
@@ -182,36 +200,22 @@
           <tbody id="blocks-tbody">
             <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
-    </div>
-
-    <!-- Active Defense Rules -->
-    <div class="active-rules">
-      <h3>📋 Active Defense Rules</h3>
-      <table class="rules-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Type</th>
-            <th>Target</th>
-            <th>Created</th>
-            <th>Expires</th>
-            <th>Cost</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="rules-tbody">
-          <tr><td colspan="7" style="text-align: center;">No active rules</td></tr>
-        </tbody>
-      </table>
     </div>
 
     <!-- Repair Request Management (Admin Only) -->
     <div class="defense-actions admin-only" style="display: none;">
-      <h3>🔧 Repair Request Approvals</h3>
+      <div class="section-header">
+        <h3>🔧 Repair Request Approvals</h3>
+        <div class="section-tools">
+          <span class="badge badge-danger">Admin</span>
+        </div>
+      </div>
       <div class="active-rules">
-        <table class="rules-table">
+        <div class="table-wrap">
+          <table class="rules-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -227,13 +231,19 @@
           <tbody id="repair-requests-tbody">
             <tr><td colspan="8" style="text-align: center;">Loading...</td></tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </div>
 
     <!-- Incident Management -->
     <div class="incident-management">
-      <h3>🎯 Incident Management</h3>
+      <div class="section-header">
+        <h3>🎯 Incident Management</h3>
+        <div class="section-tools">
+          <span class="badge badge-warning">Admin Only</span>
+        </div>
+      </div>
       <div class="actions-grid">
         <div class="action-card admin-only" style="display: none;">
           <h4>📍 Spawn Incident</h4>
@@ -275,56 +285,99 @@
       </div>
     </div>
 
-    <!-- WiFi Client History -->
-    <div class="wifi-clients-section">
-      <h3>📡 Connected WiFi Clients (AP Mode)</h3>
-      <div class="log-controls">
-        <button class="btn btn-secondary" onclick="loadWiFiClients()">Refresh</button>
-      </div>
-      <table class="clients-table" id="clients-table">
-        <thead>
-          <tr>
-            <th>MAC Address</th>
-            <th>IP Address</th>
-            <th>Connected At</th>
-            <th>Last Seen</th>
-            <th>Duration</th>
-          </tr>
-        </thead>
-        <tbody id="clients-tbody">
-          <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
-        </tbody>
-      </table>
-      <div id="wifi-no-clients" style="padding: 20px; text-align: center; color: var(--text-muted);">
-        No connected clients (not in AP mode or no connections yet)
-      </div>
-    </div>
-    <div class="incidents-section">
-      <h3>⚠️ Security Incidents</h3>
-      <div class="incidents-list" id="incidents-list">
-        <div class="incident-placeholder">
-          <p>No recent incidents detected</p>
-          <p class="hint">Failed login attempts, suspicious activity, and attacks will appear here</p>
+    <div class="incidents-layout">
+      <div class="stack">
+        <div class="section-card incidents-section">
+          <div class="section-header">
+            <h3>⚠️ Security Incidents</h3>
+            <div class="section-tools">
+              <button class="btn btn-secondary btn-sm" onclick="loadDefenseAlerts()">Refresh</button>
+            </div>
+          </div>
+          <div class="incidents-list scroll-pane" id="incidents-list">
+            <div class="incident-placeholder">
+              <p>No recent incidents detected</p>
+              <p class="hint">Failed login attempts, suspicious activity, and attacks will appear here</p>
+            </div>
+          </div>
+          <div class="operator-only" style="margin-top: 12px; display: none;">
+            <div class="action-input">
+              <input type="text" id="alert-block-ip" placeholder="IP from alert (e.g. 192.168.1.100)" />
+              <button class="btn btn-danger" onclick="blockPresetFromAlert(300)">Block 5m</button>
+              <button class="btn btn-danger" onclick="blockPresetFromAlert(1800)">Block 30m</button>
+              <button class="btn btn-danger" onclick="blockPermanentFromAlert()">Block Permanent</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="operator-only" style="margin-top: 12px; display: none;">
-        <div class="action-input">
-          <input type="text" id="alert-block-ip" placeholder="IP from alert (e.g. 192.168.1.100)" />
-          <button class="btn btn-danger" onclick="blockPresetFromAlert(300)">Block 5m</button>
-          <button class="btn btn-danger" onclick="blockPresetFromAlert(1800)">Block 30m</button>
-          <button class="btn btn-danger" onclick="blockPermanentFromAlert()">Block Permanent</button>
-        </div>
-      </div>
-    </div>
 
-    <!-- Defense Logs -->
-    <div class="defense-logs">
-      <h3>📜 Defense Activity Log</h3>
-      <div class="log-controls">
-        <button class="btn btn-secondary" onclick="loadLogs()">Refresh</button>
-        <button class="btn btn-secondary" onclick="clearLogs()">Clear</button>
+        <div class="section-card defense-logs">
+          <div class="section-header">
+            <h3>📜 Defense Activity Log</h3>
+            <div class="section-tools">
+              <button class="btn btn-secondary btn-sm" onclick="loadLogs()">Refresh</button>
+              <button class="btn btn-secondary btn-sm" onclick="clearLogs()">Clear</button>
+            </div>
+          </div>
+          <pre id="defense-log" class="log-output scroll-pane"></pre>
+        </div>
       </div>
-      <pre id="defense-log" class="log-output"></pre>
+
+      <div class="stack">
+        <div class="section-card active-rules">
+          <div class="section-header">
+            <h3>📋 Active Defense Rules</h3>
+            <div class="section-tools">
+              <span class="badge badge-success">Enforced</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="rules-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Target</th>
+                  <th>Created</th>
+                  <th>Expires</th>
+                  <th>Cost</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rules-tbody">
+                <tr><td colspan="7" style="text-align: center;">No active rules</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-card wifi-clients-section">
+          <div class="section-header">
+            <h3>📡 Connected WiFi Clients (AP Mode)</h3>
+            <div class="section-tools">
+              <button class="btn btn-secondary btn-sm" onclick="loadWiFiClients()">Refresh</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="clients-table" id="clients-table">
+              <thead>
+                <tr>
+                  <th>MAC Address</th>
+                  <th>IP Address</th>
+                  <th>Connected At</th>
+                  <th>Last Seen</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody id="clients-tbody">
+                <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="wifi-no-clients" style="padding: 20px; text-align: center; color: var(--text-muted);">
+            No connected clients (not in AP mode or no connections yet)
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -340,10 +393,11 @@
     
     async function loadDefenseState() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         const response = await fetch('/api/defense/status', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
         });
         
         if (!response.ok) {
@@ -424,7 +478,7 @@
 
     async function loadAdminDefenseStatus() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/admin/defense/status', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -475,7 +529,7 @@
         return;
       }
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const payload = { ip: ip, duration: duration, permanent: !!permanent };
         const response = await fetch('/api/admin/defense/block', {
           method: 'POST',
@@ -532,7 +586,7 @@
         return;
       }
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/admin/defense/unblock', {
           method: 'POST',
           headers: {
@@ -553,7 +607,7 @@
     
     async function activateDefense(type) {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         let payload = { type: type };
         
@@ -611,7 +665,7 @@
       if (!confirm(`Remove defense rule ${ruleId}?`)) return;
       
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         const response = await fetch(`/api/defense/rules/${ruleId}`, {
           method: 'DELETE',
@@ -632,7 +686,7 @@
     
     async function spawnIncident() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const incidentType = document.getElementById('incident-type').value;
         const details = document.getElementById('incident-details').value || '';
         
@@ -674,7 +728,7 @@
     
     async function loadLogs() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         const response = await fetch('/api/defense/logs', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -700,7 +754,7 @@
 
     async function loadDefenseAlerts() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/defense/alerts', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -759,7 +813,7 @@
       if (!confirm('Clear all defense logs?')) return;
       
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         await fetch('/api/defense/logs', {
           method: 'DELETE',
@@ -775,7 +829,7 @@
     
     async function loadWiFiClients() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         const response = await fetch('/api/wifi/clients', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -827,7 +881,7 @@
     
     async function loadRepairRequests() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/repair-requests', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -888,7 +942,7 @@
       }
       
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/repair-requests/review', {
           method: 'POST',
           headers: {
@@ -948,7 +1002,7 @@
           if (role === 'admin') {
             loadRepairRequests();
           }
-        }, 5000);
+        }, 8000);
       }
       function stopPolling() {
         if (updateInterval) {

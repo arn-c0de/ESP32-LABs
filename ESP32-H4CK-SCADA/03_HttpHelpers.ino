@@ -68,7 +68,7 @@ public:
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -120,7 +120,7 @@ void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t le
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
@@ -203,7 +203,7 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
@@ -296,7 +296,7 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
@@ -358,7 +358,7 @@ void handleSensorResetBody(AsyncWebServerRequest *request, uint8_t *data, size_t
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
 
   if (isIpBlocked(clientIP)) {
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");

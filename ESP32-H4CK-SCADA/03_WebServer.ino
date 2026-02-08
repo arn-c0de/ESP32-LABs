@@ -7,8 +7,19 @@
  */
 
 void initWebServer() {
-  // Enable reuse of connections and set timeouts
-  DefaultHeaders::Instance().addHeader("Connection", "close");
+  // Allow keep-alive to reduce TCP connection churn with multiple clients
+  // In AP mode with limited TCP PCBs, force sockets closed after each response.
+  if (STATION_MODE) {
+    int keepAliveTimeout = 8;
+    int keepAliveMax = 50;
+    DefaultHeaders::Instance().addHeader("Connection", "keep-alive");
+    DefaultHeaders::Instance().addHeader(
+      "Keep-Alive",
+      "timeout=" + String(keepAliveTimeout) + ", max=" + String(keepAliveMax)
+    );
+  } else {
+    DefaultHeaders::Instance().addHeader("Connection", "close");
+  }
   
   setupRoutes();
   serveStaticFiles();
@@ -30,7 +41,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -54,7 +65,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -78,7 +89,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -102,7 +113,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -126,7 +137,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -150,7 +161,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -174,7 +185,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -198,7 +209,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -222,7 +233,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -250,7 +261,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -274,7 +285,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -298,7 +309,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -322,7 +333,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -346,7 +357,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -369,7 +380,7 @@ void setupRoutes() {
       request->send(503, "text/plain", "Server busy");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "text/plain", "Access Denied");
       return;
@@ -410,7 +421,7 @@ void handleNotFound(AsyncWebServerRequest *request) {
     request->send(503, "text/plain", "Server busy");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
   if (isIpBlocked(clientIP)) {
     request->send(403, "text/plain", "Access Denied");
     return;

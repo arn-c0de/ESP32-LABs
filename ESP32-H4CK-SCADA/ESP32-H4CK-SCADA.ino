@@ -34,6 +34,7 @@ String LAB_MODE_STR = "testing"; // will be overridden in initConfig()
 #include <esp_heap_caps.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
+#include <tcpip_adapter.h>
 #include <map>
 
 // ===== WiFi Configuration (set by 01_Config.ino) =====
@@ -48,6 +49,7 @@ String AP_PASSWORD_STR;
 // Server Configuration
 #define HTTP_PORT 80
 #define MAX_HTTP_CONNECTIONS 16
+#define MAX_CONNS_PER_IP_AP 2
 #define MAX_AP_CLIENTS 4
 #define MIN_FREE_HEAP 35000  // Minimum free heap to accept new connections
 #define MAX_BODY_BYTES 2048  // Maximum accepted request body size
@@ -245,6 +247,20 @@ struct Session {
 };
 std::map<String, Session> activeSessions;
 
+// JWT Payload Structure (used by 04_Auth.ino)
+struct JwtPayload {
+  String username;
+  String role;
+  unsigned long exp;
+};
+
+// JWT Cache Entry (used by 04_Auth.ino)
+struct AuthCacheEntry {
+  String token;
+  JwtPayload payload;
+  unsigned long lastUsed;
+};
+
 // Default Users (SCADA roles)
 struct DefaultUser {
   String username;
@@ -307,6 +323,7 @@ struct TokenBucket {
   uint16_t rate;
   uint16_t burst;
   unsigned long lastSeen;
+  uint8_t activeConns;
   int violations;
   int blockLevel;
   unsigned long lastViolation;
@@ -393,6 +410,7 @@ void handleNotFound(AsyncWebServerRequest *request);
 // Auth
 void initAuth();
 bool authenticateUser(String username, String password);
+bool authenticateUser(String username, String password, String *roleOut);
 String generateJWT(String username, String role);
 bool validateJWT(String token);
 bool isAuthenticated(AsyncWebServerRequest *request);
@@ -451,7 +469,7 @@ bool checkLoginBackoff(const String &ip);
 void recordLoginFailure(const String &ip);
 void resetLoginFailures(const String &ip);
 bool tryReserveConnection(const String &ip);
-void releaseConnection();
+void releaseConnection(const String &ip);
 String handleAdminDefenseStatus();
 void addBlock(const String &ip, unsigned long seconds, bool permanent, String by);
 void removeBlock(const String &ip);
@@ -461,10 +479,11 @@ void addDefenseAlert(const String &type, const String &ip, const String &details
 
 struct ConnectionGuard {
   bool active;
-  ConnectionGuard(bool reserved) : active(reserved) {}
+  String clientIP;
+  ConnectionGuard(bool reserved, const String &ip) : active(reserved), clientIP(ip) {}
   ~ConnectionGuard() {
     if (active) {
-      releaseConnection();
+      releaseConnection(clientIP);
     }
   }
 };
@@ -501,6 +520,7 @@ void printMemoryUsage();
 void printWiFiInfo();
 void handleSerialCommands();
 void trackConnectedClients();
+void updateWifiClientIpFromRequest(const String &ip);
 
 // Incidents
 bool triggerIncident(String type, String details);

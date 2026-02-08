@@ -11,7 +11,8 @@
     <div class="nav-brand">
       <h1>⚡ SCADA Control</h1>
     </div>
-    <div class="nav-menu">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">☰</button>
+    <div class="nav-menu" id="nav-menu">
       <a href="/dashboard">Dashboard</a>
       <a href="/sensors">Sensors</a>
       <a href="/actuators">Actuators</a>
@@ -109,14 +110,15 @@
     
     async function loadAlarms() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const line = document.getElementById('line-filter').value;
         const limit = document.getElementById('limit-filter').value;
         
         const url = `/api/alarms?line=${line}&limit=${limit}`;
         
         const response = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
         });
         
         if (!response.ok) {
@@ -195,7 +197,7 @@
       }
 
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
 
         const response = await fetch('/api/alarms/ack', {
           method: 'POST',

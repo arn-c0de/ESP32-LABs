@@ -28,7 +28,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -62,7 +62,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -111,7 +111,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -151,7 +151,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -203,7 +203,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     totalRequests++;
     
     if (!isAuthenticated(request)) {
@@ -332,7 +332,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -389,7 +389,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -418,7 +418,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -444,7 +444,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -473,7 +473,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -522,7 +522,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -564,7 +564,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -600,7 +600,7 @@ void setupSCADARoutes() {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
     }
-    ConnectionGuard guard(true);
+    ConnectionGuard guard(true, clientIP);
     if (isIpBlocked(clientIP)) {
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
@@ -695,7 +695,7 @@ void handleRepairRequestCreateBody(AsyncWebServerRequest *request, uint8_t *data
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
   
   totalRequests++;
   
@@ -800,7 +800,7 @@ void handleRepairRequestReviewBody(AsyncWebServerRequest *request, uint8_t *data
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
-  ConnectionGuard guard(true);
+  ConnectionGuard guard(true, clientIP);
   
   totalRequests++;
   

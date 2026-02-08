@@ -101,6 +101,7 @@ void initDefense() {
     tokenBuckets[i].rate = TOKEN_BUCKET_RATE;
     tokenBuckets[i].burst = TOKEN_BUCKET_BURST;
     tokenBuckets[i].lastSeen = 0;
+    tokenBuckets[i].activeConns = 0;
     tokenBuckets[i].violations = 0;
     tokenBuckets[i].blockLevel = 0;
     tokenBuckets[i].lastViolation = 0;
@@ -267,6 +268,7 @@ int allocateTokenBucketSlot(const String &ip) {
   tokenBuckets[idx].rate = TOKEN_BUCKET_RATE;
   tokenBuckets[idx].burst = TOKEN_BUCKET_BURST;
   tokenBuckets[idx].lastSeen = millis();
+  tokenBuckets[idx].activeConns = 0;
   tokenBuckets[idx].violations = 0;
   tokenBuckets[idx].blockLevel = 0;
   tokenBuckets[idx].lastViolation = 0;
@@ -507,17 +509,38 @@ void resetLoginFailures(const String &ip) {
 }
 
 bool tryReserveConnection(const String &ip) {
-  (void)ip;
   if (activeConnections >= MAX_HTTP_CONNECTIONS) {
     return false;
   }
+  int idx = findTokenBucketIndex(ip);
+  if (idx < 0) {
+    idx = allocateTokenBucketSlot(ip);
+  }
+  TokenBucket &bucket = tokenBuckets[idx];
+  bucket.lastSeen = millis();
+  if (!STATION_MODE && bucket.activeConns >= MAX_CONNS_PER_IP_AP) {
+    Serial.printf("[CONN] IP %s at max connections (%d), rejecting\n", ip.c_str(), MAX_CONNS_PER_IP_AP);
+    return false;
+  }
   activeConnections++;
+  if (bucket.activeConns < 255) {
+    bucket.activeConns++;
+  }
+  // Update WiFi client IP from actual HTTP traffic (fallback for DHCP lookup)
+  updateWifiClientIpFromRequest(ip);
   return true;
 }
 
-void releaseConnection() {
+void releaseConnection(const String &ip) {
   if (activeConnections > 0) {
     activeConnections--;
+  }
+  int idx = findTokenBucketIndex(ip);
+  if (idx >= 0) {
+    TokenBucket &bucket = tokenBuckets[idx];
+    if (bucket.activeConns > 0) {
+      bucket.activeConns--;
+    }
   }
 }
 
@@ -1029,6 +1052,7 @@ String handleAdminDefenseStatus() {
     t["rate"] = tokenBuckets[i].rate;
     t["burst"] = tokenBuckets[i].burst;
     t["last_seen"] = tokenBuckets[i].lastSeen;
+    t["active_conns"] = tokenBuckets[i].activeConns;
     t["violations"] = tokenBuckets[i].violations;
     t["block_level"] = tokenBuckets[i].blockLevel;
     t["last_violation"] = tokenBuckets[i].lastViolation;

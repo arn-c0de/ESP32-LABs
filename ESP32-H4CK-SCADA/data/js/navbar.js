@@ -3,6 +3,8 @@
     var username = localStorage.getItem('username');
     var role = localStorage.getItem('role');
     var navUser = document.getElementById('nav-user');
+    var navToggle = document.getElementById('nav-toggle');
+    var navMenu = document.getElementById('nav-menu');
     
     if(!navUser) return;
     
@@ -69,6 +71,37 @@
         btn.onclick = function() { location.href = '/login'; };
         navUser.innerHTML = '';
         navUser.appendChild(btn);
+    }
+
+    // Mobile nav toggle
+    if(navToggle && navMenu) {
+        navToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var isOpen = navMenu.classList.toggle('open');
+            navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+
+        navMenu.querySelectorAll('a').forEach(function(link) {
+            link.addEventListener('click', function() {
+                navMenu.classList.remove('open');
+                navToggle.setAttribute('aria-expanded', 'false');
+            });
+        });
+
+        document.addEventListener('click', function(e) {
+            if(!navMenu.contains(e.target) && !navToggle.contains(e.target)) {
+                navMenu.classList.remove('open');
+                navToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        window.addEventListener('resize', function() {
+            if(window.innerWidth > 900) {
+                navMenu.classList.remove('open');
+                navToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
     }
 })();
 
