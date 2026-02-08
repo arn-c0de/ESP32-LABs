@@ -150,7 +150,7 @@ float getLineEfficiency(int line, int lineAlarms) {
   }
 
   float efficiency = 0.0f;
-  if (motorOn && motorSpeed > 0.0f && valvePos > 0.0f) {
+  if (motorOn && motorSpeed > 0.01f && valvePos > 0.0f) {
     efficiency = (motorSpeed * 0.85f) * (valvePos / 100.0f);
     efficiency -= (lineAlarms * 10.0f);
   }
@@ -175,6 +175,10 @@ String getSensorListJSON() {
   JsonArray arr = doc.to<JsonArray>();
 
   for (int i = 0; i < TOTAL_SENSORS; i++) {
+    if (doc.overflowed()) {
+      Serial.println("[SENSORS] JSON overflow in getSensorListJSON");
+      break;
+    }
     const SensorData &s = sensors[i];
     JsonObject obj = arr.createNestedObject();
     obj["id"] = s.id;
@@ -212,7 +216,7 @@ String getSensorReadingJSON(const char* sensorId, int limit) {
     }
   }
 
-  if (idx < 0) {
+  if (idx < 0 || idx >= TOTAL_SENSORS) {
     return "{\"error\":\"Sensor not found\"}";
   }
 
@@ -339,7 +343,7 @@ String getDashboardStatusJSON() {
     
     // Get motor state for this line (first actuator is motor)
     int motorIdx = (line - 1) * ACTUATORS_PER_LINE;
-    if (motorIdx < TOTAL_ACTUATORS) {
+    if (motorIdx >= 0 && motorIdx < TOTAL_ACTUATORS && (line - 1) >= 0 && (line - 1) < NUM_LINES) {
       const ActuatorData &motor = actuators[motorIdx];
       lineObj["motor_state"] = ACTUATOR_STATE_NAMES[motor.state];
       lineObj["motor_speed"] = motor.speed;

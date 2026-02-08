@@ -98,9 +98,30 @@ String readFile(String path) {
     return "";
   }
   
+  // Safety limit: max 16KB file read
+  size_t fileSize = file.size();
+  if (fileSize > 16384) {
+    Serial.printf("[UTILS] File too large: %s (%d bytes)\n", path.c_str(), fileSize);
+    file.close();
+    return "";
+  }
+  
+  // Check heap before allocation
+  if (ESP.getFreeHeap() < (fileSize + 5000)) {
+    Serial.println("[UTILS] Insufficient heap for file read");
+    file.close();
+    return "";
+  }
+  
   String content = "";
-  while (file.available()) {
+  content.reserve(fileSize + 1);
+  
+  size_t bytesRead = 0;
+  while (file.available() && bytesRead < fileSize) {
     content += (char)file.read();
+    bytesRead++;
+    // Yield every 256 bytes to prevent watchdog
+    if (bytesRead % 256 == 0) yield();
   }
   
   file.close();

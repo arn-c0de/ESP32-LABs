@@ -135,6 +135,9 @@ void updatePhysics() {
       }
     }
 
+    // Yield periodically to feed watchdog (every 4 sensors)
+    if (i % 4 == 0) yield();
+
     // Base adjustment for line shutdown (actuators off)
     float baseAdjusted = s.baseValue;
     if (lineIdx >= 0 && lineIdx < NUM_LINES) {
@@ -187,12 +190,14 @@ void updatePhysics() {
     s.lastUpdate = now;
 
     // Store in history ring buffer
-    SensorHistory &h = sensorHistory[i];
-    h.values[h.writeIndex] = s.currentValue;
-    h.timestamps[h.writeIndex] = now;
-    h.writeIndex = (h.writeIndex + 1) % SENSOR_HISTORY_SIZE;
-    if (h.count < SENSOR_HISTORY_SIZE) {
-      h.count++;
+    if (i >= 0 && i < TOTAL_SENSORS) {
+      SensorHistory &h = sensorHistory[i];
+      h.values[h.writeIndex] = s.currentValue;
+      h.timestamps[h.writeIndex] = now;
+      h.writeIndex = (h.writeIndex + 1) % SENSOR_HISTORY_SIZE;
+      if (h.count < SENSOR_HISTORY_SIZE) {
+        h.count++;
+      }
     }
   }
 

@@ -1022,7 +1022,8 @@ String handleDefenseStatus() {
 }
 
 String handleAdminDefenseStatus() {
-  if (ESP.getFreeHeap() < 50000) {
+  // Require 60KB free for 8KB allocation + safety margin
+  if (ESP.getFreeHeap() < 60000) {
     return "{\"status\":\"error\",\"error\":{\"code\":503,\"msg\":\"Server busy\"}}";
   }
   DynamicJsonDocument doc(8192);
@@ -1031,8 +1032,14 @@ String handleAdminDefenseStatus() {
   JsonArray blocks = doc.createNestedArray("blocks");
   unsigned long now = millis();
   for (int i = 0; i < 64; i++) {
+    if (doc.overflowed()) {
+      Serial.println("[DEFENSE] JSON overflow in defense status");
+      break;
+    }
     if (blockEntries[i].ip == "") continue;
     if (!blockEntries[i].permanent && blockEntries[i].expiresAt > 0 && now >= blockEntries[i].expiresAt) continue;
+    // Yield periodically
+    if (i % 16 == 0) yield();
     JsonObject b = blocks.createNestedObject();
     b["ip"] = blockEntries[i].ip;
     b["permanent"] = blockEntries[i].permanent;
@@ -1051,7 +1058,9 @@ String handleAdminDefenseStatus() {
 
   JsonArray buckets = doc.createNestedArray("buckets");
   for (int i = 0; i < 64; i++) {
+    if (doc.overflowed()) break;
     if (tokenBuckets[i].ip == "") continue;
+    if (i % 16 == 0) yield();
     JsonObject t = buckets.createNestedObject();
     t["ip"] = tokenBuckets[i].ip;
     t["tokens"] = tokenBuckets[i].tokens;

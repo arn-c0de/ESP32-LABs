@@ -36,6 +36,9 @@ void checkAlarms() {
     // Skip sensors that are disabled or not monitored by running actuators
     if (!isSensorMonitored(i)) continue;
 
+    // Yield every 5 sensors to feed watchdog
+    if (i % 5 == 0) yield();
+
     // CRITICAL alarms should trigger when the sensor is monitored
     if (s.currentValue >= s.critThreshold) {
       if (!isAlarmActive(s.id, "CRITICAL")) {
@@ -61,6 +64,13 @@ void checkAlarms() {
     int lineAlarms = countActiveLineAlarms(line, true);
     float efficiency = getLineEfficiency(line, lineAlarms);
     int lineIdx = line - 1;
+    
+    // Defensive bounds check
+    if (lineIdx < 0 || lineIdx >= NUM_LINES) {
+      Serial.printf("[ALARM] ERROR: Invalid lineIdx %d (line %d)\n", lineIdx, line);
+      continue;
+    }
+    
     char lineId[20];
     snprintf(lineId, sizeof(lineId), "LINE-L%d-EFF", line);
 

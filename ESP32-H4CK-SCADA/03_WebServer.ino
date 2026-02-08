@@ -417,6 +417,7 @@ void handleNotFound(AsyncWebServerRequest *request) {
     request->send(403, "text/plain", "Access Denied");
     return;
   }
+  yield();
   if (rejectIfLowHeap(request)) {
     return;
   }
@@ -424,6 +425,7 @@ void handleNotFound(AsyncWebServerRequest *request) {
     request->send(403, "text/plain", "Access Denied");
     return;
   }
+  yield();
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "text/plain", "Server busy");
     return;

@@ -49,7 +49,7 @@ String AP_PASSWORD_STR;
 
 // Server Configuration
 #define HTTP_PORT 80
-#define MAX_HTTP_CONNECTIONS 16
+#define MAX_HTTP_CONNECTIONS 6   // Reduced for AP mode TCP PCB limit
 #define MAX_CONNS_PER_IP_AP 2
 #define MAX_AP_CLIENTS 4
 #define MIN_FREE_HEAP 35000  // Minimum free heap to accept new connections
@@ -664,7 +664,7 @@ void loop() {
     static unsigned long lastNonZero = 0;
     if (activeConnections > 0) {
       if (lastNonZero == 0) lastNonZero = millis();
-      if (millis() - lastNonZero > 15000) {
+      if (millis() - lastNonZero > 10000) {
         Serial.printf("[DEFENSE] Resetting activeConnections (stuck=%d)\n", activeConnections);
         activeConnections = 0;
         lastNonZero = 0;
@@ -676,6 +676,7 @@ void loop() {
     lastMemCheck = millis();
   }
 
+  // Feed watchdog and yield to prevent task starvation
   yield();
-  delay(10);
+  delay(5);
 }

@@ -87,6 +87,7 @@ public:
       request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
       return;
     }
+    yield();
     if (!tryReserveConnection(clientIP)) {
       request->send(503, "application/json", "{\"error\":\"Server busy\"}");
       return;
@@ -150,6 +151,7 @@ void handleAlarmAckBody(AsyncWebServerRequest *request, uint8_t *data, size_t le
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
     return;
   }
+  yield();
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
@@ -228,6 +230,7 @@ void handleSensorControlBody(AsyncWebServerRequest *request, uint8_t *data, size
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
     return;
   }
+  yield();
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
@@ -320,13 +323,14 @@ void handleActuatorControlBody(AsyncWebServerRequest *request, uint8_t *data, si
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
     return;
   }
+  yield();
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;
   }
   ConnectionGuard guard(true, clientIP);
   if (!checkRateLimit(clientIP)) {
-    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}");
+    sendRateLimited(request, "application/json", "{\"error\":\"Rate limit exceeded\"}}");
     return;
   }
 
@@ -390,6 +394,7 @@ void handleSensorResetBody(AsyncWebServerRequest *request, uint8_t *data, size_t
     request->send(403, "application/json", "{\"error\":\"Access Denied\"}");
     return;
   }
+  yield();
   if (!tryReserveConnection(clientIP)) {
     request->send(503, "application/json", "{\"error\":\"Server busy\"}");
     return;

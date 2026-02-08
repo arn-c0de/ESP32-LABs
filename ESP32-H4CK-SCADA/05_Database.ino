@@ -95,6 +95,11 @@ bool insertUser(String username, String password, String role) {
     content = readFile(DB_FILE_PATH);
   }
 
+  if (ESP.getFreeHeap() < 25000) {
+    Serial.println("[DATABASE] Low memory in insertUser");
+    return false;
+  }
+
   DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, content);
 
@@ -105,6 +110,11 @@ bool insertUser(String username, String password, String role) {
 
   // Check if user already exists
   JsonArray users = doc["users"];
+  if (users.isNull()) {
+    logError("Users array is null");
+    return false;
+  }
+  
   for (JsonObject user : users) {
     if (user["username"] == username) {
       logError("User already exists: " + username);
@@ -145,12 +155,26 @@ String getUserByUsername(String username) {
   String content = readFile(DB_FILE_PATH);
   if (content == "") return "";
 
+  // Check heap before allocation
+  if (ESP.getFreeHeap() < 25000) {
+    Serial.println("[DATABASE] Low memory in getUserByUsername");
+    return "";
+  }
+
   DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, content);
 
-  if (error) return "";
+  if (error) {
+    Serial.printf("[DATABASE] JSON parse error: %s\n", error.c_str());
+    return "";
+  }
 
   JsonArray users = doc["users"];
+  if (users.isNull()) {
+    Serial.println("[DATABASE] Users array is null");
+    return "";
+  }
+  
   for (JsonObject user : users) {
     if (user["username"] == username) {
       String userStr;
@@ -174,12 +198,19 @@ bool deleteUser(String username) {
   String content = readFile(DB_FILE_PATH);
   if (content == "") return false;
 
+  if (ESP.getFreeHeap() < 25000) {
+    Serial.println("[DATABASE] Low memory in deleteUser");
+    return false;
+  }
+
   DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, content);
 
   if (error) return false;
 
   JsonArray users = doc["users"];
+  if (users.isNull()) return false;
+  
   for (int i = 0; i < (int)users.size(); i++) {
     if (users[i]["username"] == username) {
       users.remove(i);
@@ -202,12 +233,19 @@ bool updateUser(String username, String newPassword, String newRole) {
   String content = readFile(DB_FILE_PATH);
   if (content == "") return false;
 
+  if (ESP.getFreeHeap() < 25000) {
+    Serial.println("[DATABASE] Low memory in updateUser");
+    return false;
+  }
+
   DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, content);
 
   if (error) return false;
 
   JsonArray users = doc["users"];
+  if (users.isNull()) return false;
+  
   for (JsonObject user : users) {
     if (user["username"] == username) {
       if (newPassword != "") user["password"] = newPassword;
