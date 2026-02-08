@@ -11,7 +11,8 @@
     <div class="nav-brand">
       <h1>⚡ SCADA Control</h1>
     </div>
-    <div class="nav-menu">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">☰</button>
+    <div class="nav-menu" id="nav-menu">
       <a href="/dashboard">Dashboard</a>
       <a href="/sensors">Sensors</a>
       <a href="/actuators">Actuators</a>
@@ -454,7 +455,7 @@
     
     async function testIDOR() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/sensors/TEMP-L1-1/readings?limit=10', {
           headers: { 'Authorization': `Bearer ${token}` }
         });

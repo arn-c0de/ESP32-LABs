@@ -136,6 +136,40 @@ void scanNetworks() {
   }
 }
 
+// Resolve WiFi client IP from DHCP/netif - try multiple methods
+static bool resolveStationIp(const uint8_t *mac, char *ipStr, size_t len) {
+  // Method 1: tcpip_adapter (legacy but widely compatible)
+  // Re-fetch a fresh station list for tcpip_adapter
+  wifi_sta_list_t freshList = {0};
+  esp_wifi_ap_get_sta_list(&freshList);
+  tcpip_adapter_sta_list_t tcpList = {0};
+  if (tcpip_adapter_get_sta_list(&freshList, &tcpList) == ESP_OK) {
+    for (int i = 0; i < tcpList.num; i++) {
+      if (memcmp(tcpList.sta[i].mac, mac, 6) == 0 && tcpList.sta[i].ip.addr != 0) {
+        uint32_t ip = tcpList.sta[i].ip.addr;
+        snprintf(ipStr, len, "%d.%d.%d.%d",
+                 ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24) & 0xFF);
+        return true;
+      }
+    }
+  }
+
+  // Method 2: esp_netif (newer API)
+  esp_netif_sta_list_t netifList = {0};
+  if (esp_netif_get_sta_list(&freshList, &netifList) == ESP_OK) {
+    for (int i = 0; i < netifList.num; i++) {
+      if (memcmp(netifList.sta[i].mac, mac, 6) == 0 && netifList.sta[i].ip.addr != 0) {
+        uint32_t ip = netifList.sta[i].ip.addr;
+        snprintf(ipStr, len, "%d.%d.%d.%d",
+                 ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24) & 0xFF);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // WiFi Client Tracking (for AP mode)
 void trackConnectedClients() {
   if (!STATION_MODE) {  // Only track in AP mode
@@ -144,30 +178,27 @@ void trackConnectedClients() {
       wifi_sta_list_t stationList = {0};
       esp_wifi_ap_get_sta_list(&stationList);
 
-      // Get actual DHCP-assigned IPs via esp_netif
-      esp_netif_sta_list_t netifStaList = {0};
-      esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-      bool hasNetifList = false;
-      if (ap_netif) {
-        hasNetifList = (esp_netif_get_sta_list(&stationList, &netifStaList) == ESP_OK);
-      }
+      for (int i = 0; i < (int)stationList.num; i++) {
+        uint8_t *mac = stationList.sta[i].mac;
 
-      int count = hasNetifList ? netifStaList.num : stationList.num;
-      for (int i = 0; i < count; i++) {
-        // Get MAC from the appropriate list
-        uint8_t *mac = hasNetifList ? netifStaList.sta[i].mac : stationList.sta[i].mac;
+        // Format MAC to string for comparison with stored entries
+        char macStr[18];
+        snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-        // Check if client is already recorded
+        // Check if client is already recorded (compare formatted MAC strings)
         bool found = false;
         for (int j = 0; j < wifiClientCount; j++) {
-          if (memcmp(wifiClients[j].mac, mac, 6) == 0) {
-            // Update lastSeen and refresh IP (DHCP may reassign)
+          if (strcmp(wifiClients[j].mac, macStr) == 0) {
             wifiClients[j].lastSeen = millis();
-            if (hasNetifList) {
+            // Try to resolve IP if still unknown
+            if (strcmp(wifiClients[j].ip, "resolving") == 0) {
               char ipStr[16];
-              esp_ip4addr_ntoa(&netifStaList.sta[i].ip, ipStr, sizeof(ipStr));
-              strncpy(wifiClients[j].ip, ipStr, 15);
-              wifiClients[j].ip[15] = '\0';
+              if (resolveStationIp(mac, ipStr, sizeof(ipStr))) {
+                strncpy(wifiClients[j].ip, ipStr, 15);
+                wifiClients[j].ip[15] = '\0';
+                Serial.printf("[WIFI] Resolved client %s -> %s\n", macStr, ipStr);
+              }
             }
             found = true;
             break;
@@ -175,27 +206,45 @@ void trackConnectedClients() {
         }
 
         if (!found && wifiClientCount < MAX_WIFI_CLIENTS) {
-          // Get real IP from DHCP lease table
-          if (hasNetifList) {
-            char ipStr[16];
-            esp_ip4addr_ntoa(&netifStaList.sta[i].ip, ipStr, sizeof(ipStr));
-            strncpy(wifiClients[wifiClientCount].ip, ipStr, 15);
-            wifiClients[wifiClientCount].ip[15] = '\0';
-          } else {
-            snprintf(wifiClients[wifiClientCount].ip, 16, "0.0.0.0");
-          }
+          // Try to resolve IP
+          char ipStr[16] = "resolving";
+          resolveStationIp(mac, ipStr, sizeof(ipStr));
 
-          snprintf(wifiClients[wifiClientCount].mac, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
-                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+          strncpy(wifiClients[wifiClientCount].ip, ipStr, 15);
+          wifiClients[wifiClientCount].ip[15] = '\0';
+          strncpy(wifiClients[wifiClientCount].mac, macStr, 17);
+          wifiClients[wifiClientCount].mac[17] = '\0';
           wifiClients[wifiClientCount].connectedTime = millis();
           wifiClients[wifiClientCount].lastSeen = millis();
 
-          Serial.printf("[WIFI] New client connected: %s (%s)\n",
-                        wifiClients[wifiClientCount].mac,
-                        wifiClients[wifiClientCount].ip);
+          Serial.printf("[WIFI] New client connected: %s (%s)\n", macStr, ipStr);
 
           wifiClientCount++;
         }
+      }
+    }
+  }
+}
+
+// Called from HTTP request handlers to update WiFi client IP from actual traffic
+void updateWifiClientIpFromRequest(const String &ip) {
+  if (STATION_MODE || ip.length() == 0) return;
+  // Only update clients that still show "resolving"
+  for (int i = 0; i < wifiClientCount; i++) {
+    if (strcmp(wifiClients[i].ip, "resolving") == 0) {
+      // Check if this IP is already assigned to another client
+      bool ipTaken = false;
+      for (int j = 0; j < wifiClientCount; j++) {
+        if (j != i && strcmp(wifiClients[j].ip, ip.c_str()) == 0) {
+          ipTaken = true;
+          break;
+        }
+      }
+      if (!ipTaken) {
+        strncpy(wifiClients[i].ip, ip.c_str(), 15);
+        wifiClients[i].ip[15] = '\0';
+        Serial.printf("[WIFI] Resolved client %s -> %s (from HTTP)\n", wifiClients[i].mac, ip.c_str());
+        return;
       }
     }
   }

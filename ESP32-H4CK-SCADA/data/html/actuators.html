@@ -28,21 +28,23 @@
     .last-updated {
       padding: 4px 10px;
       border-radius: 999px;
-      background: var(--border-light);
+      background: var(--panel);
       color: var(--text-muted);
       font-weight: 600;
+      border: 1px solid var(--border);
     }
     .pending-badge {
       display: inline-block;
       margin-left: 8px;
       padding: 2px 8px;
       border-radius: 999px;
-      background: #e0f2fe;
-      color: #0369a1;
+      background: rgba(34,211,238,.12);
+      color: #7dd3fc;
       font-size: 0.75em;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.3px;
+      border: 1px solid rgba(34,211,238,.35);
     }
     .actuator-meta {
       margin-top: 8px;
@@ -59,8 +61,8 @@
       flex-wrap: wrap;
     }
     .sensor-tag {
-      background: #f1f5f9;
-      color: #0f172a;
+      background: var(--panel);
+      color: var(--text);
       border-radius: 999px;
       padding: 2px 8px;
       font-size: .75em;
@@ -83,7 +85,8 @@
     <div class="nav-brand">
       <h1>⚡ SCADA Control</h1>
     </div>
-    <div class="nav-menu">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">☰</button>
+    <div class="nav-menu" id="nav-menu">
       <a href="/dashboard">Dashboard</a>
       <a href="/sensors">Sensors</a>
       <a href="/actuators" class="active">Actuators</a>
@@ -141,11 +144,17 @@
     
     async function loadActuators() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         
         const [actRes, sensRes] = await Promise.all([
-          fetch('/api/actuators', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/sensors', { headers: { 'Authorization': `Bearer ${token}` } })
+          fetch('/api/actuators', { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
+          }),
+          fetch('/api/sensors', { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
+          })
         ]);
         
         if (!actRes.ok) {
@@ -232,7 +241,7 @@
       pendingCommands.add(actuatorId);
       renderActuators();
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         if (!token) {
           alert('No authentication token found — please log in');
           return;
@@ -300,7 +309,7 @@
       }
       
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/repair-requests/create', {
           method: 'POST',
           headers: {

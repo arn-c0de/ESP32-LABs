@@ -11,8 +11,8 @@
     .login-box { animation: fadeIn 0.6s ease-out; }
     .logo h1 { background: linear-gradient(135deg, #1e3a8a, #0891b2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2em; margin-bottom: 8px; }
     .system-status-indicator { display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 50%; margin-right: 6px; animation: pulse 2s ease-in-out infinite; }
-    .security-warning { background: linear-gradient(135deg, #fef3c7, #fed7aa); border: 2px solid #f59e0b; border-radius: 10px; padding: 14px; margin-top: 16px; }
-    .security-warning p { margin: 4px 0; color: #92400e; font-size: .9em; }
+    .security-warning { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.35); border-radius: 10px; padding: 14px; margin-top: 16px; }
+    .security-warning p { margin: 4px 0; color: #f5d08a; font-size: .9em; }
     .feature-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; font-size: .85em; }
     .feature-item { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
   </style>
@@ -146,7 +146,7 @@
 
     // Safer auto-redirect if already logged in
     if (
-      localStorage.getItem('jwt_token') &&
+      getAuthToken() &&
       (location.pathname === '/' ||
        location.pathname === '/index.html' ||
        location.pathname === '/login')

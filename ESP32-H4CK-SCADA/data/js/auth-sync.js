@@ -20,19 +20,53 @@
 })();
 
 // Global auth helpers
+
+// Get auth token with fallback from localStorage -> cookies
+// Critical for mobile browsers where localStorage may fail
+function getAuthToken() {
+    // Try localStorage first
+    let token = localStorage.getItem('jwt_token');
+    if (token) return token;
+    
+    // Fallback: read from cookie (for mobile browsers)
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'auth_token') {
+            token = value;
+            // Cache it in localStorage for next time
+            try { 
+                localStorage.setItem('jwt_token', token);
+                console.log('[AUTH-SYNC] Retrieved token from cookie fallback');
+            } catch(e) {
+                console.warn('[AUTH-SYNC] localStorage unavailable:', e);
+            }
+            return token;
+        }
+    }
+    
+    console.error('[AUTH-SYNC] No authentication token found in localStorage or cookies');
+    return null;
+}
+
 function requireAuth() {
-    const token = localStorage.getItem('jwt_token');
+    const token = getAuthToken();
     if (!token) {
+        console.warn('[AUTH-SYNC] No auth token found, redirecting to login');
         window.location.href = '/';
     }
 }
 
 function logout() {
+    const token = getAuthToken();
     fetch('/api/logout', {
         method: 'GET',
-        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('jwt_token') }
+        headers: { 'Authorization': 'Bearer ' + (token || '') }
     }).finally(function() {
         localStorage.clear();
+        // Also clear auth cookies
+        document.cookie = 'auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
         window.location.href = '/';
     });
 }

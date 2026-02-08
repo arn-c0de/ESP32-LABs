@@ -20,9 +20,9 @@
       margin-top: 1.2rem;
     }
     .sensor-card {
-      background: #fff;
+      background: var(--card);
       border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.3);
       padding: 0.9rem;
       cursor: pointer;
       transition: box-shadow 0.2s;
@@ -59,7 +59,7 @@
     }
     .threshold-bar {
       height: 6px;
-      background: #e5e7eb;
+      background: #0b121a;
       border-radius: 4px;
       overflow: hidden;
       margin-bottom: 0.15rem;
@@ -94,8 +94,8 @@
       justify-content: center;
     }
     .sensor-tag {
-      background: #f1f5f9;
-      color: #0f172a;
+      background: var(--panel);
+      color: var(--text);
       border-radius: 999px;
       padding: 2px 8px;
       font-size: .72em;
@@ -164,7 +164,8 @@
     <div class="nav-brand">
       <h1>⚡ SCADA Control</h1>
     </div>
-    <div class="nav-menu">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">☰</button>
+    <div class="nav-menu" id="nav-menu">
       <a href="/dashboard">Dashboard</a>
       <a href="/sensors" class="active">Sensors</a>
       <a href="/actuators">Actuators</a>
@@ -277,9 +278,10 @@
       if (sensorsLoading) return;
       sensorsLoading = true;
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const response = await fetch('/api/sensors', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
         });
         if (!response.ok) {
           if (response.status === 401) {
@@ -429,7 +431,7 @@
       // Pause polling while modal is open
       clearInterval(updateInterval);
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
 
         const response = await fetch(`/api/sensors/${sensor.id}/readings?limit=30`, {
           headers: { 'Authorization': `Bearer ${token}` },
@@ -567,7 +569,7 @@
 
     async function toggleSensor(sensorId, enable) {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         console.log('[SENSORS] toggleSensor token length:', token ? token.length : 0);
         if (!token) {
           showToast('No authentication token found — please log in', 'error');
@@ -649,7 +651,7 @@
 
         if (!confirm('Reset fault for ' + sensorId + '? This clears the fault flag and leaves the sensor disabled.')) return;
 
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         if (!token) { showToast('No authentication token found — please log in', 'error'); return; }
 
         const response = await fetch('/api/sensors/reset', {

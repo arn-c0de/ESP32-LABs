@@ -53,7 +53,8 @@
     <div class="nav-brand">
       <h1>⚡ SCADA Control</h1>
     </div>
-    <div class="nav-menu">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-menu">☰</button>
+    <div class="nav-menu" id="nav-menu">
       <a href="/dashboard" class="active">Dashboard</a>
       <a href="/sensors">Sensors</a>
       <a href="/actuators">Actuators</a>
@@ -181,6 +182,11 @@
     
     // Initialize OEE Chart
     function initCharts() {
+      if (!window.Chart) {
+        console.warn('[Dashboard] Chart.js not loaded, skipping charts');
+        addEvent('Chart library not loaded - continuing without charts', 'warning');
+        return;
+      }
       const ctx = document.getElementById('oeeChart').getContext('2d');
       oeeChart = new Chart(ctx, {
         type: 'line',
@@ -232,6 +238,7 @@
     }
     
     function updateChart(data) {
+      if (!oeeChart) return;
       const now = new Date();
       const timeLabel = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
       
@@ -267,10 +274,17 @@
     
     async function loadDashboard() {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
+        if (!token) {
+          console.error('[Dashboard] No authentication token found');
+          addEvent('Authentication token missing - please log in again', 'error');
+          setTimeout(() => logout(), 2000);
+          return;
+        }
         
         const response = await fetch('/api/dashboard/status', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
         });
         
         if (!response.ok) {
@@ -405,7 +419,13 @@
         
       } catch (error) {
         console.error('Dashboard error:', error);
-        addEvent('Failed to update dashboard data', 'error');
+        addEvent(`Failed to update dashboard: ${error.message}`, 'error');
+        
+        // Show visible error on page
+        const systemStatus = document.getElementById('system-status');
+        if (systemStatus) {
+          systemStatus.innerHTML = '<span class="status-badge status-fault">● CONNECTION ERROR</span><span>Unable to load data</span>';
+        }
       }
     }
     
@@ -420,9 +440,10 @@
 
     async function updateLastAlert(uptimeSeconds) {
       try {
-        const token = localStorage.getItem('jwt_token');
+        const token = getAuthToken();
         const res = await fetch('/api/alarms?line=0&limit=1', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
         });
         if (!res.ok) return;
         const alarms = await res.json();
@@ -450,7 +471,12 @@
     }
     
     // Initialize
-    initCharts();
+    try {
+      initCharts();
+    } catch (e) {
+      console.error('[Dashboard] Chart init failed:', e);
+      addEvent('Chart initialization failed - continuing without charts', 'warning');
+    }
     addEvent('Dashboard initialized', 'info');
     loadDashboard();
     
